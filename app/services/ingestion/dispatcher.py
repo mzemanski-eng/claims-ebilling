@@ -8,7 +8,7 @@ from app.services.ingestion.pdf_parser import PDFParser
 
 _PARSERS: dict[str, BaseParser] = {
     "csv": CSVParser(),
-    "pdf": PDFParser(),   # Stubbed — raises NotImplementedError until v2
+    "pdf": PDFParser(),  # Stubbed — raises NotImplementedError until v2
 }
 
 
@@ -36,8 +36,8 @@ def detect_format(filename: str) -> str:
     elif ext in ("xlsx", "xls"):
         # Future: wire up an Excel parser
         raise ParseError(
-            f"Excel files (.xlsx/.xls) are not yet supported. "
-            f"Please export your invoice as CSV."
+            "Excel files (.xlsx/.xls) are not yet supported. "
+            "Please export your invoice as CSV."
         )
     else:
         raise ParseError(

@@ -22,12 +22,13 @@ class RawLineItem:
     dates to date objects, strings stripped — but no classification
     or validation has occurred yet.
     """
+
     line_number: int
     raw_description: str
     raw_amount: Decimal
     raw_quantity: Decimal
     raw_unit: Optional[str]
-    raw_code: Optional[str]          # Supplier's own billing code, if present
+    raw_code: Optional[str]  # Supplier's own billing code, if present
     claim_number: Optional[str]
     service_date: Optional[date]
     extraction_notes: list[str] = field(default_factory=list)  # Parser warnings
@@ -36,15 +37,17 @@ class RawLineItem:
 @dataclass
 class ParseResult:
     """Result of parsing a single file."""
+
     line_items: list[RawLineItem]
-    raw_text: str                    # Full extracted text (for RawExtractionArtifact)
-    extraction_method: str           # "csv" | "pdfplumber" | etc.
+    raw_text: str  # Full extracted text (for RawExtractionArtifact)
+    extraction_method: str  # "csv" | "pdfplumber" | etc.
     warnings: list[str] = field(default_factory=list)
     page_count: Optional[int] = None  # PDF only
 
 
 class ParseError(Exception):
     """Raised when a file cannot be parsed (bad format, encoding error, etc.)."""
+
     pass
 
 
@@ -80,9 +83,11 @@ class BaseParser(abc.ABC):
         if isinstance(value, Decimal):
             return value
         try:
-            cleaned = str(value).strip().replace(",", "").replace("$", "").replace(" ", "")
+            cleaned = (
+                str(value).strip().replace(",", "").replace("$", "").replace(" ", "")
+            )
             if not cleaned:
-                raise ParseError(f"Cannot convert empty value to Decimal")
+                raise ParseError("Cannot convert empty value to Decimal")
             return Decimal(cleaned)
         except InvalidOperation:
             raise ParseError(f"Cannot convert {value!r} to a monetary Decimal")
@@ -95,6 +100,7 @@ class BaseParser(abc.ABC):
         if isinstance(value, date):
             return value
         from dateutil import parser as date_parser
+
         try:
             return date_parser.parse(str(value)).date()
         except (ValueError, OverflowError):

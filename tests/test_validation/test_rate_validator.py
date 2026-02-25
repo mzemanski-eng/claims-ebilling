@@ -39,17 +39,23 @@ def base_line_item(sample_invoice, db):
 
 
 class TestRateValidatorHappyPath:
-    def test_exact_match_passes(self, validator, base_line_item, sample_contract, sample_rate_cards):
+    def test_exact_match_passes(
+        self, validator, base_line_item, sample_contract, sample_rate_cards
+    ):
         results = validator.validate(base_line_item, sample_contract)
         pass_results = [r for r in results if r.status == ValidationStatus.PASS]
         assert len(pass_results) >= 1
 
-    def test_expected_value_set(self, validator, base_line_item, sample_contract, sample_rate_cards):
+    def test_expected_value_set(
+        self, validator, base_line_item, sample_contract, sample_rate_cards
+    ):
         results = validator.validate(base_line_item, sample_contract)
         pass_result = next(r for r in results if r.status == ValidationStatus.PASS)
         assert pass_result.expected_value == "$600.00"
 
-    def test_mileage_calculation(self, validator, sample_invoice, sample_contract, sample_rate_cards, db):
+    def test_mileage_calculation(
+        self, validator, sample_invoice, sample_contract, sample_rate_cards, db
+    ):
         """47 miles × $0.67 = $31.49; billing $28.20 should be underbilled warning."""
         mileage_line = LineItem(
             invoice_id=sample_invoice.id,
@@ -67,11 +73,16 @@ class TestRateValidatorHappyPath:
         db.flush()
         results = validator.validate(mileage_line, sample_contract)
         # 47 × 0.67 = 31.49; billed 28.20 — underbilled (WARNING)
-        assert any(r.status in (ValidationStatus.WARNING, ValidationStatus.PASS) for r in results)
+        assert any(
+            r.status in (ValidationStatus.WARNING, ValidationStatus.PASS)
+            for r in results
+        )
 
 
 class TestRateValidatorFailures:
-    def test_overbill_fails(self, validator, sample_invoice, sample_contract, sample_rate_cards, db):
+    def test_overbill_fails(
+        self, validator, sample_invoice, sample_contract, sample_rate_cards, db
+    ):
         """$725 billed vs $600 contracted — should FAIL."""
         li = LineItem(
             invoice_id=sample_invoice.id,
@@ -94,7 +105,9 @@ class TestRateValidatorFailures:
         assert "600" in fail_results[0].expected_value
         assert "ACCEPT_REDUCTION" in fail_results[0].required_action
 
-    def test_no_taxonomy_code_fails(self, validator, sample_invoice, sample_contract, sample_rate_cards, db):
+    def test_no_taxonomy_code_fails(
+        self, validator, sample_invoice, sample_contract, sample_rate_cards, db
+    ):
         """Line without taxonomy code cannot be rate-validated."""
         li = LineItem(
             invoice_id=sample_invoice.id,
@@ -159,10 +172,16 @@ class TestRateValidatorFailures:
         db.add(li)
         db.flush()
         results = validator.validate(li, sample_contract)
-        max_unit_fails = [r for r in results if "maximum" in r.message.lower() and r.status == ValidationStatus.FAIL]
+        max_unit_fails = [
+            r
+            for r in results
+            if "maximum" in r.message.lower() and r.status == ValidationStatus.FAIL
+        ]
         assert len(max_unit_fails) == 1
 
-    def test_bundling_violation_flagged(self, validator, sample_invoice, sample_contract, db):
+    def test_bundling_violation_flagged(
+        self, validator, sample_invoice, sample_contract, db
+    ):
         """All-inclusive rate card + separate mileage line = bundling violation."""
         rc = RateCard(
             contract_id=sample_contract.id,

@@ -16,7 +16,6 @@ import csv
 import io
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
@@ -27,22 +26,32 @@ from app.models.invoice import Invoice, LineItem, SubmissionStatus, LineItemStat
 from app.models.mapping import MappingRule, MatchType, ConfirmedBy
 from app.models.supplier import User, UserRole
 from app.models.validation import (
-    ExceptionRecord, ExceptionStatus, ResolutionAction, ValidationStatus,
+    ExceptionRecord,
+    ExceptionStatus,
+    ResolutionAction,
 )
-from app.routers.auth import get_current_user, require_role
+from app.routers.auth import require_role
 from app.schemas.invoice import (
-    ApprovalRequest, ExportResponse, LineItemCarrierView,
-    InvoiceResponse, InvoiceListItem, MappingOverrideRequest,
-    ValidationResultSupplierView, ExceptionSupplierView,
+    ApprovalRequest,
+    LineItemCarrierView,
+    InvoiceListItem,
+    MappingOverrideRequest,
+    ValidationResultSupplierView,
+    ExceptionSupplierView,
 )
 from app.services.audit import logger as audit
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-_CARRIER_ROLES = (UserRole.CARRIER_ADMIN, UserRole.CARRIER_REVIEWER, UserRole.SYSTEM_ADMIN)
+_CARRIER_ROLES = (
+    UserRole.CARRIER_ADMIN,
+    UserRole.CARRIER_REVIEWER,
+    UserRole.SYSTEM_ADMIN,
+)
 
 
 # ── Invoice Queue ─────────────────────────────────────────────────────────────
+
 
 @router.get("/invoices", response_model=list[InvoiceListItem])
 def list_pending_invoices(
@@ -65,6 +74,7 @@ def list_pending_invoices(
 
 # ── Invoice Detail (carrier view) ─────────────────────────────────────────────
 
+
 @router.get("/invoices/{invoice_id}/lines", response_model=list[LineItemCarrierView])
 def get_line_items_carrier(
     invoice_id: uuid.UUID,
@@ -78,11 +88,14 @@ def get_line_items_carrier(
 
 # ── Mapping Override ──────────────────────────────────────────────────────────
 
+
 @router.post("/mappings/override", status_code=status.HTTP_200_OK)
 def override_mapping(
     payload: MappingOverrideRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
 ) -> dict:
     """
     Carrier admin corrects the taxonomy classification for a line item.
@@ -160,6 +173,7 @@ def override_mapping(
 
 # ── Mapping Review Queue ──────────────────────────────────────────────────────
 
+
 @router.get("/mappings/review-queue")
 def get_mapping_review_queue(
     db: Session = Depends(get_db),
@@ -194,21 +208,26 @@ def get_mapping_review_queue(
 
 # ── Exception Resolution ──────────────────────────────────────────────────────
 
+
 @router.post("/exceptions/{exception_id}/resolve")
 def resolve_exception(
     exception_id: uuid.UUID,
     resolution_action: str,
     resolution_notes: str = "",
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
 ) -> dict:
     """
     Carrier resolves an exception.
     resolution_action: WAIVED | HELD_CONTRACT_RATE | RECLASSIFIED | ACCEPTED_REDUCTION
     """
     valid_actions = {
-        ResolutionAction.WAIVED, ResolutionAction.HELD_CONTRACT_RATE,
-        ResolutionAction.RECLASSIFIED, ResolutionAction.ACCEPTED_REDUCTION,
+        ResolutionAction.WAIVED,
+        ResolutionAction.HELD_CONTRACT_RATE,
+        ResolutionAction.RECLASSIFIED,
+        ResolutionAction.ACCEPTED_REDUCTION,
     }
     if resolution_action not in valid_actions:
         raise HTTPException(
@@ -234,12 +253,15 @@ def resolve_exception(
 
 # ── Approve Invoice ───────────────────────────────────────────────────────────
 
+
 @router.post("/invoices/{invoice_id}/approve")
 def approve_invoice(
     invoice_id: uuid.UUID,
     payload: ApprovalRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
 ) -> dict:
     """
     Approve an invoice (or specific line items).
@@ -248,7 +270,8 @@ def approve_invoice(
     invoice = _get_invoice(invoice_id, db)
 
     if invoice.status not in (
-        SubmissionStatus.PENDING_CARRIER_REVIEW, SubmissionStatus.CARRIER_REVIEWING
+        SubmissionStatus.PENDING_CARRIER_REVIEW,
+        SubmissionStatus.CARRIER_REVIEWING,
     ):
         raise HTTPException(
             status_code=409,
@@ -259,7 +282,11 @@ def approve_invoice(
     line_ids = set(payload.line_item_ids) if payload.line_item_ids else None
     for li in invoice.line_items:
         if line_ids is None or li.id in line_ids:
-            if li.status in (LineItemStatus.VALIDATED, LineItemStatus.OVERRIDE, LineItemStatus.RESOLVED):
+            if li.status in (
+                LineItemStatus.VALIDATED,
+                LineItemStatus.OVERRIDE,
+                LineItemStatus.RESOLVED,
+            ):
                 li.status = LineItemStatus.APPROVED
 
     old_status = invoice.status
@@ -267,8 +294,12 @@ def approve_invoice(
     db.flush()
 
     audit.log_invoice_status_changed(
-        db, invoice, from_status=old_status, to_status=SubmissionStatus.APPROVED,
-        actor_type=ActorType.CARRIER, actor_id=current_user.id,
+        db,
+        invoice,
+        from_status=old_status,
+        to_status=SubmissionStatus.APPROVED,
+        actor_type=ActorType.CARRIER,
+        actor_id=current_user.id,
     )
     db.commit()
 
@@ -276,6 +307,7 @@ def approve_invoice(
 
 
 # ── Export ────────────────────────────────────────────────────────────────────
+
 
 @router.get("/invoices/{invoice_id}/export")
 def export_invoice(
@@ -303,32 +335,48 @@ def export_invoice(
 
     # ── Build CSV ─────────────────────────────────────────────────────────────
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=[
-        "invoice_number", "claim_number", "service_date",
-        "description", "taxonomy_code", "billing_component",
-        "quantity", "unit", "billed_amount", "approved_amount",
-    ])
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "invoice_number",
+            "claim_number",
+            "service_date",
+            "description",
+            "taxonomy_code",
+            "billing_component",
+            "quantity",
+            "unit",
+            "billed_amount",
+            "approved_amount",
+        ],
+    )
     writer.writeheader()
     for li in approved_lines:
-        writer.writerow({
-            "invoice_number": invoice.invoice_number,
-            "claim_number": li.claim_number or "",
-            "service_date": li.service_date.isoformat() if li.service_date else "",
-            "description": li.raw_description,
-            "taxonomy_code": li.taxonomy_code or "",
-            "billing_component": li.billing_component or "",
-            "quantity": str(li.raw_quantity),
-            "unit": li.raw_unit or "",
-            "billed_amount": str(li.raw_amount),
-            "approved_amount": str(li.expected_amount or li.raw_amount),
-        })
+        writer.writerow(
+            {
+                "invoice_number": invoice.invoice_number,
+                "claim_number": li.claim_number or "",
+                "service_date": li.service_date.isoformat() if li.service_date else "",
+                "description": li.raw_description,
+                "taxonomy_code": li.taxonomy_code or "",
+                "billing_component": li.billing_component or "",
+                "quantity": str(li.raw_quantity),
+                "unit": li.raw_unit or "",
+                "billed_amount": str(li.raw_amount),
+                "approved_amount": str(li.expected_amount or li.raw_amount),
+            }
+        )
 
     # ── Set invoice to EXPORTED (terminal) ────────────────────────────────────
     old_status = invoice.status
     invoice.status = SubmissionStatus.EXPORTED
     audit.log_invoice_status_changed(
-        db, invoice, from_status=old_status, to_status=SubmissionStatus.EXPORTED,
-        actor_type=ActorType.CARRIER, actor_id=current_user.id,
+        db,
+        invoice,
+        from_status=old_status,
+        to_status=SubmissionStatus.EXPORTED,
+        actor_type=ActorType.CARRIER,
+        actor_id=current_user.id,
     )
     db.commit()
 
@@ -344,6 +392,7 @@ def export_invoice(
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 
+
 def _get_invoice(invoice_id: uuid.UUID, db: Session) -> Invoice:
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
@@ -352,9 +401,12 @@ def _get_invoice(invoice_id: uuid.UUID, db: Session) -> Invoice:
 
 
 def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
-    total_billed = sum(li.raw_amount for li in invoice.line_items) if invoice.line_items else None
+    total_billed = (
+        sum(li.raw_amount for li in invoice.line_items) if invoice.line_items else None
+    )
     exc_count = sum(
-        1 for li in invoice.line_items
+        1
+        for li in invoice.line_items
         for exc in li.exceptions
         if exc.status == ExceptionStatus.OPEN
     )
@@ -372,6 +424,7 @@ def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
 
 def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView:
     from app.models.taxonomy import TaxonomyItem
+
     taxonomy_label = None
     if li.taxonomy_code:
         item = db.get(TaxonomyItem, li.taxonomy_code)
@@ -393,8 +446,12 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
             exception_id=exc.id,
             status=exc.status,
             message=exc.validation_result.message if exc.validation_result else "",
-            severity=exc.validation_result.severity if exc.validation_result else "ERROR",
-            required_action=exc.validation_result.required_action if exc.validation_result else "NONE",
+            severity=exc.validation_result.severity
+            if exc.validation_result
+            else "ERROR",
+            required_action=exc.validation_result.required_action
+            if exc.validation_result
+            else "NONE",
             supplier_response=exc.supplier_response,
         )
         for exc in li.exceptions

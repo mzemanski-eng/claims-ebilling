@@ -16,11 +16,9 @@ Domains:
 """
 
 TAXONOMY: list[dict] = [
-
     # ══════════════════════════════════════════════════════════════════════════
     # IME — Independent Medical Examination
     # ══════════════════════════════════════════════════════════════════════════
-
     {
         "code": "IME.PHY_EXAM.PROF_FEE",
         "domain": "IME",
@@ -132,11 +130,9 @@ TAXONOMY: list[dict] = [
         "label": "IME Administrative / Scheduling Fee",
         "description": "Administrative fee for IME scheduling and coordination services.",
     },
-
     # ══════════════════════════════════════════════════════════════════════════
     # ENG — Engineering & Forensic Services
     # ══════════════════════════════════════════════════════════════════════════
-
     {
         "code": "ENG.PROPERTY_INSPECT.PROF_FEE",
         "domain": "ENG",
@@ -218,11 +214,9 @@ TAXONOMY: list[dict] = [
         "label": "Engineering Expert Testimony / Deposition — Professional Fee",
         "description": "Hourly fee for deposition or trial testimony by engineering expert.",
     },
-
     # ══════════════════════════════════════════════════════════════════════════
     # IA — Independent Adjusting
     # ══════════════════════════════════════════════════════════════════════════
-
     {
         "code": "IA.FIELD_ASSIGN.PROF_FEE",
         "domain": "IA",
@@ -313,11 +307,9 @@ TAXONOMY: list[dict] = [
         "label": "Independent Adjusting Administrative / File Open Fee",
         "description": "One-time administrative fee for opening and setting up a new claim file.",
     },
-
     # ══════════════════════════════════════════════════════════════════════════
     # INV — Investigation & Surveillance
     # ══════════════════════════════════════════════════════════════════════════
-
     {
         "code": "INV.SURVEILLANCE.PROF_FEE",
         "domain": "INV",
@@ -381,11 +373,9 @@ TAXONOMY: list[dict] = [
         "label": "Investigation Skip Trace — Professional Fee",
         "description": "Fee for locating a claimant or witness whose address is unknown.",
     },
-
     # ══════════════════════════════════════════════════════════════════════════
     # REC — Record Retrieval & Management
     # ══════════════════════════════════════════════════════════════════════════
-
     {
         "code": "REC.MED_RECORDS.RETRIEVAL_FEE",
         "domain": "REC",
@@ -458,11 +448,9 @@ TAXONOMY: list[dict] = [
         "label": "Record Retrieval Administrative / Processing Fee",
         "description": "Administrative processing fee for record retrieval management.",
     },
-
     # ══════════════════════════════════════════════════════════════════════════
     # XDOMAIN — Cross-Domain (Pass-Through, Misc Admin)
     # ══════════════════════════════════════════════════════════════════════════
-
     {
         "code": "XDOMAIN.PASS_THROUGH.THIRD_PARTY_COST",
         "domain": "XDOMAIN",

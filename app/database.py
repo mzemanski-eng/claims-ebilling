@@ -13,7 +13,7 @@ Usage in RQ worker jobs (synchronous):
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.settings import settings
@@ -26,7 +26,7 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
-    echo=settings.is_development,   # log SQL in dev only
+    echo=settings.is_development,  # log SQL in dev only
 )
 
 SessionLocal = sessionmaker(

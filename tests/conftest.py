@@ -9,14 +9,16 @@ so the DB is always clean without needing to truncate tables.
 import os
 import pytest
 from decimal import Decimal
-from datetime import date, datetime, timezone
+from datetime import date
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 # ── Override settings BEFORE importing app modules ────────────────────────────
-os.environ.setdefault("DATABASE_URL", "postgresql://postgres:test@localhost/claims_ebilling_test")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql://postgres:test@localhost/claims_ebilling_test"
+)
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("ENVIRONMENT", "test")
@@ -77,6 +79,7 @@ def client(db: Session) -> TestClient:
     """
     FastAPI test client with DB dependency overridden to use the test session.
     """
+
     def override_get_db():
         yield db
 
@@ -88,9 +91,11 @@ def client(db: Session) -> TestClient:
 
 # ── Data builder fixtures ──────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def sample_carrier(db: Session):
     from app.models.supplier import Carrier
+
     carrier = Carrier(name="Test Carrier Inc.", short_code="TCI")
     db.add(carrier)
     db.flush()
@@ -100,6 +105,7 @@ def sample_carrier(db: Session):
 @pytest.fixture
 def sample_supplier(db: Session):
     from app.models.supplier import Supplier
+
     supplier = Supplier(name="Test IME Services LLC", tax_id="12-3456789")
     db.add(supplier)
     db.flush()
@@ -109,6 +115,7 @@ def sample_supplier(db: Session):
 @pytest.fixture
 def sample_contract(db: Session, sample_carrier, sample_supplier):
     from app.models.supplier import Contract
+
     contract = Contract(
         supplier_id=sample_supplier.id,
         carrier_id=sample_carrier.id,
@@ -124,6 +131,7 @@ def sample_contract(db: Session, sample_carrier, sample_supplier):
 @pytest.fixture
 def sample_rate_cards(db: Session, sample_contract):
     from app.models.supplier import RateCard
+
     rates = [
         RateCard(
             contract_id=sample_contract.id,
@@ -165,6 +173,7 @@ def sample_rate_cards(db: Session, sample_contract):
 @pytest.fixture
 def sample_invoice(db: Session, sample_supplier, sample_contract):
     from app.models.invoice import Invoice, SubmissionStatus
+
     invoice = Invoice(
         supplier_id=sample_supplier.id,
         contract_id=sample_contract.id,
@@ -181,6 +190,8 @@ def sample_invoice(db: Session, sample_supplier, sample_contract):
 @pytest.fixture
 def sample_csv_bytes() -> bytes:
     """The canonical test fixture CSV — covers all exception types."""
-    path = os.path.join(os.path.dirname(__file__), "..", "fixtures", "sample_invoice_ime.csv")
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "fixtures", "sample_invoice_ime.csv"
+    )
     with open(path, "rb") as f:
         return f.read()

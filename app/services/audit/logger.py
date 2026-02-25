@@ -10,7 +10,7 @@ Design rules enforced here:
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -61,7 +61,10 @@ def log_event(
     except Exception as exc:
         logger.warning(
             "Failed to write audit event %r for %s:%s — %s",
-            event_type, entity_type, entity_id, exc,
+            event_type,
+            entity_type,
+            entity_id,
+            exc,
         )
 
 
@@ -88,9 +91,15 @@ def _safe_payload(payload: dict) -> dict:
 
 # ── Convenience wrappers for common events ────────────────────────────────────
 
-def log_invoice_submitted(db: Session, invoice, actor_id: Optional[uuid.UUID] = None) -> None:
+
+def log_invoice_submitted(
+    db: Session, invoice, actor_id: Optional[uuid.UUID] = None
+) -> None:
     log_event(
-        db, "invoice", invoice.id, "invoice.submitted",
+        db,
+        "invoice",
+        invoice.id,
+        "invoice.submitted",
         payload={
             "invoice_number": invoice.invoice_number,
             "supplier_id": str(invoice.supplier_id),
@@ -112,7 +121,10 @@ def log_invoice_status_changed(
     actor_id: Optional[uuid.UUID] = None,
 ) -> None:
     log_event(
-        db, "invoice", invoice.id, "invoice.status_changed",
+        db,
+        "invoice",
+        invoice.id,
+        "invoice.status_changed",
         payload={
             "from_status": from_status,
             "to_status": to_status,
@@ -125,7 +137,10 @@ def log_invoice_status_changed(
 
 def log_line_item_classified(db: Session, line_item, classification_result) -> None:
     log_event(
-        db, "line_item", line_item.id, "line_item.classified",
+        db,
+        "line_item",
+        line_item.id,
+        "line_item.classified",
         payload={
             "taxonomy_code": line_item.taxonomy_code,
             "billing_component": line_item.billing_component,
@@ -139,7 +154,10 @@ def log_line_item_classified(db: Session, line_item, classification_result) -> N
 
 def log_line_item_exception_opened(db: Session, line_item, validation_result) -> None:
     log_event(
-        db, "line_item", line_item.id, "exception.opened",
+        db,
+        "line_item",
+        line_item.id,
+        "exception.opened",
         payload={
             "validation_type": validation_result.validation_type,
             "status": validation_result.status,
@@ -158,7 +176,10 @@ def log_mapping_overridden(
     actor_id: uuid.UUID,
 ) -> None:
     log_event(
-        db, "mapping_rule", mapping_rule.id, "mapping_rule.overridden",
+        db,
+        "mapping_rule",
+        mapping_rule.id,
+        "mapping_rule.overridden",
         payload={
             "old_taxonomy_code": old_taxonomy_code,
             "new_taxonomy_code": mapping_rule.taxonomy_code,
@@ -178,7 +199,10 @@ def log_exception_resolved(
     actor_type: str = ActorType.CARRIER,
 ) -> None:
     log_event(
-        db, "exception", exception_record.id, "exception.resolved",
+        db,
+        "exception",
+        exception_record.id,
+        "exception.resolved",
         payload={
             "line_item_id": str(exception_record.line_item_id),
             "resolution_action": exception_record.resolution_action,

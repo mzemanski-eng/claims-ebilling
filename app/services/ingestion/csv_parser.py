@@ -28,37 +28,91 @@ logger = logging.getLogger(__name__)
 # canonical_name: [list of accepted header variants] (all lowercased, stripped)
 COLUMN_ALIASES: dict[str, list[str]] = {
     "description": [
-        "description", "service description", "service_description",
-        "line description", "line_description", "desc", "service", "item",
-        "charge description", "charge_description", "billing description",
+        "description",
+        "service description",
+        "service_description",
+        "line description",
+        "line_description",
+        "desc",
+        "service",
+        "item",
+        "charge description",
+        "charge_description",
+        "billing description",
     ],
     "amount": [
-        "amount", "total", "total amount", "billed amount", "billed_amount",
-        "charge", "fee", "invoice amount", "gross amount", "line total",
-        "line_total", "extended amount", "extended_amount",
+        "amount",
+        "total",
+        "total amount",
+        "billed amount",
+        "billed_amount",
+        "charge",
+        "fee",
+        "invoice amount",
+        "gross amount",
+        "line total",
+        "line_total",
+        "extended amount",
+        "extended_amount",
     ],
     "quantity": [
-        "quantity", "qty", "units", "unit quantity", "hours", "count",
-        "num", "number", "volume",
+        "quantity",
+        "qty",
+        "units",
+        "unit quantity",
+        "hours",
+        "count",
+        "num",
+        "number",
+        "volume",
     ],
     "unit": [
-        "unit", "unit type", "unit_type", "uom", "unit of measure",
-        "billing unit", "rate unit",
+        "unit",
+        "unit type",
+        "unit_type",
+        "uom",
+        "unit of measure",
+        "billing unit",
+        "rate unit",
     ],
     "code": [
-        "code", "service code", "service_code", "billing code", "billing_code",
-        "procedure code", "procedure_code", "item code", "charge code",
-        "cpt", "cpt code",
+        "code",
+        "service code",
+        "service_code",
+        "billing code",
+        "billing_code",
+        "procedure code",
+        "procedure_code",
+        "item code",
+        "charge code",
+        "cpt",
+        "cpt code",
     ],
     "claim_number": [
-        "claim number", "claim_number", "claim", "claim no", "claim#",
-        "claimant number", "file number", "file_number", "file no",
-        "ref", "reference", "reference number",
+        "claim number",
+        "claim_number",
+        "claim",
+        "claim no",
+        "claim#",
+        "claimant number",
+        "file number",
+        "file_number",
+        "file no",
+        "ref",
+        "reference",
+        "reference number",
     ],
     "service_date": [
-        "service date", "service_date", "date of service", "dos",
-        "date", "exam date", "inspection date", "visit date",
-        "transaction date", "invoice date",
+        "service date",
+        "service_date",
+        "date of service",
+        "dos",
+        "date",
+        "exam date",
+        "inspection date",
+        "visit date",
+        "transaction date",
+        "invoice date",
     ],
 }
 
@@ -81,7 +135,9 @@ class CSVParser(BaseParser):
                 text = data.decode("latin-1")
                 warnings.append("File decoded as latin-1 (not UTF-8)")
             except UnicodeDecodeError:
-                raise ParseError(f"Cannot decode file {filename!r} — unsupported encoding")
+                raise ParseError(
+                    f"Cannot decode file {filename!r} — unsupported encoding"
+                )
 
         delimiter = "\t" if "\t" in text[:2000] else ","
 
@@ -90,8 +146,8 @@ class CSVParser(BaseParser):
             df = pd.read_csv(
                 io.StringIO(text),
                 delimiter=delimiter,
-                dtype=str,             # Read everything as string; we convert manually
-                keep_default_na=False, # Don't auto-convert '' to NaN
+                dtype=str,  # Read everything as string; we convert manually
+                keep_default_na=False,  # Don't auto-convert '' to NaN
                 skip_blank_lines=True,
             )
         except Exception as exc:
@@ -114,13 +170,19 @@ class CSVParser(BaseParser):
 
             try:
                 raw_amount = self._get_decimal(row, col_map, "amount", row_number)
-                raw_description = self._get_str(row, col_map, "description") or f"(no description - row {row_number})"
+                raw_description = (
+                    self._get_str(row, col_map, "description")
+                    or f"(no description - row {row_number})"
+                )
 
                 item = RawLineItem(
-                    line_number=row_number - 1,  # 1-based line number (excluding header)
+                    line_number=row_number
+                    - 1,  # 1-based line number (excluding header)
                     raw_description=raw_description,
                     raw_amount=raw_amount,
-                    raw_quantity=self._get_decimal(row, col_map, "quantity", row_number, default=Decimal("1")),
+                    raw_quantity=self._get_decimal(
+                        row, col_map, "quantity", row_number, default=Decimal("1")
+                    ),
                     raw_unit=self._get_str(row, col_map, "unit"),
                     raw_code=self._get_str(row, col_map, "code"),
                     claim_number=self._get_str(row, col_map, "claim_number"),
@@ -137,7 +199,9 @@ class CSVParser(BaseParser):
         if not line_items:
             raise ParseError(f"No valid line items found in {filename!r}")
 
-        logger.info("CSVParser: parsed %d line items from %s", len(line_items), filename)
+        logger.info(
+            "CSVParser: parsed %d line items from %s", len(line_items), filename
+        )
 
         return ParseResult(
             line_items=line_items,

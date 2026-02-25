@@ -22,36 +22,39 @@ class TaxonomyItem(Base, TimestampMixin):
 
     # ── Hierarchy ───────────────────────────────────────────────────────────
     domain: Mapped[str] = mapped_column(
-        String(16), nullable=False, index=True,
-        comment="Top-level domain: IME | ENG | IA | INV | REC | XDOMAIN"
+        String(16),
+        nullable=False,
+        index=True,
+        comment="Top-level domain: IME | ENG | IA | INV | REC | XDOMAIN",
     )
     service_item: Mapped[str] = mapped_column(
-        String(32), nullable=False,
-        comment="e.g. PHY_EXAM, CAUSE_ORIGIN, FIELD_ASSIGN"
+        String(32), nullable=False, comment="e.g. PHY_EXAM, CAUSE_ORIGIN, FIELD_ASSIGN"
     )
     billing_component: Mapped[str] = mapped_column(
-        String(32), nullable=False,
-        comment="e.g. PROF_FEE, MILEAGE, TRAVEL_LODGING"
+        String(32), nullable=False, comment="e.g. PROF_FEE, MILEAGE, TRAVEL_LODGING"
     )
 
     # ── Unit model ──────────────────────────────────────────────────────────
     unit_model: Mapped[str] = mapped_column(
-        String(32), nullable=False,
+        String(32),
+        nullable=False,
         comment=(
             "per_report | per_hour | per_mile | per_page | flat_fee | "
             "per_diem | actual | per_night | per_request | per_file | "
             "per_occurrence"
-        )
+        ),
     )
 
     # ── Display ─────────────────────────────────────────────────────────────
     label: Mapped[str] = mapped_column(
-        String(128), nullable=False,
-        comment="Short human-readable label shown in carrier UI"
+        String(128),
+        nullable=False,
+        comment="Short human-readable label shown in carrier UI",
     )
     description: Mapped[str] = mapped_column(
-        Text, nullable=True,
-        comment="Longer description for guideline authoring / contract mapping"
+        Text,
+        nullable=True,
+        comment="Longer description for guideline authoring / contract mapping",
     )
 
     # ── Lifecycle ───────────────────────────────────────────────────────────

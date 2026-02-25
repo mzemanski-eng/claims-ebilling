@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore",      # silently ignore unrecognised env vars
+        extra="ignore",  # silently ignore unrecognised env vars
         case_sensitive=False,
     )
 
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     rq_queue_name: str = "invoice-pipeline"
 
     # ── File Storage ───────────────────────────────────────────────────────
-    storage_backend: str = "local"           # local | s3
+    storage_backend: str = "local"  # local | s3
     local_storage_path: str = "/tmp/claims_uploads"
 
     # S3-compatible (unused in v1; wired for v2 upgrade)
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     s3_access_key: str = ""
     s3_secret_key: str = ""
-    s3_endpoint_url: str = ""               # non-AWS providers (Backblaze, etc.)
+    s3_endpoint_url: str = ""  # non-AWS providers (Backblaze, etc.)
 
     # ── Derived helpers ────────────────────────────────────────────────────
     @property

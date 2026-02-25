@@ -14,9 +14,9 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 
@@ -41,6 +41,7 @@ class AuditEvent(Base):
     to keep the insert as simple as possible and avoid any application-level
     UUID generation that could fail silently).
     """
+
     __tablename__ = "audit_events"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -51,34 +52,42 @@ class AuditEvent(Base):
 
     # ── What changed ─────────────────────────────────────────────────────────
     entity_type: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=True,
-        comment="invoice | line_item | mapping_rule | exception | supplier | contract | ..."
+        String(64),
+        nullable=False,
+        index=True,
+        comment="invoice | line_item | mapping_rule | exception | supplier | contract | ...",
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True,
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True,
     )
     event_type: Mapped[str] = mapped_column(
-        String(128), nullable=False, index=True,
+        String(128),
+        nullable=False,
+        index=True,
         comment=(
             "Past-tense dot-namespaced: invoice.submitted, line_item.classified, "
             "mapping_rule.overridden, exception.opened, exception.resolved, ..."
-        )
+        ),
     )
 
     # ── Who caused it ────────────────────────────────────────────────────────
     actor_type: Mapped[str] = mapped_column(
-        String(16), nullable=False,
-        comment="SYSTEM | SUPPLIER | CARRIER"
+        String(16), nullable=False, comment="SYSTEM | SUPPLIER | CARRIER"
     )
     actor_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), nullable=True,
-        comment="User.id if human-triggered; NULL for system events"
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="User.id if human-triggered; NULL for system events",
     )
 
     # ── State snapshot ────────────────────────────────────────────────────────
     payload: Mapped[dict] = mapped_column(
-        JSONB, nullable=False, default=dict,
-        comment="Full snapshot of relevant entity state at the time of the event"
+        JSONB,
+        nullable=False,
+        default=dict,
+        comment="Full snapshot of relevant entity state at the time of the event",
     )
 
     # ── Timestamp (server-authoritative — never set by application code) ──────

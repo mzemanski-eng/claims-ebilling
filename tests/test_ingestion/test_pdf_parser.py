@@ -10,7 +10,6 @@ PDF support is one pytest.mark.skip removal away from being live.
 
 import pytest
 from app.services.ingestion.pdf_parser import PDFParser
-from app.services.ingestion.base import ParseError
 
 
 @pytest.fixture

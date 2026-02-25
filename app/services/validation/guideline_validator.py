@@ -26,7 +26,10 @@ from typing import Optional
 from app.models.supplier import Guideline
 from app.models.invoice import LineItem
 from app.models.validation import (
-    ValidationType, ValidationStatus, ValidationSeverity, RequiredAction
+    ValidationType,
+    ValidationStatus,
+    ValidationSeverity,
+    RequiredAction,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +38,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GuidelineValidationResult:
     """Maps to ValidationResult model fields."""
+
     validation_type: str = ValidationType.GUIDELINE
     rate_card_id: Optional[str] = None
     guideline_id: Optional[str] = None
@@ -110,12 +114,17 @@ class GuidelineValidator:
                 return self._check_cap_amount(guideline, line_item, params)
             else:
                 logger.warning(
-                    "Unknown guideline rule_type %r for guideline %s", rule_type, guideline.id
+                    "Unknown guideline rule_type %r for guideline %s",
+                    rule_type,
+                    guideline.id,
                 )
                 return None
         except Exception as exc:
             logger.error(
-                "Error evaluating guideline %s (type=%r): %s", guideline.id, rule_type, exc,
+                "Error evaluating guideline %s (type=%r): %s",
+                guideline.id,
+                rule_type,
+                exc,
                 exc_info=True,
             )
             return GuidelineValidationResult(
@@ -123,7 +132,7 @@ class GuidelineValidator:
                 status=ValidationStatus.WARNING,
                 severity=ValidationSeverity.WARNING,
                 message=f"Guideline check could not be evaluated (rule_type={rule_type!r}). "
-                        f"Carrier review required.",
+                f"Carrier review required.",
                 required_action=RequiredAction.NONE,
             )
 
@@ -138,7 +147,9 @@ class GuidelineValidator:
         try:
             max_units = Decimal(str(params["max"]))
         except (KeyError, InvalidOperation):
-            logger.warning("Guideline %s: invalid max_units params: %s", guideline.id, params)
+            logger.warning(
+                "Guideline %s: invalid max_units params: %s", guideline.id, params
+            )
             return None
 
         period = params.get("period", "per_claim")
@@ -157,8 +168,8 @@ class GuidelineValidator:
                 expected_value=f"max {max_units} ({period})",
                 actual_value=str(line_item.raw_quantity),
                 required_action=RequiredAction.ACCEPT_REDUCTION
-                    if guideline.severity == ValidationSeverity.ERROR
-                    else RequiredAction.NONE,
+                if guideline.severity == ValidationSeverity.ERROR
+                else RequiredAction.NONE,
             )
         return None  # PASS
 
@@ -245,7 +256,7 @@ class GuidelineValidator:
                     f"Prohibited components: {', '.join(prohibited)}. "
                     f"{narrative}"
                 ),
-                expected_value=f"Not separately billable",
+                expected_value="Not separately billable",
                 actual_value=line_item.billing_component,
                 required_action=RequiredAction.REUPLOAD,
             )

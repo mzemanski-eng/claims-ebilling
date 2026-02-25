@@ -15,7 +15,7 @@ caller (worker) handles persistence. This makes it trivially testable.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -23,13 +23,16 @@ from typing import Optional
 from app.models.supplier import RateCard, Contract
 from app.models.invoice import LineItem
 from app.models.validation import (
-    ValidationType, ValidationStatus, ValidationSeverity, RequiredAction
+    ValidationType,
+    ValidationStatus,
+    ValidationSeverity,
+    RequiredAction,
 )
 
 logger = logging.getLogger(__name__)
 
 # Tolerance for floating-point rounding (e.g. mileage × rate)
-AMOUNT_TOLERANCE = Decimal("0.02")   # $0.02
+AMOUNT_TOLERANCE = Decimal("0.02")  # $0.02
 
 
 @dataclass
@@ -38,6 +41,7 @@ class RateValidationResult:
     Rate validation result — one per check per line item.
     Maps directly to ValidationResult model fields.
     """
+
     validation_type: str = ValidationType.RATE
     rate_card_id: Optional[str] = None
     guideline_id: Optional[str] = None
@@ -61,7 +65,9 @@ class RateValidator:
     def __init__(self, db):
         self.db = db
 
-    def validate(self, line_item: LineItem, contract: Contract) -> list[RateValidationResult]:
+    def validate(
+        self, line_item: LineItem, contract: Contract
+    ) -> list[RateValidationResult]:
         """
         Run all rate checks for a single line item.
         Returns a list of results (typically 1, but may be multiple for complex checks).
@@ -70,32 +76,36 @@ class RateValidator:
 
         if line_item.taxonomy_code is None:
             # No taxonomy code — classification failed; rate validation cannot proceed
-            results.append(RateValidationResult(
-                status=ValidationStatus.FAIL,
-                severity=ValidationSeverity.ERROR,
-                message=(
-                    "Line item could not be classified to a taxonomy code. "
-                    "Rate validation requires a valid service classification. "
-                    "Please clarify the service description or request reclassification."
-                ),
-                required_action=RequiredAction.REQUEST_RECLASSIFICATION,
-            ))
+            results.append(
+                RateValidationResult(
+                    status=ValidationStatus.FAIL,
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        "Line item could not be classified to a taxonomy code. "
+                        "Rate validation requires a valid service classification. "
+                        "Please clarify the service description or request reclassification."
+                    ),
+                    required_action=RequiredAction.REQUEST_RECLASSIFICATION,
+                )
+            )
             return results
 
         # ── Look up applicable rate card ──────────────────────────────────────
         rate_card = self._find_rate_card(line_item, contract)
 
         if rate_card is None:
-            results.append(RateValidationResult(
-                status=ValidationStatus.FAIL,
-                severity=ValidationSeverity.ERROR,
-                message=(
-                    f"No contracted rate found for service "
-                    f"'{line_item.taxonomy_code}' under contract '{contract.name}'. "
-                    f"This service may not be covered or may require carrier pre-approval."
-                ),
-                required_action=RequiredAction.REQUEST_RECLASSIFICATION,
-            ))
+            results.append(
+                RateValidationResult(
+                    status=ValidationStatus.FAIL,
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        f"No contracted rate found for service "
+                        f"'{line_item.taxonomy_code}' under contract '{contract.name}'. "
+                        f"This service may not be covered or may require carrier pre-approval."
+                    ),
+                    required_action=RequiredAction.REQUEST_RECLASSIFICATION,
+                )
+            )
             return results
 
         # ── Check 1: Amount vs expected ───────────────────────────────────────
@@ -132,7 +142,8 @@ class RateValidator:
                 RateCard.contract_id == contract.id,
                 RateCard.taxonomy_code == line_item.taxonomy_code,
                 RateCard.effective_from <= service_date,
-                (RateCard.effective_to.is_(None)) | (RateCard.effective_to >= service_date),
+                (RateCard.effective_to.is_(None))
+                | (RateCard.effective_to >= service_date),
             )
             .order_by(RateCard.effective_from.desc())
             .all()
@@ -148,7 +159,9 @@ class RateValidator:
         self, line_item: LineItem, rate_card: RateCard
     ) -> RateValidationResult:
         """Check billed amount against quantity × contracted rate."""
-        expected = (line_item.raw_quantity * rate_card.contracted_rate).quantize(Decimal("0.01"))
+        expected = (line_item.raw_quantity * rate_card.contracted_rate).quantize(
+            Decimal("0.01")
+        )
         billed = line_item.raw_amount
         diff = billed - expected
 
@@ -235,7 +248,10 @@ class RateValidator:
         that should not be billed separately.
         """
         travel_components = {
-            "TRAVEL_TRANSPORT", "TRAVEL_LODGING", "TRAVEL_MEALS", "MILEAGE"
+            "TRAVEL_TRANSPORT",
+            "TRAVEL_LODGING",
+            "TRAVEL_MEALS",
+            "MILEAGE",
         }
         if line_item.billing_component in travel_components:
             return RateValidationResult(

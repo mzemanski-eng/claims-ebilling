@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
 
     # Verify DB connectivity on startup (fail fast)
     from app.database import check_db_connection
+
     if not check_db_connection():
         logger.error("Database is not reachable on startup — check DATABASE_URL")
     else:
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
     # Ensure local storage directory exists
     if settings.storage_backend == "local":
         import os
+
         os.makedirs(settings.local_storage_path, exist_ok=True)
         logger.info("Local storage path: %s", settings.local_storage_path)
 

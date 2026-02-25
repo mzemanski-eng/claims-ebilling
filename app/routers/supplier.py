@@ -22,11 +22,17 @@ from app.database import get_db
 from app.models.invoice import Invoice, InvoiceVersion, LineItem, SubmissionStatus
 from app.models.supplier import User, UserRole
 from app.models.validation import ExceptionRecord, ExceptionStatus, ValidationStatus
-from app.routers.auth import get_current_user, require_role
+from app.routers.auth import require_role
 from app.schemas.invoice import (
-    InvoiceCreate, InvoiceListItem, InvoiceResponse, InvoiceUploadResponse,
-    ValidationSummary, LineItemSupplierView, ValidationResultSupplierView,
-    ExceptionSupplierView, ExceptionResponsePayload,
+    InvoiceCreate,
+    InvoiceListItem,
+    InvoiceResponse,
+    InvoiceUploadResponse,
+    ValidationSummary,
+    LineItemSupplierView,
+    ValidationResultSupplierView,
+    ExceptionSupplierView,
+    ExceptionResponsePayload,
 )
 from app.services.audit import logger as audit
 from app.services.ingestion.dispatcher import detect_format
@@ -39,7 +45,10 @@ router = APIRouter(prefix="/supplier", tags=["supplier"])
 
 # ── Create Invoice ────────────────────────────────────────────────────────────
 
-@router.post("/invoices", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/invoices", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED
+)
 def create_invoice(
     payload: InvoiceCreate,
     db: Session = Depends(get_db),
@@ -63,7 +72,10 @@ def create_invoice(
     db.refresh(invoice)
 
     audit.log_event(
-        db, "invoice", invoice.id, "invoice.created",
+        db,
+        "invoice",
+        invoice.id,
+        "invoice.created",
         payload={"invoice_number": invoice.invoice_number, "status": invoice.status},
         actor_type=ActorType.SUPPLIER,
         actor_id=current_user.id,
@@ -74,6 +86,7 @@ def create_invoice(
 
 
 # ── Upload File ───────────────────────────────────────────────────────────────
+
 
 @router.post("/invoices/{invoice_id}/upload", response_model=InvoiceUploadResponse)
 def upload_invoice_file(
@@ -92,7 +105,7 @@ def upload_invoice_file(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot upload file — invoice is in status '{invoice.status}'. "
-                   f"Only DRAFT or REVIEW_REQUIRED invoices accept new uploads.",
+            f"Only DRAFT or REVIEW_REQUIRED invoices accept new uploads.",
         )
 
     # ── Validate file format ──────────────────────────────────────────────────
@@ -100,12 +113,17 @@ def upload_invoice_file(
     try:
         file_format = detect_format(filename)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        )
 
     # ── Store file ────────────────────────────────────────────────────────────
     file_bytes = file.file.read()
     if len(file_bytes) == 0:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file is empty",
+        )
 
     storage = get_storage()
     stored_path = storage.save(
@@ -141,12 +159,13 @@ def upload_invoice_file(
         invoice_id=invoice.id,
         status=invoice.status,
         message=f"Invoice submitted successfully. Processing has started (job: {job_id}). "
-                f"Check back in a moment for validation results.",
+        f"Check back in a moment for validation results.",
         version=invoice.current_version,
     )
 
 
 # ── List Invoices ─────────────────────────────────────────────────────────────
+
 
 @router.get("/invoices", response_model=list[InvoiceListItem])
 def list_invoices(
@@ -165,6 +184,7 @@ def list_invoices(
 
 # ── Invoice Detail ────────────────────────────────────────────────────────────
 
+
 @router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
 def get_invoice(
     invoice_id: uuid.UUID,
@@ -176,6 +196,7 @@ def get_invoice(
 
 
 # ── Line Items ────────────────────────────────────────────────────────────────
+
 
 @router.get("/invoices/{invoice_id}/lines", response_model=list[LineItemSupplierView])
 def get_line_items(
@@ -189,6 +210,7 @@ def get_line_items(
 
 
 # ── Resubmit ──────────────────────────────────────────────────────────────────
+
 
 @router.post("/invoices/{invoice_id}/resubmit", response_model=InvoiceUploadResponse)
 def resubmit_invoice(
@@ -205,7 +227,8 @@ def resubmit_invoice(
     invoice = _get_supplier_invoice(invoice_id, current_user, db)
 
     if invoice.status not in (
-        SubmissionStatus.REVIEW_REQUIRED, SubmissionStatus.SUPPLIER_RESPONDED
+        SubmissionStatus.REVIEW_REQUIRED,
+        SubmissionStatus.SUPPLIER_RESPONDED,
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -220,6 +243,7 @@ def resubmit_invoice(
 
 
 # ── Exception Response ────────────────────────────────────────────────────────
+
 
 @router.post("/exceptions/{exception_id}/respond", status_code=status.HTTP_200_OK)
 def respond_to_exception(
@@ -259,7 +283,10 @@ def respond_to_exception(
         invoice.status = SubmissionStatus.SUPPLIER_RESPONDED
 
     audit.log_event(
-        db, "exception", exc.id, "exception.supplier_responded",
+        db,
+        "exception",
+        exc.id,
+        "exception.supplier_responded",
         payload={"supplier_response": payload.supplier_response},
         actor_type=ActorType.SUPPLIER,
         actor_id=current_user.id,
@@ -270,6 +297,7 @@ def respond_to_exception(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
 
 def _get_supplier_invoice(invoice_id: uuid.UUID, user: User, db: Session) -> Invoice:
     invoice = db.get(Invoice, invoice_id)
@@ -300,9 +328,12 @@ def _to_invoice_response(invoice: Invoice, db: Session) -> InvoiceResponse:
 
 
 def _to_invoice_list_item(invoice: Invoice, db: Session) -> InvoiceListItem:
-    total_billed = sum(li.raw_amount for li in invoice.line_items) if invoice.line_items else None
+    total_billed = (
+        sum(li.raw_amount for li in invoice.line_items) if invoice.line_items else None
+    )
     exc_count = sum(
-        1 for li in invoice.line_items
+        1
+        for li in invoice.line_items
         for exc in li.exceptions
         if exc.status == ExceptionStatus.OPEN
     )
@@ -318,7 +349,9 @@ def _to_invoice_list_item(invoice: Invoice, db: Session) -> InvoiceListItem:
     )
 
 
-def _build_validation_summary(invoice: Invoice, db: Session) -> ValidationSummary | None:
+def _build_validation_summary(
+    invoice: Invoice, db: Session
+) -> ValidationSummary | None:
     lines = invoice.line_items
     if not lines:
         return None
@@ -332,8 +365,7 @@ def _build_validation_summary(invoice: Invoice, db: Session) -> ValidationSummar
 
     for li in lines:
         has_error = any(
-            v.status == ValidationStatus.FAIL
-            for v in li.validation_results
+            v.status == ValidationStatus.FAIL for v in li.validation_results
         )
         has_low_confidence = li.mapping_confidence in ("LOW", "MEDIUM")
 
@@ -342,7 +374,7 @@ def _build_validation_summary(invoice: Invoice, db: Session) -> ValidationSummar
             total_in_dispute += li.raw_amount
         else:
             validated += 1
-            total_payable += (li.expected_amount or li.raw_amount)
+            total_payable += li.expected_amount or li.raw_amount
 
         if has_low_confidence and not has_error:
             pending_review += 1
@@ -375,8 +407,12 @@ def _to_line_item_supplier_view(li: LineItem) -> LineItemSupplierView:
             exception_id=exc.id,
             status=exc.status,
             message=exc.validation_result.message if exc.validation_result else "",
-            severity=exc.validation_result.severity if exc.validation_result else "ERROR",
-            required_action=exc.validation_result.required_action if exc.validation_result else "NONE",
+            severity=exc.validation_result.severity
+            if exc.validation_result
+            else "ERROR",
+            required_action=exc.validation_result.required_action
+            if exc.validation_result
+            else "NONE",
             supplier_response=exc.supplier_response,
         )
         for exc in li.exceptions

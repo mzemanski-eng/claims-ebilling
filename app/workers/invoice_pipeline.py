@@ -32,19 +32,25 @@ Design principles:
 
 import logging
 import uuid
-from datetime import datetime, timezone
 
 from app.database import SessionLocal
 from app.models.invoice import (
-    Invoice, InvoiceVersion, LineItem, RawExtractionArtifact,
-    SubmissionStatus, LineItemStatus,
+    Invoice,
+    InvoiceVersion,
+    LineItem,
+    RawExtractionArtifact,
+    SubmissionStatus,
+    LineItemStatus,
 )
 from app.models.validation import (
-    ValidationResult, ExceptionRecord,
-    ValidationStatus, ValidationSeverity, ExceptionStatus,
-    ValidationType, RequiredAction,
+    ValidationResult,
+    ExceptionRecord,
+    ValidationStatus,
+    ValidationSeverity,
+    ExceptionStatus,
+    ValidationType,
+    RequiredAction,
 )
-from app.models.audit import ActorType
 from app.services.storage.base import get_storage
 from app.services.ingestion.dispatcher import detect_format, get_parser
 from app.services.ingestion.base import ParseError, RawLineItem
@@ -103,10 +109,14 @@ def process_invoice(invoice_id: str) -> dict:
             return _fail_invoice(db, invoice, str(exc))
 
         # ── Store extraction artifact ─────────────────────────────────────────
-        version = db.query(InvoiceVersion).filter_by(
-            invoice_id=invoice.id,
-            version_number=invoice.current_version,
-        ).first()
+        version = (
+            db.query(InvoiceVersion)
+            .filter_by(
+                invoice_id=invoice.id,
+                version_number=invoice.current_version,
+            )
+            .first()
+        )
 
         if version:
             artifact = RawExtractionArtifact(
@@ -185,7 +195,7 @@ def process_invoice(invoice_id: str) -> dict:
         logger.info("Invoice %s processed: %s", invoice_id, summary)
         return summary
 
-    except Exception as exc:
+    except Exception:
         db.rollback()
         logger.exception("Unhandled error processing invoice %s", invoice_id)
         # Try to reset invoice status so it can be re-queued
@@ -202,8 +212,14 @@ def process_invoice(invoice_id: str) -> dict:
 
 
 def _process_line(
-    db, raw_item: RawLineItem, invoice, contract, guidelines,
-    classifier, rate_validator, guideline_validator,
+    db,
+    raw_item: RawLineItem,
+    invoice,
+    contract,
+    guidelines,
+    classifier,
+    rate_validator,
+    guideline_validator,
 ) -> tuple[LineItem, int, int, float]:
     """
     Process a single raw line item through the full pipeline.
@@ -238,8 +254,12 @@ def _process_line(
         )
         line_item.taxonomy_code = result.taxonomy_code
         line_item.billing_component = result.billing_component
-        line_item.mapping_confidence = result.confidence if result.confidence != "UNRECOGNIZED" else "LOW"
-        line_item.mapping_rule_id = uuid.UUID(result.matched_rule_id) if result.matched_rule_id else None
+        line_item.mapping_confidence = (
+            result.confidence if result.confidence != "UNRECOGNIZED" else "LOW"
+        )
+        line_item.mapping_rule_id = (
+            uuid.UUID(result.matched_rule_id) if result.matched_rule_id else None
+        )
         line_item.status = LineItemStatus.CLASSIFIED
         audit.log_line_item_classified(db, line_item, result)
 
@@ -283,7 +303,9 @@ def _process_line(
         val = ValidationResult(
             line_item_id=line_item.id,
             validation_type=rate_result.validation_type,
-            rate_card_id=uuid.UUID(rate_result.rate_card_id) if rate_result.rate_card_id else None,
+            rate_card_id=uuid.UUID(rate_result.rate_card_id)
+            if rate_result.rate_card_id
+            else None,
             status=rate_result.status,
             severity=rate_result.severity,
             message=rate_result.message,
@@ -305,7 +327,9 @@ def _process_line(
             error_count += 1
             if rate_result.expected_value:
                 try:
-                    expected_amount = float(rate_result.expected_value.replace("$", "").replace(",", ""))
+                    expected_amount = float(
+                        rate_result.expected_value.replace("$", "").replace(",", "")
+                    )
                 except (ValueError, AttributeError):
                     pass
         elif rate_result.status == ValidationStatus.WARNING:
@@ -318,7 +342,9 @@ def _process_line(
         val = ValidationResult(
             line_item_id=line_item.id,
             validation_type=guide_result.validation_type,
-            guideline_id=uuid.UUID(guide_result.guideline_id) if guide_result.guideline_id else None,
+            guideline_id=uuid.UUID(guide_result.guideline_id)
+            if guide_result.guideline_id
+            else None,
             status=guide_result.status,
             severity=guide_result.severity,
             message=guide_result.message,

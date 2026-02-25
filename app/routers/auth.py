@@ -4,7 +4,6 @@ Minimal JWT implementation for v1. SSO/SAML added when carriers require it.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -14,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.supplier import User
-from app.schemas.auth import TokenResponse, TokenPayload
+from app.schemas.auth import TokenResponse
 from app.settings import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -24,6 +23,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
@@ -35,7 +35,9 @@ def hash_password(plain: str) -> str:
 
 def create_access_token(data: dict) -> str:
     payload = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.access_token_expire_minutes
+    )
     payload["exp"] = expire
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
@@ -50,7 +52,9 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.jwt_algorithm]
+        )
         user_id: str = payload.get("user_id")
         if user_id is None:
             raise credentials_exc
@@ -58,6 +62,7 @@ def get_current_user(
         raise credentials_exc
 
     import uuid
+
     user = db.get(User, uuid.UUID(user_id))
     if user is None or not user.is_active:
         raise credentials_exc
@@ -66,6 +71,7 @@ def get_current_user(
 
 def require_role(*roles: str):
     """Dependency factory — raises 403 if the user doesn't have one of the required roles."""
+
     def _check(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in roles:
             raise HTTPException(
@@ -73,10 +79,12 @@ def require_role(*roles: str):
                 detail=f"Access denied. Required roles: {list(roles)}",
             )
         return current_user
+
     return _check
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.post("/token", response_model=TokenResponse)
 def login(
@@ -92,7 +100,9 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive"
+        )
 
     token_data = {
         "sub": user.email,

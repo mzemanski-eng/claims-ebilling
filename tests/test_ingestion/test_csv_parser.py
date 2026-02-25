@@ -55,6 +55,7 @@ class TestCSVParserHappyPath:
     def test_service_date_parsed(self, parser):
         result = parser.parse(SAMPLE_CSV, "invoice.csv")
         from datetime import date
+
         assert result.line_items[0].service_date == date(2024, 11, 15)
 
     def test_raw_code_parsed(self, parser):
@@ -74,7 +75,7 @@ class TestCSVParserHappyPath:
         assert result.line_items[0].raw_amount == Decimal("600.00")
 
     def test_strips_commas_from_amounts(self, parser):
-        csv = b"description,amount\nIME Exam,\"1,200.00\"\n"
+        csv = b'description,amount\nIME Exam,"1,200.00"\n'
         result = parser.parse(csv, "test.csv")
         assert result.line_items[0].raw_amount == Decimal("1200.00")
 
@@ -102,7 +103,7 @@ class TestCSVParserEdgeCases:
         """Rows with invalid amounts are skipped with a warning, not a crash."""
         csv = b"description,amount\nIME Exam,NOT_A_NUMBER\nAddendum,125.00\n"
         result = parser.parse(csv, "test.csv")
-        assert len(result.line_items) == 1   # Second row survived
+        assert len(result.line_items) == 1  # Second row survived
         assert len(result.warnings) > 0
 
     def test_tsv_delimiter_detected(self, parser):

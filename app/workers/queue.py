@@ -29,11 +29,12 @@ def enqueue_invoice_processing(invoice_id: str) -> str:
     Returns the job ID for status tracking.
     """
     from app.workers.invoice_pipeline import process_invoice  # avoid circular import
+
     job = get_queue().enqueue(
         process_invoice,
         args=(invoice_id,),
-        job_timeout=300,   # 5 minutes max per invoice
-        result_ttl=3600,   # keep result for 1 hour
-        failure_ttl=86400, # keep failed job info for 24 hours
+        job_timeout=300,  # 5 minutes max per invoice
+        result_ttl=3600,  # keep result for 1 hour
+        failure_ttl=86400,  # keep failed job info for 24 hours
     )
     return job.id

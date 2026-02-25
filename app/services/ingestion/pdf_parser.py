@@ -32,7 +32,7 @@ De-risking experiment to run before implementation:
 import logging
 from typing import Optional
 
-from app.services.ingestion.base import BaseParser, ParseError, ParseResult, RawLineItem
+from app.services.ingestion.base import BaseParser, ParseResult, RawLineItem
 
 logger = logging.getLogger(__name__)
 

@@ -20,7 +20,8 @@ class TokenResponse(BaseSchema):
 
 class TokenPayload(BaseSchema):
     """Decoded JWT payload."""
-    sub: str          # user email
+
+    sub: str  # user email
     role: str
     user_id: str
     supplier_id: str | None = None

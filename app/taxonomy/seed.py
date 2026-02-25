@@ -14,7 +14,7 @@ import logging
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.database import SessionLocal, engine
+from app.database import SessionLocal
 from app.models.taxonomy import TaxonomyItem
 from app.taxonomy.constants import TAXONOMY
 
@@ -45,7 +45,7 @@ def seed_taxonomy(session=None) -> int:
                 # is_active intentionally not overwritten (carrier may deactivate)
             },
         )
-        result = session.execute(stmt)
+        session.execute(stmt)
         session.commit()
         count = len(TAXONOMY)
         logger.info("Taxonomy seed complete: %d items upserted.", count)

@@ -24,7 +24,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.mapping import MappingRule, MatchType, ConfirmedBy
+from app.models.mapping import MappingRule, MatchType
 from app.services.classification.rule_engine import (
     ClassificationResult,
     classify_with_builtin_rules,
@@ -139,5 +139,7 @@ class Classifier:
             return False, ""
 
         else:
-            logger.warning("Unknown match_type %r in MappingRule %s", rule.match_type, rule.id)
+            logger.warning(
+                "Unknown match_type %r in MappingRule %s", rule.match_type, rule.id
+            )
             return False, ""
