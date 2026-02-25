@@ -150,12 +150,12 @@ def main() -> None:
             print(f"  ✓ {len(RATE_CARDS)} rate cards added")
 
             # ── Guidelines ─────────────────────────────────────────────────────
-            for rule_type, taxonomy_code, description, rule_params in GUIDELINES:
+            for rule_type, taxonomy_code, narrative, rule_params in GUIDELINES:
                 g = Guideline(
                     contract_id=contract.id,
                     taxonomy_code=taxonomy_code,
                     rule_type=rule_type,
-                    description=description,
+                    narrative_source=narrative,
                     rule_params=rule_params,
                     is_active=True,
                 )
