@@ -1,0 +1,22 @@
+taxonomy_code,contracted_rate,max_units,unit_model,effective_from,effective_to,is_all_inclusive,notes
+IME.PHY_EXAM.PROF_FEE,600.00,,per_report,2024-01-01,,false,Standard physician exam rate
+IME.PHY_EXAM.MILEAGE,0.67,,per_mile,2024-01-01,,false,IRS rate
+IME.PHY_EXAM.TRAVEL_TRANSPORT,500.00,,actual,2024-01-01,,false,Cap at $500 actual
+IME.PHY_EXAM.TRAVEL_LODGING,200.00,1,per_night,2024-01-01,,false,Per night cap
+IME.PHY_EXAM.TRAVEL_MEALS,65.00,,per_diem,2024-01-01,,false,IRS per diem
+IME.MULTI_SPECIALTY.PROF_FEE,900.00,,per_report,2024-01-01,,false,
+IME.RECORDS_REVIEW.PROF_FEE,350.00,,per_report,2024-01-01,,false,
+IME.ADDENDUM.PROF_FEE,125.00,,per_report,2024-01-01,,false,
+IME.PEER_REVIEW.PROF_FEE,275.00,,per_report,2024-01-01,,false,
+IME.CANCELLATION.CANCEL_FEE,150.00,,flat_fee,2024-01-01,,false,
+IME.NO_SHOW.NO_SHOW_FEE,100.00,,flat_fee,2024-01-01,,false,
+IME.ADMIN.SCHEDULING_FEE,50.00,,flat_fee,2024-01-01,,false,
+IA.FIELD_ASSIGN.PROF_FEE,350.00,,per_diem,2024-01-01,,false,
+IA.FIELD_ASSIGN.MILEAGE,0.67,,per_mile,2024-01-01,,false,
+IA.FIELD_ASSIGN.TRAVEL_LODGING,150.00,1,per_night,2024-01-01,,false,
+IA.FIELD_ASSIGN.TRAVEL_MEALS,55.00,,per_diem,2024-01-01,,false,
+IA.DESK_ASSIGN.PROF_FEE,200.00,,per_file,2024-01-01,,false,
+IA.CAT_ASSIGN.PROF_FEE,400.00,,per_diem,2024-01-01,,false,
+IA.PHOTO_DOC.PROF_FEE,85.00,,per_file,2024-01-01,,false,
+IA.SUPPLEMENT_HANDLING.PROF_FEE,65.00,,per_occurrence,2024-01-01,,false,
+IA.ADMIN.FILE_OPEN_FEE,35.00,,flat_fee,2024-01-01,,false,

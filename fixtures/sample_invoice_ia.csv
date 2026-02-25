@@ -1,0 +1,11 @@
+claim_number,service_date,description,code,quantity,unit,amount
+CLM-2024-101,2024-11-10,Field Adjusting Services - Daily Rate,IA-FIELD-001,1,day,385.00
+CLM-2024-101,2024-11-10,Mileage - 112 miles,MILE-001,112,mile,67.20
+CLM-2024-101,2024-11-11,Field Adjusting Services - Daily Rate,IA-FIELD-001,1,day,385.00
+CLM-2024-101,2024-11-11,Lodging,IA-TRVL-001,1,night,145.00
+CLM-2024-101,2024-11-11,Meals,IA-TRVL-002,1,day,55.00
+CLM-2024-102,2024-11-12,Desk Assignment - file review and estimate,IA-DESK-001,1,file,225.00
+CLM-2024-102,2024-11-12,Photo Documentation Services,IA-PHOTO-001,1,file,95.00
+CLM-2024-103,2024-11-13,File Open Fee,IA-ADMIN-001,1,flat,35.00
+CLM-2024-103,2024-11-13,Supplement Handling,IA-SUPP-001,1,occurrence,75.00
+CLM-2024-104,2024-11-14,Catastrophe Assignment Daily Rate,IA-CAT-001,1,day,450.00

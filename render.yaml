@@ -1,0 +1,83 @@
+services:
+  # ── Web API ────────────────────────────────────────────────────────────────
+  - type: web
+    name: claims-ebilling-api
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt &&
+      alembic upgrade head &&
+      python -m app.taxonomy.seed
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    disk:
+      name: uploads
+      mountPath: /var/data/uploads
+      sizeGB: 10
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: claims-ebilling-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: claims-ebilling-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: STORAGE_BACKEND
+        value: local
+      - key: LOCAL_STORAGE_PATH
+        value: /var/data/uploads
+      - key: RQ_QUEUE_NAME
+        value: invoice-pipeline
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "480"
+
+  # ── Background Worker ──────────────────────────────────────────────────────
+  - type: worker
+    name: claims-ebilling-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: rq worker --url $REDIS_URL invoice-pipeline
+    disk:
+      name: uploads
+      mountPath: /var/data/uploads
+      sizeGB: 10
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: claims-ebilling-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: claims-ebilling-redis
+          type: redis
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: STORAGE_BACKEND
+        value: local
+      - key: LOCAL_STORAGE_PATH
+        value: /var/data/uploads
+      - key: RQ_QUEUE_NAME
+        value: invoice-pipeline
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  - type: redis
+    name: claims-ebilling-redis
+    plan: starter
+    maxmemoryPolicy: noeviction
+
+# ── Postgres ───────────────────────────────────────────────────────────────
+databases:
+  - name: claims-ebilling-db
+    plan: starter
+    databaseName: claims_ebilling
+    user: claims_ebilling
