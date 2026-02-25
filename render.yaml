@@ -42,36 +42,6 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.0"
 
-  # ── Background Worker ──────────────────────────────────────────────────────
-  - type: worker
-    name: claims-ebilling-worker
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: rq worker --url $REDIS_URL invoice-pipeline
-    # NOTE: No disk here — Render disks cannot be shared across services.
-    # The worker reads uploaded files; in v2 swap STORAGE_BACKEND=s3 so both
-    # the API and worker share the same S3 bucket instead.
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: claims-ebilling-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: claims-ebilling-redis
-          type: redis
-          property: connectionString
-      - key: ENVIRONMENT
-        value: staging
-      - key: STORAGE_BACKEND
-        value: local
-      - key: LOCAL_STORAGE_PATH
-        value: /var/data/uploads
-      - key: RQ_QUEUE_NAME
-        value: invoice-pipeline
-      - key: PYTHON_VERSION
-        value: "3.12.0"
-
   # ── Redis ──────────────────────────────────────────────────────────────────
   - type: redis
     name: claims-ebilling-redis

@@ -1,33 +1,27 @@
 """
-Invoice Processing Pipeline — the RQ background job.
+Invoice Processing Pipeline.
 
-This is the heart of the system. It runs in the Render Background Worker
-and executes the full ingest → classify → validate → persist loop.
+Supports two entry points:
+  - process_invoice_sync(): called directly from the upload endpoint (MVP default).
+    Uses the caller's DB session and file bytes already in memory.
+  - process_invoice():      legacy RQ background job entry point.
+    Opens its own DB session and loads file from storage.
 
 Pipeline steps:
-  1. Load invoice from DB; set status = PROCESSING
-  2. Load raw file from storage
-  3. Parse file → RawLineItems (CSVParser or PDFParser)
-  4. Store RawExtractionArtifact
-  5. For each RawLineItem:
+  1. Set invoice status = PROCESSING
+  2. Parse file → RawLineItems
+  3. Store RawExtractionArtifact
+  4. For each RawLineItem:
      a. Create LineItem (PENDING)
-     b. Classify → set taxonomy_code, confidence (CLASSIFIED)
+     b. Classify → taxonomy_code + confidence (CLASSIFIED)
      c. Run rate validation → ValidationResults
      d. Run guideline validation → ValidationResults
-     e. Persist ValidationResults
-     f. Create ExceptionRecords for failures
-     g. Update LineItem status (VALIDATED or EXCEPTION)
-  6. Update Invoice status:
+     e. Create ExceptionRecords for failures
+     f. Update LineItem status (VALIDATED or EXCEPTION)
+  5. Update Invoice status:
      - Any ERROR exceptions → REVIEW_REQUIRED
-     - All PASS/WARNING → PENDING_CARRIER_REVIEW
-  7. Write audit events throughout
-  8. On any unhandled error: set invoice status = PROCESSING (re-queueable)
-     and log the error for ops visibility
-
-Design principles:
-  - One DB transaction per invoice (atomic; no partial state)
-  - Never silently swallow errors on line items — always produce a result
-  - All business logic lives in service modules; this file only orchestrates
+     - All PASS/WARNING     → PENDING_CARRIER_REVIEW
+  6. Write audit events throughout
 """
 
 import logging
@@ -38,33 +32,92 @@ from app.models.invoice import (
     Invoice,
     InvoiceVersion,
     LineItem,
+    LineItemStatus,
     RawExtractionArtifact,
     SubmissionStatus,
-    LineItemStatus,
 )
 from app.models.validation import (
-    ValidationResult,
     ExceptionRecord,
-    ValidationStatus,
-    ValidationSeverity,
     ExceptionStatus,
-    ValidationType,
     RequiredAction,
+    ValidationResult,
+    ValidationSeverity,
+    ValidationStatus,
+    ValidationType,
 )
-from app.services.storage.base import get_storage
-from app.services.ingestion.dispatcher import detect_format, get_parser
-from app.services.ingestion.base import ParseError, RawLineItem
-from app.services.classification.classifier import Classifier
-from app.services.validation.rate_validator import RateValidator
-from app.services.validation.guideline_validator import GuidelineValidator
 from app.services.audit import logger as audit
+from app.services.classification.classifier import Classifier
+from app.services.ingestion.base import ParseError, RawLineItem
+from app.services.ingestion.dispatcher import detect_format, get_parser
+from app.services.storage.base import get_storage
+from app.services.validation.guideline_validator import GuidelineValidator
+from app.services.validation.rate_validator import RateValidator
 
 logger = logging.getLogger(__name__)
 
 
+# ── Public entry points ────────────────────────────────────────────────────────
+
+
+def process_invoice_sync(
+    invoice_id: str,
+    file_bytes: bytes,
+    filename: str,
+    db,
+) -> dict:
+    """
+    Synchronous pipeline — called directly from the upload endpoint.
+
+    Receives file bytes already in memory (no disk read required), and uses
+    the caller's DB session so everything commits in one transaction.
+
+    Args:
+        invoice_id: String UUID of the Invoice to process.
+        file_bytes: Raw file content already in memory.
+        filename:   Original filename (used for format detection).
+        db:         Caller-provided SQLAlchemy session.
+
+    Returns:
+        Summary dict with processing results.
+    """
+    inv_uuid = uuid.UUID(invoice_id)
+    logger.info("Starting invoice pipeline (sync) for %s", invoice_id)
+
+    invoice = db.get(Invoice, inv_uuid)
+    if invoice is None:
+        logger.error("Invoice %s not found", invoice_id)
+        return {"error": "Invoice not found", "invoice_id": invoice_id}
+
+    try:
+        # ── Set status → PROCESSING ───────────────────────────────────────────
+        old_status = invoice.status
+        invoice.status = SubmissionStatus.PROCESSING
+        db.flush()
+        audit.log_invoice_status_changed(
+            db, invoice, from_status=old_status, to_status=SubmissionStatus.PROCESSING
+        )
+
+        # ── Parse file (bytes already in memory — no disk read) ───────────────
+        try:
+            file_format = detect_format(filename)
+            parser = get_parser(file_format)
+            parse_result = parser.parse(file_bytes, filename)
+        except ParseError as exc:
+            return _fail_invoice(db, invoice, str(exc))
+        except NotImplementedError as exc:
+            return _fail_invoice(db, invoice, str(exc))
+
+        return _run_pipeline(db, invoice, parse_result)
+
+    except Exception:
+        db.rollback()
+        logger.exception("Unhandled error processing invoice %s (sync)", invoice_id)
+        raise
+
+
 def process_invoice(invoice_id: str) -> dict:
     """
-    RQ job entry point.
+    RQ background job entry point (legacy — used when worker service is enabled).
 
     Args:
         invoice_id: String UUID of the Invoice to process.
@@ -73,7 +126,7 @@ def process_invoice(invoice_id: str) -> dict:
         Summary dict (stored as RQ job result).
     """
     inv_uuid = uuid.UUID(invoice_id)
-    logger.info("Starting invoice pipeline for %s", invoice_id)
+    logger.info("Starting invoice pipeline (async) for %s", invoice_id)
 
     db = SessionLocal()
     try:
@@ -108,97 +161,11 @@ def process_invoice(invoice_id: str) -> dict:
         except NotImplementedError as exc:
             return _fail_invoice(db, invoice, str(exc))
 
-        # ── Store extraction artifact ─────────────────────────────────────────
-        version = (
-            db.query(InvoiceVersion)
-            .filter_by(
-                invoice_id=invoice.id,
-                version_number=invoice.current_version,
-            )
-            .first()
-        )
-
-        if version:
-            artifact = RawExtractionArtifact(
-                invoice_version_id=version.id,
-                raw_text=parse_result.raw_text[:50000],  # cap at 50k chars
-                extraction_method=parse_result.extraction_method,
-                extraction_metadata={
-                    "warnings": parse_result.warnings,
-                    "line_count": len(parse_result.line_items),
-                },
-            )
-            db.add(artifact)
-
-        # ── Load contract, rate cards, guidelines ─────────────────────────────
-        contract = invoice.contract
-        if contract is None:
-            return _fail_invoice(db, invoice, "Contract not found for invoice")
-
-        guidelines = [g for g in contract.guidelines if g.is_active]
-
-        # ── Instantiate service classes ───────────────────────────────────────
-        classifier = Classifier(db)
-        rate_validator = RateValidator(db)
-        guideline_validator = GuidelineValidator()
-
-        # ── Process each line item ────────────────────────────────────────────
-        error_count = 0
-        warning_count = 0
-        pass_count = 0
-        total_expected = 0
-
-        for raw_item in parse_result.line_items:
-            line_item, item_errors, item_warnings, item_expected = _process_line(
-                db=db,
-                raw_item=raw_item,
-                invoice=invoice,
-                contract=contract,
-                guidelines=guidelines,
-                classifier=classifier,
-                rate_validator=rate_validator,
-                guideline_validator=guideline_validator,
-            )
-            error_count += item_errors
-            warning_count += item_warnings
-            if item_errors == 0:
-                pass_count += 1
-            total_expected += item_expected
-
-        db.flush()
-
-        # ── Determine final invoice status ────────────────────────────────────
-        new_status = (
-            SubmissionStatus.REVIEW_REQUIRED
-            if error_count > 0
-            else SubmissionStatus.PENDING_CARRIER_REVIEW
-        )
-        old_status = invoice.status
-        invoice.status = new_status
-        db.flush()
-
-        audit.log_invoice_status_changed(
-            db, invoice, from_status=old_status, to_status=new_status
-        )
-
-        db.commit()
-
-        summary = {
-            "invoice_id": invoice_id,
-            "status": new_status,
-            "lines_processed": len(parse_result.line_items),
-            "lines_pass": pass_count,
-            "lines_error": error_count,
-            "lines_warning": warning_count,
-            "parse_warnings": parse_result.warnings,
-        }
-        logger.info("Invoice %s processed: %s", invoice_id, summary)
-        return summary
+        return _run_pipeline(db, invoice, parse_result)
 
     except Exception:
         db.rollback()
         logger.exception("Unhandled error processing invoice %s", invoice_id)
-        # Try to reset invoice status so it can be re-queued
         try:
             invoice = db.get(Invoice, inv_uuid)
             if invoice and invoice.status == SubmissionStatus.PROCESSING:
@@ -206,9 +173,110 @@ def process_invoice(invoice_id: str) -> dict:
                 db.commit()
         except Exception:
             pass
-        raise  # Re-raise so RQ marks job as failed
+        raise
     finally:
         db.close()
+
+
+# ── Core pipeline ──────────────────────────────────────────────────────────────
+
+
+def _run_pipeline(db, invoice, parse_result) -> dict:
+    """
+    Shared pipeline logic used by both sync and async entry points.
+    Runs from post-parse through to final invoice status commit.
+    """
+    invoice_id = str(invoice.id)
+
+    # ── Store extraction artifact ─────────────────────────────────────────────
+    version = (
+        db.query(InvoiceVersion)
+        .filter_by(
+            invoice_id=invoice.id,
+            version_number=invoice.current_version,
+        )
+        .first()
+    )
+
+    if version:
+        artifact = RawExtractionArtifact(
+            invoice_version_id=version.id,
+            raw_text=parse_result.raw_text[:50000],
+            extraction_method=parse_result.extraction_method,
+            extraction_metadata={
+                "warnings": parse_result.warnings,
+                "line_count": len(parse_result.line_items),
+            },
+        )
+        db.add(artifact)
+
+    # ── Load contract + guidelines ────────────────────────────────────────────
+    contract = invoice.contract
+    if contract is None:
+        return _fail_invoice(db, invoice, "Contract not found for invoice")
+
+    guidelines = [g for g in contract.guidelines if g.is_active]
+
+    # ── Instantiate services ──────────────────────────────────────────────────
+    classifier = Classifier(db)
+    rate_validator = RateValidator(db)
+    guideline_validator = GuidelineValidator()
+
+    # ── Process each line item ────────────────────────────────────────────────
+    error_count = 0
+    warning_count = 0
+    pass_count = 0
+    total_expected = 0
+
+    for raw_item in parse_result.line_items:
+        line_item, item_errors, item_warnings, item_expected = _process_line(
+            db=db,
+            raw_item=raw_item,
+            invoice=invoice,
+            contract=contract,
+            guidelines=guidelines,
+            classifier=classifier,
+            rate_validator=rate_validator,
+            guideline_validator=guideline_validator,
+        )
+        error_count += item_errors
+        warning_count += item_warnings
+        if item_errors == 0:
+            pass_count += 1
+        total_expected += item_expected
+
+    db.flush()
+
+    # ── Determine final invoice status ────────────────────────────────────────
+    new_status = (
+        SubmissionStatus.REVIEW_REQUIRED
+        if error_count > 0
+        else SubmissionStatus.PENDING_CARRIER_REVIEW
+    )
+    old_status = invoice.status
+    invoice.status = new_status
+    db.flush()
+
+    audit.log_invoice_status_changed(
+        db, invoice, from_status=old_status, to_status=new_status
+    )
+
+    db.commit()
+
+    summary = {
+        "invoice_id": invoice_id,
+        "status": new_status,
+        "lines_processed": len(parse_result.line_items),
+        "lines_pass": pass_count,
+        "lines_error": error_count,
+        "lines_warning": warning_count,
+        "parse_warnings": parse_result.warnings,
+    }
+    logger.info("Invoice %s processed: %s", invoice_id, summary)
+    return summary
+
+
+# ── Line-item processor ────────────────────────────────────────────────────────
 
 
 def _process_line(
@@ -243,7 +311,7 @@ def _process_line(
         service_date=raw_item.service_date,
     )
     db.add(line_item)
-    db.flush()  # Get line_item.id
+    db.flush()
 
     # ── Classify ──────────────────────────────────────────────────────────────
     try:
@@ -264,7 +332,6 @@ def _process_line(
         audit.log_line_item_classified(db, line_item, result)
 
         if result.confidence == "UNRECOGNIZED":
-            # Create an UNRECOGNIZED classification result
             val_result = ValidationResult(
                 line_item_id=line_item.id,
                 validation_type=ValidationType.CLASSIFICATION,
@@ -273,7 +340,8 @@ def _process_line(
                 message=(
                     f"Service description could not be classified: "
                     f"'{raw_item.raw_description}'. "
-                    f"Please provide a clearer description or request manual reclassification."
+                    f"Please provide a clearer description or request manual "
+                    f"reclassification."
                 ),
                 required_action=RequiredAction.REQUEST_RECLASSIFICATION,
             )
@@ -368,23 +436,19 @@ def _process_line(
             warning_count += 1
 
     # ── Set final line item status ─────────────────────────────────────────────
-    if error_count > 0:
-        line_item.status = LineItemStatus.EXCEPTION
-    elif warning_count > 0:
-        line_item.status = LineItemStatus.VALIDATED
-    else:
-        line_item.status = LineItemStatus.VALIDATED
-
+    line_item.status = (
+        LineItemStatus.EXCEPTION if error_count > 0 else LineItemStatus.VALIDATED
+    )
     line_item.expected_amount = expected_amount
 
     return line_item, error_count, warning_count, expected_amount
 
 
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+
 def _fail_invoice(db, invoice, reason: str) -> dict:
-    """
-    Mark invoice as needing supplier action and roll back to SUBMITTED
-    so it can be corrected and re-submitted.
-    """
+    """Mark invoice as REVIEW_REQUIRED and return error summary."""
     logger.error("Invoice %s pipeline failed: %s", invoice.id, reason)
     try:
         invoice.status = SubmissionStatus.REVIEW_REQUIRED

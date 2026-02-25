@@ -37,7 +37,7 @@ from app.schemas.invoice import (
 from app.services.audit import logger as audit
 from app.services.ingestion.dispatcher import detect_format
 from app.services.storage.base import get_storage
-from app.workers.queue import enqueue_invoice_processing
+from app.workers.invoice_pipeline import process_invoice_sync
 from app.models.audit import ActorType
 
 router = APIRouter(prefix="/supplier", tags=["supplier"])
@@ -149,17 +149,27 @@ def upload_invoice_file(
     db.flush()
 
     audit.log_invoice_submitted(db, invoice, actor_id=current_user.id)
-
-    # ── Enqueue processing ────────────────────────────────────────────────────
-    job_id = enqueue_invoice_processing(str(invoice.id))
-
     db.commit()
+
+    # ── Process synchronously (file bytes already in memory) ─────────────────
+    summary = process_invoice_sync(
+        invoice_id=str(invoice.id),
+        file_bytes=file_bytes,
+        filename=filename,
+        db=db,
+    )
+
+    # Refresh to get the final status set by the pipeline
+    db.refresh(invoice)
 
     return InvoiceUploadResponse(
         invoice_id=invoice.id,
         status=invoice.status,
-        message=f"Invoice submitted successfully. Processing has started (job: {job_id}). "
-        f"Check back in a moment for validation results.",
+        message=(
+            f"Invoice processed successfully. "
+            f"{summary.get('lines_processed', 0)} lines processed, "
+            f"{summary.get('lines_error', 0)} exceptions flagged."
+        ),
         version=invoice.current_version,
     )
 
