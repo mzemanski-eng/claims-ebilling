@@ -26,7 +26,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ENVIRONMENT
-        value: production
+        value: staging
       - key: LOG_LEVEL
         value: INFO
       - key: STORAGE_BACKEND
@@ -62,7 +62,7 @@ services:
           type: redis
           property: connectionString
       - key: ENVIRONMENT
-        value: production
+        value: staging
       - key: STORAGE_BACKEND
         value: local
       - key: LOCAL_STORAGE_PATH
