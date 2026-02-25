@@ -42,22 +42,23 @@ CONTRACT_EFFECTIVE_FROM = date(2025, 1, 1)
 
 # Rate cards keyed by taxonomy_code → (contracted_rate, max_units, is_all_inclusive, notes)
 RATE_CARDS = [
-    # IME
-    ("IME.PHY_EXAM.PROF_FEE",       Decimal("600.00"),  Decimal("1"),    False, "Standard single-specialty IME"),
-    ("IME.MULTI_SPEC.PROF_FEE",     Decimal("950.00"),  Decimal("1"),    False, "Multi-specialty panel — 2 physicians max"),
-    ("IME.ADDENDUM.PROF_FEE",       Decimal("125.00"),  Decimal("2"),    False, "Addendum per claim cap: 2"),
-    ("IME.RECORDS_REVIEW.PROF_FEE", Decimal("350.00"),  Decimal("1"),    False, "Records review without exam"),
-    ("IME.CANCEL_FEE.FLAT",         Decimal("150.00"),  Decimal("1"),    False, "< 48hr cancellation"),
-    ("IME.NO_SHOW.FLAT",            Decimal("100.00"),  Decimal("1"),    False, "Claimant no-show"),
-    ("IME.PEER_REVIEW.PROF_FEE",    Decimal("250.00"),  Decimal("1"),    False, "Peer review of treatment plan"),
-    # Travel — NOT all-inclusive on this contract (billed separately)
-    ("IME.TRAVEL_TRANSPORT.AIRFARE",  Decimal("400.00"),  None,            False, "Airfare cap $400"),
-    ("IME.TRAVEL_TRANSPORT.MILEAGE",  Decimal("0.67"),    Decimal("100"),  False, "IRS rate; 100 mile round-trip cap"),
-    ("IME.TRAVEL_TRANSPORT.LODGING",  Decimal("175.00"),  Decimal("1"),    False, "1 night max per exam"),
-    ("IME.TRAVEL_TRANSPORT.MEALS",    Decimal("60.00"),   Decimal("1"),    False, "Per diem cap $60/day"),
+    # IME professional fees
+    ("IME.PHY_EXAM.PROF_FEE",          Decimal("600.00"),  Decimal("1"),    False, "Standard single-specialty IME"),
+    ("IME.MULTI_SPECIALTY.PROF_FEE",   Decimal("950.00"),  Decimal("1"),    False, "Multi-specialty panel — 2 physicians max"),
+    ("IME.ADDENDUM.PROF_FEE",          Decimal("125.00"),  Decimal("2"),    False, "Addendum per claim cap: 2"),
+    ("IME.RECORDS_REVIEW.PROF_FEE",    Decimal("350.00"),  Decimal("1"),    False, "Records review without exam"),
+    ("IME.CANCELLATION.CANCEL_FEE",    Decimal("150.00"),  Decimal("1"),    False, "< 48hr cancellation"),
+    ("IME.NO_SHOW.NO_SHOW_FEE",        Decimal("100.00"),  Decimal("1"),    False, "Claimant no-show"),
+    ("IME.PEER_REVIEW.PROF_FEE",       Decimal("250.00"),  Decimal("1"),    False, "Peer review of treatment plan"),
+    ("IME.ADMIN.SCHEDULING_FEE",       Decimal("50.00"),   Decimal("1"),    False, "Admin scheduling coordination"),
+    # Travel — billed separately on this contract
+    ("IME.PHY_EXAM.TRAVEL_TRANSPORT",  Decimal("400.00"),  None,            False, "Airfare cap $400"),
+    ("IME.PHY_EXAM.MILEAGE",           Decimal("0.67"),    Decimal("100"),  False, "IRS rate; 100 mile round-trip cap"),
+    ("IME.PHY_EXAM.TRAVEL_LODGING",    Decimal("175.00"),  Decimal("1"),    False, "1 night max per exam"),
+    ("IME.PHY_EXAM.TRAVEL_MEALS",      Decimal("60.00"),   Decimal("1"),    False, "Per diem cap $60/day"),
 ]
 
-# Guidelines: (rule_type, taxonomy_code_or_None, description, rule_params)
+# Guidelines: (rule_type, taxonomy_code_or_None, narrative, rule_params)
 GUIDELINES = [
     (
         "max_units",
@@ -67,19 +68,19 @@ GUIDELINES = [
     ),
     (
         "cap_amount",
-        "IME.TRAVEL_TRANSPORT.AIRFARE",
+        "IME.PHY_EXAM.TRAVEL_TRANSPORT",
         "Airfare reimbursement capped at $400 per exam",
         {"max_amount": 400.00},
     ),
     (
         "max_units",
-        "IME.TRAVEL_TRANSPORT.MILEAGE",
+        "IME.PHY_EXAM.MILEAGE",
         "Mileage reimbursement capped at 100 miles round-trip",
         {"max": 100, "period": "per_exam"},
     ),
     (
         "cap_amount",
-        "IME.TRAVEL_TRANSPORT.MEALS",
+        "IME.PHY_EXAM.TRAVEL_MEALS",
         "Meals per diem capped at $60 per travel day",
         {"max_amount": 60.00},
     ),
