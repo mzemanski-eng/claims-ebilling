@@ -46,10 +46,9 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: rq worker --url $REDIS_URL invoice-pipeline
-    disk:
-      name: uploads
-      mountPath: /var/data/uploads
-      sizeGB: 10
+    # NOTE: No disk here — Render disks cannot be shared across services.
+    # The worker reads uploaded files; in v2 swap STORAGE_BACKEND=s3 so both
+    # the API and worker share the same S3 bucket instead.
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -73,7 +72,7 @@ services:
   - type: redis
     name: claims-ebilling-redis
     plan: starter
-    maxmemoryPolicy: noeviction
+    ipAllowList: []   # empty = allow all Render-internal traffic
 
 # ── Postgres ───────────────────────────────────────────────────────────────
 databases:
