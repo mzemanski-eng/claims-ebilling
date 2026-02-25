@@ -39,6 +39,8 @@ services:
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "480"
+      - key: PYTHON_VERSION
+        value: "3.12.0"
 
   # ── Background Worker ──────────────────────────────────────────────────────
   - type: worker
@@ -67,6 +69,8 @@ services:
         value: /var/data/uploads
       - key: RQ_QUEUE_NAME
         value: invoice-pipeline
+      - key: PYTHON_VERSION
+        value: "3.12.0"
 
   # ── Redis ──────────────────────────────────────────────────────────────────
   - type: redis
