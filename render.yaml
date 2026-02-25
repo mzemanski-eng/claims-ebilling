@@ -12,7 +12,7 @@ services:
     disk:
       name: uploads
       mountPath: /var/data/uploads
-      sizeGB: 10
+      sizeGB: 1
     envVars:
       - key: DATABASE_URL
         fromDatabase:
