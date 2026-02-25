@@ -71,12 +71,12 @@ services:
   # ── Redis ──────────────────────────────────────────────────────────────────
   - type: redis
     name: claims-ebilling-redis
-    plan: starter
+    plan: free
     ipAllowList: []   # empty = allow all Render-internal traffic
 
 # ── Postgres ───────────────────────────────────────────────────────────────
 databases:
   - name: claims-ebilling-db
-    plan: starter
+    plan: free
     databaseName: claims_ebilling
     user: claims_ebilling
