@@ -1,14 +1,14 @@
 claim_number,service_date,description,code,quantity,unit,amount
-CLM-2024-001,2024-11-15,IME Physician Examination - Dr. Johnson (Orthopedic),IME-001,1,report,650.00
-CLM-2024-001,2024-11-15,Mileage - 47 miles @ $0.60/mile,MILE-001,47,mile,28.20
-CLM-2024-002,2024-11-18,IME Addendum Report - additional records review,IME-003,1,report,150.00
-CLM-2024-002,2024-11-18,Travel - Airfare to examination site,TRVL-001,1,flat,312.00
-CLM-2024-003,2024-11-20,Records Review No Exam - file only,IME-004,1,report,400.00
-CLM-2024-003,2024-11-20,No-show Fee - claimant did not appear,IME-007,1,flat,100.00
-CLM-2024-004,2024-11-22,Peer Review of treatment plan,IME-006,1,report,275.00
-CLM-2024-004,2024-11-22,IME Cancellation Fee - less than 48 hour notice,IME-005,1,flat,150.00
-CLM-2024-005,2024-11-25,Independent Medical Examination - Neurology,IME-001,1,report,725.00
-CLM-2024-005,2024-11-25,Lodging - 1 night hotel,TRVL-003,1,night,189.00
-CLM-2024-005,2024-11-25,Meals per diem - travel day,TRVL-004,1,day,65.00
-CLM-2024-006,2024-11-26,Multi-specialty IME panel - Ortho and Neuro,IME-002,1,report,1100.00
-CLM-2024-006,2024-11-26,Administrative scheduling coordination fee,ADMIN-001,1,flat,75.00
+CLM-2024-001,2025-02-15,IME Physician Examination - Dr. Johnson (Orthopedic),IME-001,1,report,650.00
+CLM-2024-001,2025-02-15,Mileage - 47 miles @ $0.60/mile,MILE-001,47,mile,28.20
+CLM-2024-002,2025-02-18,IME Addendum Report - additional records review,IME-003,1,report,150.00
+CLM-2024-002,2025-02-18,Travel - Airfare to examination site,TRVL-001,1,flat,312.00
+CLM-2024-003,2025-02-20,Records Review No Exam - file only,IME-004,1,report,400.00
+CLM-2024-003,2025-02-20,No-show Fee - claimant did not appear,IME-007,1,flat,100.00
+CLM-2024-004,2025-02-22,Peer Review of treatment plan,IME-006,1,report,275.00
+CLM-2024-004,2025-02-22,IME Cancellation Fee - less than 48 hour notice,IME-005,1,flat,150.00
+CLM-2024-005,2025-02-25,Independent Medical Examination - Neurology,IME-001,1,report,725.00
+CLM-2024-005,2025-02-25,Lodging - 1 night hotel,TRVL-003,1,night,189.00
+CLM-2024-005,2025-02-25,Meals per diem - travel day,TRVL-004,1,day,65.00
+CLM-2024-006,2025-02-26,Multi-specialty IME panel - Ortho and Neuro,IME-002,1,report,1100.00
+CLM-2024-006,2025-02-26,Administrative scheduling coordination fee,ADMIN-001,1,flat,75.00
