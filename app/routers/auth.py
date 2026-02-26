@@ -1,8 +1,9 @@
 """
-Auth router — login and token endpoints.
+Auth router — login, token, and identity endpoints.
 Minimal JWT implementation for v1. SSO/SAML added when carriers require it.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.supplier import User
-from app.schemas.auth import TokenResponse
+from app.schemas.auth import TokenResponse, UserMeResponse
 from app.settings import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -42,6 +43,17 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 
+def _build_token_data(user: User) -> dict:
+    """Build the standard JWT payload for a user."""
+    return {
+        "sub": user.email,
+        "user_id": str(user.id),
+        "role": user.role,
+        "supplier_id": str(user.supplier_id) if user.supplier_id else None,
+        "carrier_id": str(user.carrier_id) if user.carrier_id else None,
+    }
+
+
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
@@ -60,8 +72,6 @@ def get_current_user(
             raise credentials_exc
     except JWTError:
         raise credentials_exc
-
-    import uuid
 
     user = db.get(User, uuid.UUID(user_id))
     if user is None or not user.is_active:
@@ -104,18 +114,47 @@ def login(
             status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive"
         )
 
-    token_data = {
-        "sub": user.email,
-        "user_id": str(user.id),
-        "role": user.role,
-        "supplier_id": str(user.supplier_id) if user.supplier_id else None,
-        "carrier_id": str(user.carrier_id) if user.carrier_id else None,
-    }
-    access_token = create_access_token(token_data)
+    access_token = create_access_token(_build_token_data(user))
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
         role=user.role,
         supplier_id=str(user.supplier_id) if user.supplier_id else None,
         carrier_id=str(user.carrier_id) if user.carrier_id else None,
+    )
+
+
+@router.get("/me", response_model=UserMeResponse)
+def get_me(
+    current_user: User = Depends(get_current_user),
+) -> UserMeResponse:
+    """Return the currently authenticated user's profile."""
+    return UserMeResponse(
+        id=current_user.id,
+        email=current_user.email,
+        role=current_user.role,
+        is_active=current_user.is_active,
+        supplier_id=current_user.supplier_id,
+        supplier_name=current_user.supplier.name if current_user.supplier else None,
+        carrier_id=current_user.carrier_id,
+        carrier_name=current_user.carrier.name if current_user.carrier else None,
+    )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_token(
+    current_user: User = Depends(get_current_user),
+) -> TokenResponse:
+    """
+    Issue a fresh token without re-entering credentials.
+    Useful for keeping a session alive during extended testing or use.
+    The existing token must still be valid to call this endpoint.
+    """
+    access_token = create_access_token(_build_token_data(current_user))
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        role=current_user.role,
+        supplier_id=str(current_user.supplier_id) if current_user.supplier_id else None,
+        carrier_id=str(current_user.carrier_id) if current_user.carrier_id else None,
     )

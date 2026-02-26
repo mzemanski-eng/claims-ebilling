@@ -63,17 +63,23 @@ def main() -> None:
         # Carrier — skip if short_code already exists
         carrier = db.query(Carrier).filter(Carrier.short_code == carrier_code).first()
         if carrier:
-            print(f"\n✓ Carrier '{carrier_code}' already exists (id={carrier.id}) — skipping.")
+            print(
+                f"\n✓ Carrier '{carrier_code}' already exists (id={carrier.id}) — skipping."
+            )
         else:
             carrier = Carrier(name=carrier_name, short_code=carrier_code)
             db.add(carrier)
             db.flush()  # get the id before commit
-            print(f"\n✓ Carrier '{carrier_name}' ({carrier_code}) created (id={carrier.id})")
+            print(
+                f"\n✓ Carrier '{carrier_name}' ({carrier_code}) created (id={carrier.id})"
+            )
 
         # Admin user — skip if email already exists
         existing = db.query(User).filter(User.email == admin_email).first()
         if existing:
-            print(f"✓ User '{admin_email}' already exists (role={existing.role}) — skipping.")
+            print(
+                f"✓ User '{admin_email}' already exists (role={existing.role}) — skipping."
+            )
         else:
             user = User(
                 email=admin_email,

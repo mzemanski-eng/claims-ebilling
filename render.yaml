@@ -38,7 +38,7 @@ services:
       - key: JWT_ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: "480"
+        value: "43200"  # 30 days — extended for demo/staging use
       - key: PYTHON_VERSION
         value: "3.12.0"
 

@@ -43,19 +43,91 @@ CONTRACT_EFFECTIVE_FROM = date(2025, 1, 1)
 # Rate cards keyed by taxonomy_code → (contracted_rate, max_units, is_all_inclusive, notes)
 RATE_CARDS = [
     # IME professional fees
-    ("IME.PHY_EXAM.PROF_FEE",          Decimal("600.00"),  Decimal("1"),    False, "Standard single-specialty IME"),
-    ("IME.MULTI_SPECIALTY.PROF_FEE",   Decimal("950.00"),  Decimal("1"),    False, "Multi-specialty panel — 2 physicians max"),
-    ("IME.ADDENDUM.PROF_FEE",          Decimal("125.00"),  Decimal("2"),    False, "Addendum per claim cap: 2"),
-    ("IME.RECORDS_REVIEW.PROF_FEE",    Decimal("350.00"),  Decimal("1"),    False, "Records review without exam"),
-    ("IME.CANCELLATION.CANCEL_FEE",    Decimal("150.00"),  Decimal("1"),    False, "< 48hr cancellation"),
-    ("IME.NO_SHOW.NO_SHOW_FEE",        Decimal("100.00"),  Decimal("1"),    False, "Claimant no-show"),
-    ("IME.PEER_REVIEW.PROF_FEE",       Decimal("250.00"),  Decimal("1"),    False, "Peer review of treatment plan"),
-    ("IME.ADMIN.SCHEDULING_FEE",       Decimal("50.00"),   Decimal("1"),    False, "Admin scheduling coordination"),
+    (
+        "IME.PHY_EXAM.PROF_FEE",
+        Decimal("600.00"),
+        Decimal("1"),
+        False,
+        "Standard single-specialty IME",
+    ),
+    (
+        "IME.MULTI_SPECIALTY.PROF_FEE",
+        Decimal("950.00"),
+        Decimal("1"),
+        False,
+        "Multi-specialty panel — 2 physicians max",
+    ),
+    (
+        "IME.ADDENDUM.PROF_FEE",
+        Decimal("125.00"),
+        Decimal("2"),
+        False,
+        "Addendum per claim cap: 2",
+    ),
+    (
+        "IME.RECORDS_REVIEW.PROF_FEE",
+        Decimal("350.00"),
+        Decimal("1"),
+        False,
+        "Records review without exam",
+    ),
+    (
+        "IME.CANCELLATION.CANCEL_FEE",
+        Decimal("150.00"),
+        Decimal("1"),
+        False,
+        "< 48hr cancellation",
+    ),
+    (
+        "IME.NO_SHOW.NO_SHOW_FEE",
+        Decimal("100.00"),
+        Decimal("1"),
+        False,
+        "Claimant no-show",
+    ),
+    (
+        "IME.PEER_REVIEW.PROF_FEE",
+        Decimal("250.00"),
+        Decimal("1"),
+        False,
+        "Peer review of treatment plan",
+    ),
+    (
+        "IME.ADMIN.SCHEDULING_FEE",
+        Decimal("50.00"),
+        Decimal("1"),
+        False,
+        "Admin scheduling coordination",
+    ),
     # Travel — billed separately on this contract
-    ("IME.PHY_EXAM.TRAVEL_TRANSPORT",  Decimal("400.00"),  None,            False, "Airfare cap $400"),
-    ("IME.PHY_EXAM.MILEAGE",           Decimal("0.67"),    Decimal("100"),  False, "IRS rate; 100 mile round-trip cap"),
-    ("IME.PHY_EXAM.TRAVEL_LODGING",    Decimal("175.00"),  Decimal("1"),    False, "1 night max per exam"),
-    ("IME.PHY_EXAM.TRAVEL_MEALS",      Decimal("60.00"),   Decimal("1"),    False, "Per diem cap $60/day"),
+    (
+        "IME.PHY_EXAM.TRAVEL_TRANSPORT",
+        Decimal("400.00"),
+        None,
+        False,
+        "Airfare cap $400",
+    ),
+    (
+        "IME.PHY_EXAM.MILEAGE",
+        Decimal("0.67"),
+        Decimal("100"),
+        False,
+        "IRS rate; 100 mile round-trip cap",
+    ),
+    (
+        "IME.PHY_EXAM.TRAVEL_LODGING",
+        Decimal("175.00"),
+        Decimal("1"),
+        False,
+        "1 night max per exam",
+    ),
+    (
+        "IME.PHY_EXAM.TRAVEL_MEALS",
+        Decimal("60.00"),
+        Decimal("1"),
+        False,
+        "Per diem cap $60/day",
+    ),
 ]
 
 # Guidelines: (rule_type, taxonomy_code_or_None, narrative, rule_params)
@@ -195,16 +267,19 @@ def main() -> None:
 
         print("\n✅ Demo seed complete.\n")
         print("Next steps:")
-        print(f"  1. Log in as admin   → POST /auth/token  (your bootstrap email)")
+        print("  1. Log in as admin   → POST /auth/token  (your bootstrap email)")
         print(f"  2. Log in as supplier → POST /auth/token  ({supplier_email})")
-        print(f"  3. Upload fixture     → POST /supplier/invoices  then  POST /supplier/invoices/{{id}}/upload")
-        print(f"  4. Upload file: fixtures/sample_invoice_ime.csv")
-        print(f"  5. Watch the pipeline classify + validate in the admin queue\n")
+        print(
+            "  3. Upload fixture     → POST /supplier/invoices  then  POST /supplier/invoices/{id}/upload"
+        )
+        print("  4. Upload file: fixtures/sample_invoice_ime.csv")
+        print("  5. Watch the pipeline classify + validate in the admin queue\n")
 
     except Exception as e:
         db.rollback()
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
     finally:

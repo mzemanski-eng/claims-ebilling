@@ -3,13 +3,15 @@ Carrier admin API routes.
 
 Workflow:
   GET  /admin/invoices                          → queue of invoices pending review
-  GET  /admin/invoices/{id}                     → full carrier view of invoice
   GET  /admin/invoices/{id}/lines               → line items with taxonomy detail
   POST /admin/invoices/{id}/approve             → approve invoice (or specific lines)
+  DELETE /admin/invoices/{id}                   → delete invoice (staging only)
   POST /admin/mappings/override                 → override a line's taxonomy mapping
-  GET  /admin/mappings                          → review low-confidence mapping queue
+  GET  /admin/mappings/review-queue             → review low-confidence mapping queue
   POST /admin/exceptions/{id}/resolve           → carrier resolves an exception
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
+  GET  /admin/suppliers                         → list all suppliers
+  GET  /admin/contracts                         → list all contracts
 """
 
 import csv
@@ -22,9 +24,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.audit import ActorType
-from app.models.invoice import Invoice, LineItem, SubmissionStatus, LineItemStatus
-from app.models.mapping import MappingRule, MatchType, ConfirmedBy
-from app.models.supplier import User, UserRole
+from app.models.invoice import Invoice, LineItem, LineItemStatus, SubmissionStatus
+from app.models.mapping import ConfirmedBy, MatchType, MappingRule
+from app.models.supplier import Contract, Supplier, User, UserRole
 from app.models.validation import (
     ExceptionRecord,
     ExceptionStatus,
@@ -33,13 +35,14 @@ from app.models.validation import (
 from app.routers.auth import require_role
 from app.schemas.invoice import (
     ApprovalRequest,
-    LineItemCarrierView,
+    ExceptionSupplierView,
     InvoiceListItem,
+    LineItemCarrierView,
     MappingOverrideRequest,
     ValidationResultSupplierView,
-    ExceptionSupplierView,
 )
 from app.services.audit import logger as audit
+from app.settings import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -388,6 +391,90 @@ def export_invoice(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Suppliers ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/suppliers")
+def list_suppliers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> list[dict]:
+    """List all suppliers with basic stats."""
+    suppliers = db.query(Supplier).order_by(Supplier.name).all()
+    return [
+        {
+            "id": str(s.id),
+            "name": s.name,
+            "tax_id": s.tax_id,
+            "is_active": s.is_active,
+            "contract_count": len(s.contracts),
+            "invoice_count": len(s.invoices),
+        }
+        for s in suppliers
+    ]
+
+
+# ── Contracts ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/contracts")
+def list_contracts(
+    supplier_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> list[dict]:
+    """
+    List all contracts. Optionally filter by ?supplier_id=<uuid>.
+    Returns contract details including rate card count.
+    """
+    q = db.query(Contract)
+    if supplier_id:
+        q = q.filter(Contract.supplier_id == supplier_id)
+    contracts = q.order_by(Contract.effective_from.desc()).all()
+    return [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "supplier_id": str(c.supplier_id),
+            "supplier_name": c.supplier.name if c.supplier else None,
+            "carrier_id": str(c.carrier_id),
+            "effective_from": c.effective_from.isoformat(),
+            "effective_to": c.effective_to.isoformat() if c.effective_to else None,
+            "geography_scope": c.geography_scope,
+            "is_active": c.is_active,
+            "rate_card_count": len(c.rate_cards),
+            "guideline_count": len(c.guidelines),
+        }
+        for c in contracts
+    ]
+
+
+# ── Test cleanup (staging only) ───────────────────────────────────────────────
+
+
+@router.delete("/invoices/{invoice_id}", status_code=status.HTTP_200_OK)
+def delete_invoice(
+    invoice_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.SYSTEM_ADMIN)),
+) -> dict:
+    """
+    Hard-delete an invoice and all related data (lines, validations, exceptions, audit events).
+    SYSTEM_ADMIN only. Disabled in production — for test/demo cleanup.
+    """
+    if settings.is_production:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invoice deletion is not permitted in production.",
+        )
+
+    invoice = _get_invoice(invoice_id, db)
+    invoice_number = invoice.invoice_number
+    db.delete(invoice)
+    db.commit()
+    return {"message": f"Invoice '{invoice_number}' and all related data deleted."}
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
