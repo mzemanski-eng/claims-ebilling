@@ -271,7 +271,7 @@ export default function AdminInvoiceDetailPage({
             </Button>
           )}
           {canExport && (
-            <Button variant="outline" onClick={handleExport}>
+            <Button variant="secondary" onClick={handleExport}>
               ↓ Export CSV
             </Button>
           )}

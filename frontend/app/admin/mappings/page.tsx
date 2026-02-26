@@ -196,7 +196,7 @@ export default function AdminMappingsPage() {
                   </div>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() =>
                     setExpandedItem(
