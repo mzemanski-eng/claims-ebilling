@@ -8,7 +8,7 @@ singleton at the bottom so the entire app shares one instance.
 
 import json
 
-from pydantic import field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,22 +48,18 @@ class Settings(BaseSettings):
     s3_endpoint_url: str = ""  # non-AWS providers (Backblaze, etc.)
 
     # ── CORS ───────────────────────────────────────────────────────────────
-    # Allowed origins for staging/production. Accepts:
-    #   - A JSON array:          '["https://foo.com","https://bar.com"]'
-    #   - Comma-separated:       "https://foo.com,https://bar.com"
-    #   - Single URL:            "https://foo.com"
-    # Ignored in development (allow_origins=["*"] is used instead).
-    allowed_origins: list[str] = []
+    # Stored as str so pydantic-settings doesn't try to JSON-parse it at the
+    # source layer (a list[str] field causes SettingsError with plain URLs).
+    # Use the `allowed_origins` property below for the parsed list.
+    # Accepts: plain URL, comma-separated, or JSON array.
+    # Set via ALLOWED_ORIGINS env var.  Ignored in development.
+    allowed_origins_raw: str = Field(default="", validation_alias="allowed_origins")
 
-    @field_validator("allowed_origins", mode="before")
-    @classmethod
-    def parse_allowed_origins(cls, v: object) -> list[str]:
-        if isinstance(v, list):
-            return v
-        if not isinstance(v, str) or not v.strip():
+    @property
+    def allowed_origins(self) -> list[str]:
+        raw = self.allowed_origins_raw.strip()
+        if not raw:
             return []
-        raw = v.strip()
-        # Try JSON array first
         if raw.startswith("["):
             try:
                 parsed = json.loads(raw)
@@ -71,7 +67,6 @@ class Settings(BaseSettings):
                     return [str(x) for x in parsed]
             except json.JSONDecodeError:
                 pass
-        # Fall back to comma-separated string
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
     # ── Derived helpers ────────────────────────────────────────────────────
