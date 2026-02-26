@@ -29,7 +29,7 @@ function CarrierExceptionCard({
   exception,
   invoiceId,
 }: CarrierExceptionCardProps) {
-  const [action, setAction] = useState(ResolutionActions.HELD_CONTRACT_RATE);
+  const [action, setAction] = useState<string>(ResolutionActions.HELD_CONTRACT_RATE);
   const [notes, setNotes] = useState("");
   const queryClient = useQueryClient();
 
