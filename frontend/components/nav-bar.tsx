@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { clearToken, getUserInfo, isCarrierRole, isSupplier } from "@/lib/auth";
+import { clearToken, getUserInfo, isAdmin, isCarrierRole, isSupplier } from "@/lib/auth";
 
 export function NavBar() {
   const router = useRouter();
@@ -56,6 +56,28 @@ export function NavBar() {
             >
               Review Queue
             </Link>
+          )}
+          {isAdmin() && (
+            <>
+              <Link
+                href="/admin/invoices"
+                className="hover:text-blue-600 transition-colors"
+              >
+                Invoice Queue
+              </Link>
+              <Link
+                href="/admin/suppliers"
+                className="hover:text-blue-600 transition-colors"
+              >
+                Suppliers
+              </Link>
+              <Link
+                href="/admin/mappings"
+                className="hover:text-blue-600 transition-colors"
+              >
+                Mappings
+              </Link>
+            </>
           )}
 
           <div className="ml-4 flex items-center gap-3 border-l pl-4">

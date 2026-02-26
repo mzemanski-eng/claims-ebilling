@@ -58,24 +58,39 @@ _CARRIER_ROLES = (
 
 @router.get("/invoices", response_model=list[InvoiceListItem])
 def list_pending_invoices(
-    status_filter: str = "PENDING_CARRIER_REVIEW",
+    status_filter: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> list[InvoiceListItem]:
     """
-    Returns invoices awaiting carrier action.
-    Default: PENDING_CARRIER_REVIEW. Pass ?status_filter=REVIEW_REQUIRED for exception queues.
+    Returns invoices. Optionally filter by ?status_filter=PENDING_CARRIER_REVIEW.
+    When status_filter is omitted, all invoices are returned (admin use).
     """
-    invoices = (
-        db.query(Invoice)
-        .filter(Invoice.status == status_filter)
-        .order_by(Invoice.submitted_at.asc())  # oldest first (FIFO queue)
-        .all()
-    )
-    return [_to_invoice_list_item(inv) for inv in invoices]
+    q = db.query(Invoice).order_by(Invoice.submitted_at.asc().nulls_last())
+    if status_filter:
+        q = q.filter(Invoice.status == status_filter)
+    return [_to_invoice_list_item(inv) for inv in q.all()]
 
 
-# ── Invoice Detail (carrier view) ─────────────────────────────────────────────
+# ── Invoice Detail (admin / carrier view) ─────────────────────────────────────
+
+
+@router.get("/invoices/{invoice_id}")
+def get_invoice_detail(
+    invoice_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> dict:
+    """Single invoice detail with supplier + contract metadata (admin enrichment)."""
+    from app.routers.supplier import _to_invoice_response
+
+    invoice = _get_invoice(invoice_id, db)
+    base = _to_invoice_response(invoice)
+    return {
+        **base.model_dump(),
+        "supplier_name": invoice.supplier.name if invoice.supplier else None,
+        "contract_name": invoice.contract.name if invoice.contract else None,
+    }
 
 
 @router.get("/invoices/{invoice_id}/lines", response_model=list[LineItemCarrierView])

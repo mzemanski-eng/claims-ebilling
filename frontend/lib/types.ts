@@ -61,6 +61,50 @@ export interface InvoiceDetail {
   validation_summary: ValidationSummary | null;
 }
 
+/** Admin-enriched invoice detail — includes supplier + contract name. */
+export interface AdminInvoiceDetail extends InvoiceDetail {
+  supplier_name: string | null;
+  contract_name: string | null;
+}
+
+/** One row from the mapping review queue. */
+export interface MappingQueueItem {
+  line_item_id: string;
+  invoice_id: string;
+  line_number: number;
+  raw_description: string;
+  raw_code: string | null;
+  taxonomy_code: string | null;
+  billing_component: string | null;
+  mapping_confidence: string;
+  raw_amount: string;
+}
+
+/** Admin supplier row */
+export interface AdminSupplier {
+  id: string;
+  name: string;
+  tax_id: string | null;
+  is_active: boolean;
+  contract_count: number;
+  invoice_count: number;
+}
+
+/** Admin contract row */
+export interface AdminContract {
+  id: string;
+  name: string;
+  supplier_id: string;
+  supplier_name: string | null;
+  carrier_id: string;
+  effective_from: string;
+  effective_to: string | null;
+  geography_scope: string;
+  is_active: boolean;
+  rate_card_count: number;
+  guideline_count: number;
+}
+
 export interface InvoiceUploadResponse {
   invoice_id: string;
   status: string;

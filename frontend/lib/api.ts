@@ -10,6 +10,9 @@
 
 import { clearToken, getToken } from "./auth";
 import type {
+  AdminContract,
+  AdminInvoiceDetail,
+  AdminSupplier,
   ExceptionView,
   InvoiceCreate,
   InvoiceDetail,
@@ -17,6 +20,7 @@ import type {
   InvoiceUploadResponse,
   LineItemCarrierView,
   LineItemSupplierView,
+  MappingQueueItem,
   TokenResponse,
   UserInfo,
 } from "./types";
@@ -258,25 +262,99 @@ export function listSupplierContracts(): Promise<
 
 // ── Admin (optional helpers for SYSTEM_ADMIN pages) ───────────────────────────
 
-export function listAdminSuppliers(): Promise<
-  { id: string; name: string; contract_count: number; invoice_count: number }[]
-> {
-  return apiFetch("/admin/suppliers");
+export function listAdminSuppliers(): Promise<AdminSupplier[]> {
+  return apiFetch<AdminSupplier[]>("/admin/suppliers");
 }
 
-export function listAdminContracts(supplierId?: string): Promise<
-  {
-    id: string;
-    name: string;
-    supplier_id: string;
-    supplier_name: string;
-    effective_from: string;
-    is_active: boolean;
-    rate_card_count: number;
-  }[]
-> {
+export function listAdminContracts(supplierId?: string): Promise<AdminContract[]> {
   const qs = supplierId ? `?supplier_id=${supplierId}` : "";
-  return apiFetch(`/admin/contracts${qs}`);
+  return apiFetch<AdminContract[]>(`/admin/contracts${qs}`);
+}
+
+// ── Admin — invoices ──────────────────────────────────────────────────────────
+
+/** List all invoices, optionally filtered by status. Omit statusFilter to get all. */
+export function listAdminInvoices(statusFilter?: string): Promise<InvoiceListItem[]> {
+  const qs = statusFilter ? `?status_filter=${statusFilter}` : "";
+  return apiFetch<InvoiceListItem[]>(`/admin/invoices${qs}`);
+}
+
+/** Get a single invoice with supplier + contract name enrichment. */
+export function getAdminInvoice(id: string): Promise<AdminInvoiceDetail> {
+  return apiFetch<AdminInvoiceDetail>(`/admin/invoices/${id}`);
+}
+
+/** Get line items for an invoice (full carrier view with taxonomy). */
+export function getAdminInvoiceLines(id: string): Promise<LineItemCarrierView[]> {
+  return apiFetch<LineItemCarrierView[]>(`/admin/invoices/${id}/lines`);
+}
+
+/** Approve an invoice; optionally restrict to specific line IDs. */
+export function approveAdminInvoice(
+  id: string,
+  lineItemIds?: string[],
+  notes?: string,
+): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/admin/invoices/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ line_item_ids: lineItemIds ?? null, notes: notes ?? null }),
+  });
+}
+
+/** Export an approved invoice as a CSV blob. */
+export async function exportAdminInvoice(id: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/admin/invoices/${id}/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError(res.status, "Export failed");
+  return res.blob();
+}
+
+// ── Admin — exceptions ────────────────────────────────────────────────────────
+
+/**
+ * Admin exception resolution.
+ * NOTE: backend reads these as query params (not JSON body).
+ */
+export function resolveAdminException(
+  exceptionId: string,
+  resolutionAction: string,
+  resolutionNotes = "",
+): Promise<{ message: string }> {
+  const qs = new URLSearchParams({
+    resolution_action: resolutionAction,
+    resolution_notes: resolutionNotes,
+  });
+  return apiFetch<{ message: string }>(
+    `/admin/exceptions/${exceptionId}/resolve?${qs}`,
+    { method: "POST" },
+  );
+}
+
+// ── Admin — mappings ──────────────────────────────────────────────────────────
+
+export function getMappingReviewQueue(): Promise<MappingQueueItem[]> {
+  return apiFetch<MappingQueueItem[]>("/admin/mappings/review-queue");
+}
+
+export function overrideMapping(
+  lineItemId: string,
+  taxonomyCode: string,
+  billingComponent: string,
+  scope: "this_line" | "this_supplier" | "global",
+  notes?: string,
+): Promise<{ message: string; scope: string; rule_created: boolean; rule_id: string | null }> {
+  return apiFetch("/admin/mappings/override", {
+    method: "POST",
+    body: JSON.stringify({
+      line_item_id: lineItemId,
+      taxonomy_code: taxonomyCode,
+      billing_component: billingComponent,
+      scope,
+      notes: notes ?? null,
+    }),
+  });
 }
 
 export function getExceptionDetails(

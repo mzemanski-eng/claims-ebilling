@@ -21,6 +21,8 @@ export default function RootPage() {
       router.replace("/supplier/invoices");
     } else if (role === "CARRIER_ADMIN" || role === "CARRIER_REVIEWER") {
       router.replace("/carrier/queue");
+    } else if (role === "SYSTEM_ADMIN") {
+      router.replace("/admin/invoices");
     } else {
       router.replace("/login");
     }

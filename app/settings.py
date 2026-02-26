@@ -6,6 +6,9 @@ Never import settings directly from this file — always use the `settings`
 singleton at the bottom so the entire app shares one instance.
 """
 
+import json
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,10 +48,31 @@ class Settings(BaseSettings):
     s3_endpoint_url: str = ""  # non-AWS providers (Backblaze, etc.)
 
     # ── CORS ───────────────────────────────────────────────────────────────
-    # Comma-separated list of allowed origins for staging/production.
-    # Example: "https://claims-ebilling.vercel.app,https://preview.vercel.app"
+    # Allowed origins for staging/production. Accepts:
+    #   - A JSON array:          '["https://foo.com","https://bar.com"]'
+    #   - Comma-separated:       "https://foo.com,https://bar.com"
+    #   - Single URL:            "https://foo.com"
     # Ignored in development (allow_origins=["*"] is used instead).
     allowed_origins: list[str] = []
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v: object) -> list[str]:
+        if isinstance(v, list):
+            return v
+        if not isinstance(v, str) or not v.strip():
+            return []
+        raw = v.strip()
+        # Try JSON array first
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(x) for x in parsed]
+            except json.JSONDecodeError:
+                pass
+        # Fall back to comma-separated string
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
     # ── Derived helpers ────────────────────────────────────────────────────
     @property

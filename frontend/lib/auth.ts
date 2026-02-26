@@ -54,3 +54,7 @@ export function isCarrierAdmin(): boolean {
 export function isSupplier(): boolean {
   return getRole() === "SUPPLIER";
 }
+
+export function isAdmin(): boolean {
+  return getRole() === "SYSTEM_ADMIN";
+}
