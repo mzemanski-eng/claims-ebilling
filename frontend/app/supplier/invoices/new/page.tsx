@@ -2,16 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
-import { createInvoice, uploadInvoiceFile, listAdminContracts } from "@/lib/api";
-import { getUserInfo } from "@/lib/auth";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createInvoice, uploadInvoiceFile, listSupplierContracts } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useQuery } from "@tanstack/react-query";
 
 export default function NewInvoicePage() {
   const router = useRouter();
-  const user = getUserInfo();
 
   // Step 1: form fields
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -27,14 +24,10 @@ export default function NewInvoicePage() {
 
   const [stepError, setStepError] = useState<string | null>(null);
 
-  // Load supplier's contracts
+  // Load supplier's contracts via the supplier-scoped endpoint
   const { data: contracts } = useQuery({
-    queryKey: ["admin-contracts", user?.supplier_id],
-    queryFn: () =>
-      user?.supplier_id
-        ? listAdminContracts(user.supplier_id)
-        : Promise.resolve([]),
-    enabled: !!user?.supplier_id,
+    queryKey: ["supplier-contracts"],
+    queryFn: listSupplierContracts,
   });
 
   const createMutation = useMutation({

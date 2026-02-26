@@ -263,17 +263,50 @@ def main() -> None:
             db.add(user)
             print(f"✓ Supplier user '{supplier_email}' created (role=SUPPLIER)")
 
+        # ── Carrier admin user ─────────────────────────────────────────────────
+        print("\n── Carrier admin user (for testing the carrier review side) ────────")
+        carrier_email = input("Carrier admin email [carrier_admin@demo.com]: ").strip()
+        carrier_email = carrier_email or "carrier_admin@demo.com"
+
+        existing_carrier_user = (
+            db.query(User).filter(User.email == carrier_email).first()
+        )
+        if existing_carrier_user:
+            print(f"✓ User '{carrier_email}' already exists — skipping.")
+        else:
+            carrier_password = getpass("Carrier admin password (min 8 chars): ")
+            if len(carrier_password) < 8:
+                print("ERROR: password must be at least 8 characters.")
+                sys.exit(1)
+            confirm_carrier = getpass("Confirm password: ")
+            if carrier_password != confirm_carrier:
+                print("ERROR: passwords do not match.")
+                sys.exit(1)
+
+            carrier_user = User(
+                email=carrier_email,
+                hashed_password=hash_password(carrier_password),
+                role=UserRole.CARRIER_ADMIN,
+                carrier_id=carrier.id,
+                is_active=True,
+            )
+            db.add(carrier_user)
+            print(
+                f"✓ Carrier admin user '{carrier_email}' created (role=CARRIER_ADMIN)"
+            )
+
         db.commit()
 
         print("\n✅ Demo seed complete.\n")
         print("Next steps:")
-        print("  1. Log in as admin   → POST /auth/token  (your bootstrap email)")
-        print(f"  2. Log in as supplier → POST /auth/token  ({supplier_email})")
+        print("  1. Log in as admin        → POST /auth/token  (your bootstrap email)")
+        print(f"  2. Log in as supplier     → POST /auth/token  ({supplier_email})")
+        print(f"  3. Log in as carrier admin → POST /auth/token  ({carrier_email})")
         print(
-            "  3. Upload fixture     → POST /supplier/invoices  then  POST /supplier/invoices/{id}/upload"
+            "  4. Upload fixture     → POST /supplier/invoices  then  POST /supplier/invoices/{id}/upload"
         )
-        print("  4. Upload file: fixtures/sample_invoice_ime.csv")
-        print("  5. Watch the pipeline classify + validate in the admin queue\n")
+        print("  5. Upload file: fixtures/sample_invoice_ime.csv")
+        print("  6. Watch the pipeline classify + validate in the carrier queue\n")
 
     except Exception as e:
         db.rollback()

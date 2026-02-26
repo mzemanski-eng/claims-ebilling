@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.invoice import Invoice, InvoiceVersion, LineItem, SubmissionStatus
-from app.models.supplier import User, UserRole
+from app.models.supplier import Contract, User, UserRole
 from app.models.validation import ExceptionRecord, ExceptionStatus, ValidationStatus
 from app.routers.auth import require_role
 from app.schemas.invoice import (
@@ -41,6 +41,39 @@ from app.workers.invoice_pipeline import process_invoice_sync
 from app.models.audit import ActorType
 
 router = APIRouter(prefix="/supplier", tags=["supplier"])
+
+
+# ── Contracts ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/contracts")
+def list_supplier_contracts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.SUPPLIER)),
+) -> list[dict]:
+    """
+    Return all active contracts for the authenticated supplier.
+    Used by the frontend to populate the contract selector on the new-invoice form.
+    """
+    contracts = (
+        db.query(Contract)
+        .filter(
+            Contract.supplier_id == current_user.supplier_id,
+            Contract.is_active.is_(True),
+        )
+        .order_by(Contract.effective_from.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "effective_from": c.effective_from.isoformat(),
+            "effective_to": c.effective_to.isoformat() if c.effective_to else None,
+            "geography_scope": c.geography_scope,
+        }
+        for c in contracts
+    ]
 
 
 # ── Create Invoice ────────────────────────────────────────────────────────────

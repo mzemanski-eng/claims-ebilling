@@ -242,6 +242,20 @@ export function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+// ── Supplier — contracts ──────────────────────────────────────────────────────
+
+export function listSupplierContracts(): Promise<
+  {
+    id: string;
+    name: string;
+    effective_from: string;
+    effective_to: string | null;
+    geography_scope: string;
+  }[]
+> {
+  return apiFetch("/supplier/contracts");
+}
+
 // ── Admin (optional helpers for SYSTEM_ADMIN pages) ───────────────────────────
 
 export function listAdminSuppliers(): Promise<
