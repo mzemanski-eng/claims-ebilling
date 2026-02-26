@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getSupplierInvoice, getSupplierInvoiceLines } from "@/lib/api";
@@ -20,9 +19,9 @@ function formatDate(iso: string | null) {
 export default function SupplierInvoiceDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
 
   const { data: invoice, isLoading: invLoading } = useQuery({
     queryKey: ["supplier-invoice", id],
