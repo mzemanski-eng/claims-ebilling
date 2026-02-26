@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     s3_secret_key: str = ""
     s3_endpoint_url: str = ""  # non-AWS providers (Backblaze, etc.)
 
+    # ── CORS ───────────────────────────────────────────────────────────────
+    # Comma-separated list of allowed origins for staging/production.
+    # Example: "https://claims-ebilling.vercel.app,https://preview.vercel.app"
+    # Ignored in development (allow_origins=["*"] is used instead).
+    allowed_origins: list[str] = []
+
     # ── Derived helpers ────────────────────────────────────────────────────
     @property
     def is_production(self) -> bool:

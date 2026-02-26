@@ -188,6 +188,42 @@ def sample_invoice(db: Session, sample_supplier, sample_contract):
 
 
 @pytest.fixture
+def carrier_admin_user(db: Session, sample_carrier):
+    """A CARRIER_ADMIN user scoped to sample_carrier."""
+    from app.models.supplier import User, UserRole
+    from app.routers.auth import hash_password
+
+    user = User(
+        email="carrier_admin@test.com",
+        hashed_password=hash_password("test1234"),
+        role=UserRole.CARRIER_ADMIN,
+        carrier_id=sample_carrier.id,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+@pytest.fixture
+def carrier_reviewer_user(db: Session, sample_carrier):
+    """A CARRIER_REVIEWER user scoped to sample_carrier (read-only)."""
+    from app.models.supplier import User, UserRole
+    from app.routers.auth import hash_password
+
+    user = User(
+        email="carrier_reviewer@test.com",
+        hashed_password=hash_password("test1234"),
+        role=UserRole.CARRIER_REVIEWER,
+        carrier_id=sample_carrier.id,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+@pytest.fixture
 def sample_csv_bytes() -> bytes:
     """The canonical test fixture CSV — covers all exception types."""
     path = os.path.join(

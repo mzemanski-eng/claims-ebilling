@@ -211,3 +211,29 @@ def log_exception_resolved(
         actor_type=actor_type,
         actor_id=actor_id,
     )
+
+
+def log_invoice_changes_requested(
+    db: Session,
+    invoice,
+    carrier_notes: str,
+    actor_id: uuid.UUID,
+) -> None:
+    """
+    Carrier returns an invoice to the supplier with required changes.
+    Carrier notes are stored in the immutable audit event payload only —
+    no schema change is required and the notes are always recoverable.
+    """
+    log_event(
+        db,
+        "invoice",
+        invoice.id,
+        "invoice.changes_requested",
+        payload={
+            "invoice_number": invoice.invoice_number,
+            "to_status": "REVIEW_REQUIRED",
+            "carrier_notes": carrier_notes,
+        },
+        actor_type=ActorType.CARRIER,
+        actor_id=actor_id,
+    )
