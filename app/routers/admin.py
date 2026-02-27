@@ -555,6 +555,7 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
             if exc.validation_result
             else "NONE",
             supplier_response=exc.supplier_response,
+            resolution_action=exc.resolution_action,
         )
         for exc in li.exceptions
     ]

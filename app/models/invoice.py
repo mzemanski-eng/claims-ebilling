@@ -71,6 +71,9 @@ class LineItemStatus:
     APPROVED = "APPROVED"
     DISPUTED = "DISPUTED"
     RESOLVED = "RESOLVED"
+    DENIED = (
+        "DENIED"  # Carrier-final: line will not be paid; excluded from payable totals
+    )
 
 
 class FileFormat:

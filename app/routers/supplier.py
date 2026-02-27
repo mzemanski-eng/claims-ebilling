@@ -19,7 +19,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.invoice import Invoice, InvoiceVersion, LineItem, SubmissionStatus
+from app.models.invoice import (
+    Invoice,
+    InvoiceVersion,
+    LineItem,
+    LineItemStatus,
+    SubmissionStatus,
+)
 from app.models.supplier import Contract, User, UserRole
 from app.models.validation import ExceptionRecord, ExceptionStatus, ValidationStatus
 from app.routers.auth import require_role
@@ -402,11 +408,19 @@ def _build_validation_summary(
     total_billed = sum(li.raw_amount for li in lines)
     total_payable = Decimal("0")
     total_in_dispute = Decimal("0")
+    total_denied = Decimal("0")
     validated = 0
     with_exceptions = 0
     pending_review = 0
+    lines_denied = 0
 
     for li in lines:
+        # DENIED lines are carrier-final: excluded from both payable and in-dispute
+        if li.status == LineItemStatus.DENIED:
+            lines_denied += 1
+            total_denied += li.raw_amount
+            continue
+
         has_error = any(
             v.status == ValidationStatus.FAIL for v in li.validation_results
         )
@@ -430,6 +444,8 @@ def _build_validation_summary(
         total_billed=total_billed,
         total_payable=total_payable,
         total_in_dispute=total_in_dispute,
+        lines_denied=lines_denied,
+        total_denied=total_denied,
     )
 
 

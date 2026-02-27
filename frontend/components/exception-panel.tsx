@@ -16,6 +16,7 @@ const RESOLUTION_OPTIONS = [
   { value: ResolutionActions.WAIVED, label: "Waive Exception" },
   { value: ResolutionActions.RECLASSIFIED, label: "Reclassify Line" },
   { value: ResolutionActions.ACCEPTED_REDUCTION, label: "Accept Reduction" },
+  { value: ResolutionActions.DENIED, label: "Deny Line" },
 ];
 
 // ── Carrier exception resolution ──────────────────────────────────────────────

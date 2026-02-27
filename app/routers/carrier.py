@@ -251,7 +251,10 @@ def resolve_carrier_exception(
     Resolve a single exception with a typed action and optional notes.
     Verifies the exception belongs to this carrier's invoice before resolving.
 
-    resolution_action: WAIVED | HELD_CONTRACT_RATE | RECLASSIFIED | ACCEPTED_REDUCTION
+    resolution_action: WAIVED | HELD_CONTRACT_RATE | RECLASSIFIED | ACCEPTED_REDUCTION | DENIED
+
+    DENIED marks the line item as non-payable (carrier-final). The line item status is
+    set to DENIED and excluded from payable totals. No invoice resubmission is required.
     """
     exc = db.get(ExceptionRecord, exception_id)
     if exc is None:
@@ -284,6 +287,10 @@ def resolve_carrier_exception(
     exc.resolution_notes = payload.resolution_notes
     exc.resolved_at = datetime.now(timezone.utc)
     exc.resolved_by_user_id = current_user.id
+
+    # DENIED: transition the line item to a non-payable terminal state
+    if payload.resolution_action == ResolutionAction.DENIED:
+        line_item.status = LineItemStatus.DENIED
 
     audit.log_exception_resolved(db, exc, actor_id=current_user.id)
     db.commit()

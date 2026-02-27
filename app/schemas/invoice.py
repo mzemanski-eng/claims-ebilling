@@ -49,6 +49,8 @@ class ValidationSummary(BaseSchema):
     total_billed: Decimal
     total_payable: Decimal  # validated amount (may be less than billed)
     total_in_dispute: Decimal  # lines with open exceptions
+    lines_denied: int = 0  # lines carrier has denied (will not pay)
+    total_denied: Decimal = Decimal("0")  # sum of raw_amount for denied lines
 
 
 class InvoiceResponse(TimestampedSchema):
@@ -105,6 +107,9 @@ class ExceptionSupplierView(BaseSchema):
     severity: str
     required_action: str
     supplier_response: Optional[str] = None
+    resolution_action: Optional[str] = (
+        None  # Set once carrier resolves (e.g. DENIED, WAIVED)
+    )
 
 
 class LineItemSupplierView(BaseSchema):

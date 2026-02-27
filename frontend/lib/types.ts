@@ -32,6 +32,8 @@ export interface ValidationSummary {
   total_billed: string;
   total_payable: string;
   total_in_dispute: string;
+  lines_denied: number;
+  total_denied: string;
 }
 
 export interface InvoiceListItem {
@@ -137,6 +139,7 @@ export interface ExceptionView {
   severity: string;
   required_action: string;
   supplier_response: string | null;
+  resolution_action: string | null;
 }
 
 // ── Line Items ────────────────────────────────────────────────────────────────
@@ -194,6 +197,7 @@ export const LineItemStatusValues = {
   APPROVED: "APPROVED",
   DISPUTED: "DISPUTED",
   RESOLVED: "RESOLVED",
+  DENIED: "DENIED",
 } as const;
 
 export const ExceptionStatusValues = {
@@ -209,6 +213,7 @@ export const ResolutionActions = {
   HELD_CONTRACT_RATE: "HELD_CONTRACT_RATE",
   RECLASSIFIED: "RECLASSIFIED",
   ACCEPTED_REDUCTION: "ACCEPTED_REDUCTION",
+  DENIED: "DENIED",
 } as const;
 
 export type ResolutionAction =

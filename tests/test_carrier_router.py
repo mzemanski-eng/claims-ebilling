@@ -540,3 +540,127 @@ class TestExportInvoice:
             headers=_auth_header(carrier_admin_user),
         )
         assert resp.status_code == 409
+
+
+# ── Deny Exception ────────────────────────────────────────────────────────────
+
+
+class TestDenyException:
+    def test_deny_exception_sets_line_item_denied(
+        self,
+        client: TestClient,
+        db,
+        sample_supplier,
+        sample_contract,
+        carrier_admin_user,
+    ):
+        """DENIED resolution sets exception→RESOLVED and line item→DENIED."""
+        _, li = _make_pending_invoice(
+            db, sample_supplier, sample_contract, "INV-DEN-001"
+        )
+        li.status = LineItemStatus.EXCEPTION
+        exc = _add_open_exception(db, li)
+
+        resp = client.post(
+            f"/carrier/exceptions/{exc.id}/resolve",
+            json={
+                "resolution_action": "DENIED",
+                "resolution_notes": "Service not covered under this contract.",
+            },
+            headers=_auth_header(carrier_admin_user),
+        )
+        assert resp.status_code == 200
+
+        db.refresh(exc)
+        assert exc.status == ExceptionStatus.RESOLVED
+        assert exc.resolution_action == ResolutionAction.DENIED
+
+        db.refresh(li)
+        assert li.status == LineItemStatus.DENIED
+
+    def test_approve_invoice_skips_denied_lines(
+        self,
+        client: TestClient,
+        db,
+        sample_supplier,
+        sample_contract,
+        carrier_admin_user,
+    ):
+        """Approval leaves DENIED lines untouched; only VALIDATED line → APPROVED."""
+        inv, li_validated = _make_pending_invoice(
+            db, sample_supplier, sample_contract, "INV-DEN-002"
+        )
+        # Second line — will be DENIED
+        li_denied = LineItem(
+            invoice_id=inv.id,
+            invoice_version=1,
+            line_number=2,
+            raw_description="Non-covered service",
+            raw_amount=Decimal("200.00"),
+            raw_quantity=Decimal("1"),
+            raw_unit="report",
+            claim_number="CLM-DEN-002",
+            service_date=date(2025, 2, 15),
+            taxonomy_code="IME.PHY_EXAM.PROF_FEE",
+            billing_component="PROF_FEE",
+            mapping_confidence="HIGH",
+            status=LineItemStatus.EXCEPTION,
+        )
+        db.add(li_denied)
+        db.flush()
+
+        exc = _add_open_exception(db, li_denied)
+
+        # Resolve the exception as DENIED → li_denied.status = DENIED
+        client.post(
+            f"/carrier/exceptions/{exc.id}/resolve",
+            json={"resolution_action": "DENIED", "resolution_notes": "Not covered."},
+            headers=_auth_header(carrier_admin_user),
+        )
+
+        # Now approve the invoice
+        resp = client.post(
+            f"/carrier/invoices/{inv.id}/approve",
+            json={"notes": None},
+            headers=_auth_header(carrier_admin_user),
+        )
+        assert resp.status_code == 200
+
+        db.refresh(inv)
+        assert inv.status == SubmissionStatus.APPROVED
+
+        db.refresh(li_validated)
+        assert li_validated.status == LineItemStatus.APPROVED  # normal line approved
+
+        db.refresh(li_denied)
+        assert li_denied.status == LineItemStatus.DENIED  # denied line untouched
+
+    def test_deny_already_resolved_exception_returns_409(
+        self,
+        client: TestClient,
+        db,
+        sample_supplier,
+        sample_contract,
+        carrier_admin_user,
+    ):
+        """Resolving an already-RESOLVED exception returns 409 CONFLICT."""
+        _, li = _make_pending_invoice(
+            db, sample_supplier, sample_contract, "INV-DEN-003"
+        )
+        li.status = LineItemStatus.EXCEPTION
+        exc = _add_open_exception(db, li)
+
+        # First resolution — succeeds
+        client.post(
+            f"/carrier/exceptions/{exc.id}/resolve",
+            json={"resolution_action": "DENIED"},
+            headers=_auth_header(carrier_admin_user),
+        )
+
+        # Second resolution attempt — should fail with 409
+        resp = client.post(
+            f"/carrier/exceptions/{exc.id}/resolve",
+            json={"resolution_action": "WAIVED"},
+            headers=_auth_header(carrier_admin_user),
+        )
+        assert resp.status_code == 409

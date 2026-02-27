@@ -60,6 +60,7 @@ class ResolutionAction:
     HELD_CONTRACT_RATE = "HELD_CONTRACT_RATE"
     RECLASSIFIED = "RECLASSIFIED"
     ACCEPTED_REDUCTION = "ACCEPTED_REDUCTION"
+    DENIED = "DENIED"  # Carrier-final: do not pay this line; no resubmission required
 
 
 # ── Models ───────────────────────────────────────────────────────────────────
@@ -182,7 +183,7 @@ class ExceptionRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     resolution_action: Mapped[Optional[str]] = mapped_column(
         String(32),
         nullable=True,
-        comment="REUPLOAD | WAIVED | HELD_CONTRACT_RATE | RECLASSIFIED | ACCEPTED_REDUCTION",
+        comment="REUPLOAD | WAIVED | HELD_CONTRACT_RATE | RECLASSIFIED | ACCEPTED_REDUCTION | DENIED",
     )
     resolution_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(

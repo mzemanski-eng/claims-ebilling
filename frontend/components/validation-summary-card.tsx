@@ -25,6 +25,13 @@ export function ValidationSummaryCard({ summary }: ValidationSummaryCardProps) {
       <Stat label="Pending Review" value={String(summary.lines_pending_review)} />
       <Stat label="Total Billed" value={<Money value={summary.total_billed} />} />
       <Stat label="Payable" value={<Money value={summary.total_payable} />} green />
+      {summary.lines_denied > 0 && (
+        <Stat
+          label="Denied"
+          value={<Money value={summary.total_denied} />}
+          highlight
+        />
+      )}
     </div>
   );
 }

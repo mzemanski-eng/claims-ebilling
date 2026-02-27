@@ -15,6 +15,7 @@ const STATUS_STYLES: Record<string, string> = {
   CLASSIFIED: "bg-blue-100 text-blue-700",
   VALIDATED: "bg-green-100 text-green-700",
   EXCEPTION: "bg-red-100 text-red-700",
+  DENIED: "bg-red-200 text-red-900",
   OVERRIDE: "bg-yellow-100 text-yellow-700",
   RESOLVED: "bg-teal-100 text-teal-700",
   // Exception / shared statuses

@@ -41,6 +41,7 @@ class CarrierExceptionResolvePayload(BaseSchema):
             ResolutionAction.HELD_CONTRACT_RATE,
             ResolutionAction.RECLASSIFIED,
             ResolutionAction.ACCEPTED_REDUCTION,
+            ResolutionAction.DENIED,
         }
         if v not in valid:
             raise ValueError(f"resolution_action must be one of: {sorted(valid)}")
