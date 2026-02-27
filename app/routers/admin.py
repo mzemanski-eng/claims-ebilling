@@ -12,7 +12,7 @@ Workflow:
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
   GET  /admin/suppliers                         → list all suppliers
   GET  /admin/contracts                         → list all contracts
-"""
+""
 
 import csv
 import io
@@ -85,7 +85,7 @@ def get_invoice_detail(
     from app.routers.supplier import _to_invoice_response
 
     invoice = _get_invoice(invoice_id, db)
-    base = _to_invoice_response(invoice)
+    base = _to_invoice_response(invoice, db)
     return {
         **base.model_dump(),
         "supplier_name": invoice.supplier.name if invoice.supplier else None,
