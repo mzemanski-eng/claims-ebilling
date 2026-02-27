@@ -132,6 +132,13 @@ def assess_description_alignment(
         )
         raw_text = message.content[0].text.strip()
 
+        # Strip markdown code fences — haiku sometimes wraps JSON in ```json ... ```
+        # despite the system prompt. Handle both ```json and plain ```.
+        if raw_text.startswith("```"):
+            lines = raw_text.splitlines()
+            # Drop the opening fence line and the closing fence (last line)
+            raw_text = "\n".join(lines[1:-1]).strip()
+
         # Parse JSON response
         data = json.loads(raw_text)
 
