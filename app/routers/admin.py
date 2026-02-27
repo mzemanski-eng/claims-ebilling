@@ -12,7 +12,7 @@ Workflow:
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
   GET  /admin/suppliers                         → list all suppliers
   GET  /admin/contracts                         → list all contracts
-""
+"""
 
 import csv
 import io
