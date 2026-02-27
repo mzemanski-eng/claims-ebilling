@@ -154,6 +154,10 @@ class LineItemCarrierView(LineItemSupplierView):
     mapping_confidence: Optional[str] = None
     mapped_rate: Optional[Decimal] = None
 
+    # AI description alignment assessment (NULL when not yet run or API key unset)
+    # Shape: {"score": "ALIGNED|PARTIAL|MISALIGNED", "rationale": "...", "model": "..."}
+    ai_description_assessment: Optional[dict] = None
+
 
 # ── Exception resolution schemas ─────────────────────────────────────────────
 

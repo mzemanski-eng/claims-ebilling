@@ -261,6 +261,13 @@ class LineItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Numeric(12, 2), nullable=True
     )
 
+    # ── AI description assessment ─────────────────────────────────────────────
+    # Set during pipeline after classification. NULL if no API key or call fails.
+    # Shape: {"score": "ALIGNED|PARTIAL|MISALIGNED", "rationale": "...", "model": "..."}
+    ai_description_assessment: Mapped[Optional[dict]] = mapped_column(
+        JSONB, nullable=True, comment="AI alignment score for raw_description vs taxonomy"
+    )
+
     # Relationships
     invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="line_items")
     mapping_rule: Mapped[Optional["MappingRule"]] = relationship("MappingRule")

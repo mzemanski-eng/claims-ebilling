@@ -160,6 +160,12 @@ export interface LineItemSupplierView {
   needs_review: boolean;
 }
 
+export interface AiDescriptionAssessment {
+  score: "ALIGNED" | "PARTIAL" | "MISALIGNED";
+  rationale: string;
+  model: string;
+}
+
 export interface LineItemCarrierView extends LineItemSupplierView {
   taxonomy_code: string | null;
   taxonomy_label: string | null;
@@ -167,6 +173,8 @@ export interface LineItemCarrierView extends LineItemSupplierView {
   mapped_unit_model: string | null;
   mapping_confidence: string | null; // HIGH | MEDIUM | LOW
   mapped_rate: string | null;
+  /** AI description alignment assessment. Null when API key not set or call failed. */
+  ai_description_assessment: AiDescriptionAssessment | null;
 }
 
 // ── Status constants (mirrors Python enums) ───────────────────────────────────

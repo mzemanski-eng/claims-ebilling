@@ -579,4 +579,5 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
         mapped_unit_model=li.mapped_unit_model,
         mapping_confidence=li.mapping_confidence,
         mapped_rate=li.mapped_rate,
+        ai_description_assessment=li.ai_description_assessment,
     )

@@ -45,6 +45,7 @@ from app.models.validation import (
     ValidationStatus,
     ValidationType,
 )
+from app.services.ai_assessment.description_assessor import assess_description_alignment
 from app.services.audit import logger as audit
 from app.services.classification.classifier import Classifier
 from app.services.ingestion.base import ParseError, RawLineItem
@@ -356,6 +357,27 @@ def _process_line(
             line_item.status = LineItemStatus.EXCEPTION
             error_count += 1
             return line_item, error_count, warning_count, 0
+
+        # ── AI description alignment assessment ───────────────────────────────
+        # Run after a successful classification (not UNRECOGNIZED). Fetches the
+        # taxonomy item to get its label and description, then asks Claude whether
+        # the raw_description semantically matches. Gracefully skips on failure.
+        try:
+            from app.models.taxonomy import TaxonomyItem as TaxItem
+
+            tax_item = db.get(TaxItem, result.taxonomy_code)
+            if tax_item:
+                assessment = assess_description_alignment(
+                    raw_description=raw_item.raw_description,
+                    taxonomy_label=tax_item.label,
+                    taxonomy_description=tax_item.description,
+                )
+                if assessment:
+                    line_item.ai_description_assessment = assessment
+        except Exception as ai_exc:
+            logger.warning(
+                "AI assessment skipped for line %d: %s", raw_item.line_number, ai_exc
+            )
 
     except Exception as exc:
         logger.error("Classification failed for line %d: %s", raw_item.line_number, exc)

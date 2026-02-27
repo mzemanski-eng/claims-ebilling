@@ -69,6 +69,12 @@ class Settings(BaseSettings):
                 pass
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
+    # ── AI / LLM ───────────────────────────────────────────────────────────
+    # Set ANTHROPIC_API_KEY in environment to enable AI description alignment
+    # assessments during invoice processing. If empty, the feature is silently
+    # skipped and ai_description_assessment stays NULL on the line item.
+    anthropic_api_key: str = ""
+
     # ── Derived helpers ────────────────────────────────────────────────────
     @property
     def is_production(self) -> bool:
