@@ -19,6 +19,43 @@ const RESOLUTION_OPTIONS = [
   { value: ResolutionActions.DENIED, label: "Deny Line" },
 ];
 
+// Plain-English carrier decision labels shown to suppliers once an exception is resolved
+const RESOLUTION_LABELS: Record<
+  string,
+  { icon: string; label: string; colorClasses: string }
+> = {
+  DENIED: {
+    icon: "🚫",
+    label:
+      "Not approved — the carrier has denied this line. It will not be included in your payment.",
+    colorClasses: "border-red-200 bg-red-50 text-red-800",
+  },
+  WAIVED: {
+    icon: "✓",
+    label:
+      "Exception waived — the carrier has accepted this charge despite the exception.",
+    colorClasses: "border-green-200 bg-green-50 text-green-800",
+  },
+  HELD_CONTRACT_RATE: {
+    icon: "↓",
+    label:
+      "Contract rate applied — the carrier will pay at the contracted rate, not the billed amount.",
+    colorClasses: "border-yellow-200 bg-yellow-50 text-yellow-800",
+  },
+  ACCEPTED_REDUCTION: {
+    icon: "✓",
+    label:
+      "Reduction accepted — the carrier has accepted this line at a reduced amount.",
+    colorClasses: "border-green-200 bg-green-50 text-green-800",
+  },
+  RECLASSIFIED: {
+    icon: "↔",
+    label:
+      "Reclassified by carrier — this line has been assigned a different billing category.",
+    colorClasses: "border-blue-200 bg-blue-50 text-blue-800",
+  },
+};
+
 // ── Carrier exception resolution ──────────────────────────────────────────────
 
 interface CarrierExceptionCardProps {
@@ -136,9 +173,23 @@ function SupplierExceptionCard({
   });
 
   const isOpen = exception.status === "OPEN";
+  const hasResolution = !!exception.resolution_action;
+  const resolutionInfo = exception.resolution_action
+    ? RESOLUTION_LABELS[exception.resolution_action]
+    : null;
 
   return (
     <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+      {/* Carrier decision banner — shown prominently once the carrier has resolved */}
+      {hasResolution && resolutionInfo && (
+        <div
+          className={`mb-3 rounded-md border px-3 py-2 text-sm font-medium ${resolutionInfo.colorClasses}`}
+        >
+          <span className="mr-1.5">{resolutionInfo.icon}</span>
+          {resolutionInfo.label}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <StatusBadge status={exception.status} />
         <span className="text-xs text-gray-500">
@@ -155,7 +206,8 @@ function SupplierExceptionCard({
         </p>
       )}
 
-      {isOpen && (
+      {/* Response textarea — hidden when the carrier has already resolved this exception */}
+      {isOpen && !hasResolution && (
         <div className="mt-3 flex flex-col gap-2 border-t border-orange-200 pt-3 sm:flex-row sm:items-end">
           <Textarea
             className="flex-1"

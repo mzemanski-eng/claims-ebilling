@@ -6,6 +6,8 @@ import { getSupplierInvoice, getSupplierInvoiceLines } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
 import { ValidationSummaryCard } from "@/components/validation-summary-card";
 import { SupplierExceptionPanel } from "@/components/exception-panel";
+import { InvoiceStatusBanner } from "@/components/invoice-status-banner";
+import { InvoiceProgressStepper } from "@/components/invoice-progress-stepper";
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -46,12 +48,10 @@ export default function SupplierInvoiceDetailPage({
     return <p className="text-red-600">Invoice not found.</p>;
   }
 
-  const hasExceptions = invoice.validation_summary
-    ? invoice.validation_summary.lines_with_exceptions > 0
-    : false;
+  const summary = invoice.validation_summary;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="text-sm text-gray-500">
         <Link href="/supplier/invoices" className="hover:text-blue-600">
@@ -83,7 +83,7 @@ export default function SupplierInvoiceDetailPage({
           <StatusBadge status={invoice.status} className="text-sm px-3 py-1" />
           {invoice.status === "REVIEW_REQUIRED" && (
             <Link
-              href={`/supplier/invoices/new`}
+              href={`/supplier/invoices/${id}/resubmit`}
               className="rounded-md bg-orange-100 px-3 py-1.5 text-sm font-medium text-orange-700 hover:bg-orange-200"
             >
               Resubmit →
@@ -92,23 +92,47 @@ export default function SupplierInvoiceDetailPage({
         </div>
       </div>
 
+      {/* Progress stepper */}
+      <InvoiceProgressStepper status={invoice.status} />
+
+      {/* Status banner — always rendered, status-specific guidance */}
+      <InvoiceStatusBanner status={invoice.status} invoiceId={id} />
+
+      {/* Approved payment summary box */}
+      {invoice.status === "APPROVED" && summary && (
+        <div className="rounded-xl border-2 border-green-200 bg-green-50 px-6 py-5">
+          <p className="text-sm font-semibold uppercase tracking-wide text-green-600">
+            Approved Payment Amount
+          </p>
+          <p className="mt-2 text-4xl font-bold text-green-700">
+            $
+            {parseFloat(summary.total_payable).toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+            })}
+          </p>
+          {summary.lines_denied > 0 && (
+            <p className="mt-2 text-sm text-green-600">
+              {summary.lines_denied} line
+              {summary.lines_denied !== 1 ? "s" : ""} denied ($
+              {parseFloat(summary.total_denied).toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+              })}{" "}
+              not payable — see details below)
+            </p>
+          )}
+          <p className="mt-1 text-xs text-green-500">
+            Payment will be issued per your contract payment terms.
+          </p>
+        </div>
+      )}
+
       {/* Validation summary */}
-      {invoice.validation_summary && (
+      {summary && (
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
             Validation Summary
           </h2>
-          <ValidationSummaryCard summary={invoice.validation_summary} />
-        </div>
-      )}
-
-      {/* Exception notice */}
-      {hasExceptions && invoice.status === "REVIEW_REQUIRED" && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-          <p className="text-sm font-medium text-orange-800">
-            Action required: please respond to the exceptions below before
-            resubmitting.
-          </p>
+          <ValidationSummaryCard summary={summary} />
         </div>
       )}
 
@@ -121,7 +145,10 @@ export default function SupplierInvoiceDetailPage({
 
       {lines && (
         <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <h2
+            id="exceptions"
+            className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500"
+          >
             Line Items
           </h2>
           <div className="overflow-hidden rounded-xl border bg-white shadow-sm">

@@ -26,16 +26,17 @@ const STATUS_STYLES: Record<string, string> = {
 
 interface StatusBadgeProps {
   status: string;
+  label?: string; // optional human-readable override; defaults to status with underscores replaced
   className?: string;
 }
 
-export function StatusBadge({ status, className = "" }: StatusBadgeProps) {
+export function StatusBadge({ status, label, className = "" }: StatusBadgeProps) {
   const style = STATUS_STYLES[status] ?? "bg-gray-100 text-gray-600";
   return (
     <span
       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${style} ${className}`}
     >
-      {status.replace(/_/g, " ")}
+      {label ?? status.replace(/_/g, " ")}
     </span>
   );
 }

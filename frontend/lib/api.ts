@@ -146,6 +146,30 @@ export async function uploadInvoiceFile(
   return res.json() as Promise<InvoiceUploadResponse>;
 }
 
+/** Resubmit an existing invoice with a corrected file. Uses FormData — do NOT set Content-Type manually. */
+export async function resubmitInvoice(
+  invoiceId: string,
+  file: File,
+): Promise<InvoiceUploadResponse> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(`${BASE_URL}/supplier/invoices/${invoiceId}/resubmit`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    const detail =
+      typeof body.detail === "string" ? body.detail : "Resubmission failed";
+    throw new ApiError(res.status, detail);
+  }
+  return res.json() as Promise<InvoiceUploadResponse>;
+}
+
 export function respondToException(
   exceptionId: string,
   supplierResponse: string,
