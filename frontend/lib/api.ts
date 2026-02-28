@@ -14,8 +14,12 @@ import type {
   AdminInvoiceDetail,
   AdminSupplier,
   AnalyticsSummary,
+  ContractCreate,
+  ContractDetail,
   ExceptionBreakdown,
   ExceptionView,
+  GuidelineCreate,
+  GuidelineDetail,
   InvoiceCreate,
   InvoiceDetail,
   InvoiceListFilters,
@@ -24,6 +28,9 @@ import type {
   LineItemCarrierView,
   LineItemSupplierView,
   MappingQueueItem,
+  ParsedContractResult,
+  RateCardCreate,
+  RateCardDetail,
   SpendByDomain,
   SpendBySupplier,
   SpendByTaxonomy,
@@ -299,6 +306,82 @@ export function listAdminSuppliers(): Promise<AdminSupplier[]> {
 export function listAdminContracts(supplierId?: string): Promise<AdminContract[]> {
   const qs = supplierId ? `?supplier_id=${supplierId}` : "";
   return apiFetch<AdminContract[]>(`/admin/contracts${qs}`);
+}
+
+export function getAdminContract(id: string): Promise<ContractDetail> {
+  return apiFetch<ContractDetail>(`/admin/contracts/${id}`);
+}
+
+export function createAdminContract(payload: ContractCreate): Promise<ContractDetail> {
+  return apiFetch<ContractDetail>("/admin/contracts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createRateCard(contractId: string, payload: RateCardCreate): Promise<RateCardDetail> {
+  return apiFetch<RateCardDetail>(`/admin/contracts/${contractId}/rate-cards`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteRateCard(contractId: string, rcId: string): Promise<void> {
+  return apiFetch<void>(`/admin/contracts/${contractId}/rate-cards/${rcId}`, {
+    method: "DELETE",
+  });
+}
+
+export function createGuideline(contractId: string, payload: GuidelineCreate): Promise<GuidelineDetail> {
+  return apiFetch<GuidelineDetail>(`/admin/contracts/${contractId}/guidelines`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateGuideline(
+  contractId: string,
+  gId: string,
+  isActive: boolean,
+): Promise<GuidelineDetail> {
+  return apiFetch<GuidelineDetail>(
+    `/admin/contracts/${contractId}/guidelines/${gId}?is_active=${isActive}`,
+    { method: "PUT" },
+  );
+}
+
+export function deleteGuideline(contractId: string, gId: string): Promise<void> {
+  return apiFetch<void>(`/admin/contracts/${contractId}/guidelines/${gId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function parseContractPdf(
+  supplierId: string,
+  file: File,
+): Promise<ParsedContractResult> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  form.append("supplier_id", supplierId);
+
+  const res = await fetch(`${BASE_URL}/admin/contracts/parse-pdf`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired — please log in again.");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    const detail = typeof body.detail === "string" ? body.detail : "PDF parsing failed";
+    throw new ApiError(res.status, detail);
+  }
+  return res.json() as Promise<ParsedContractResult>;
 }
 
 // ── Admin — invoices ──────────────────────────────────────────────────────────

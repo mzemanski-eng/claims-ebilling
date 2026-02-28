@@ -12,6 +12,14 @@ Workflow:
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
   GET  /admin/suppliers                         → list all suppliers
   GET  /admin/contracts                         → list all contracts
+  GET  /admin/contracts/{id}                    → contract detail with rate cards + guidelines
+  POST /admin/contracts                         → create contract
+  POST /admin/contracts/parse-pdf               → AI PDF extraction (no DB write)
+  POST /admin/contracts/{id}/rate-cards         → add rate card
+  DELETE /admin/contracts/{id}/rate-cards/{rc}  → delete rate card
+  POST /admin/contracts/{id}/guidelines         → add guideline
+  PUT  /admin/contracts/{id}/guidelines/{g}     → toggle is_active
+  DELETE /admin/contracts/{id}/guidelines/{g}   → delete guideline
 """
 
 import csv
@@ -19,14 +27,23 @@ import io
 import uuid
 from datetime import date as date_type, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.audit import ActorType
 from app.models.invoice import Invoice, LineItem, LineItemStatus, SubmissionStatus
 from app.models.mapping import ConfirmedBy, MatchType, MappingRule
-from app.models.supplier import Contract, Supplier, User, UserRole
+from app.models.supplier import Contract, Guideline, RateCard, Supplier, User, UserRole
+from app.models.taxonomy import TaxonomyItem
+from app.schemas.contracts import (
+    ContractCreate,
+    ContractDetail,
+    GuidelineCreate,
+    GuidelineDetail,
+    RateCardCreate,
+    RateCardDetail,
+)
 from app.models.validation import (
     ExceptionRecord,
     ExceptionStatus,
@@ -487,6 +504,182 @@ def list_contracts(
     ]
 
 
+# ── Contract Detail ───────────────────────────────────────────────────────────
+
+
+@router.get("/contracts/{contract_id}", response_model=ContractDetail)
+def get_contract_detail(
+    contract_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> ContractDetail:
+    """Full contract detail including rate cards (with taxonomy labels) and guidelines."""
+    contract = _get_contract(contract_id, db)
+    return _to_contract_detail(contract, db)
+
+
+# ── Contract Create ────────────────────────────────────────────────────────────
+
+
+@router.post("/contracts", response_model=ContractDetail, status_code=status.HTTP_201_CREATED)
+def create_contract(
+    payload: ContractCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> ContractDetail:
+    """Create a new contract for the current carrier."""
+    contract = Contract(
+        supplier_id=payload.supplier_id,
+        carrier_id=current_user.carrier_id,
+        name=payload.name,
+        effective_from=payload.effective_from,
+        effective_to=payload.effective_to,
+        geography_scope=payload.geography_scope,
+        state_codes=payload.state_codes,
+        notes=payload.notes,
+        is_active=True,
+    )
+    db.add(contract)
+    db.commit()
+    db.refresh(contract)
+    return _to_contract_detail(contract, db)
+
+
+# ── AI PDF Parse (no DB write) ────────────────────────────────────────────────
+
+
+@router.post("/contracts/parse-pdf")
+async def parse_contract_pdf(
+    file: UploadFile = File(...),
+    supplier_id: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> dict:
+    """
+    Upload a contract PDF for AI extraction.
+    Returns a ParsedContractResult — does NOT write to DB.
+    The client presents the result for review before calling create_contract.
+    """
+    from app.services.ai_assessment.contract_parser import parse_contract as _parse
+
+    pdf_bytes = await file.read()
+    return _parse(pdf_bytes, supplier_id, db)
+
+
+# ── Rate Cards ────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/contracts/{contract_id}/rate-cards",
+    response_model=RateCardDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_rate_card(
+    contract_id: uuid.UUID,
+    payload: RateCardCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> RateCardDetail:
+    """Add a rate card to an existing contract."""
+    contract = _get_contract(contract_id, db)
+    rc = RateCard(
+        contract_id=contract.id,
+        taxonomy_code=payload.taxonomy_code,
+        contracted_rate=payload.contracted_rate,
+        max_units=payload.max_units,
+        is_all_inclusive=payload.is_all_inclusive,
+        effective_from=payload.effective_from,
+        effective_to=payload.effective_to,
+    )
+    db.add(rc)
+    db.commit()
+    db.refresh(rc)
+    return _to_rate_card_detail(rc, db)
+
+
+@router.delete("/contracts/{contract_id}/rate-cards/{rate_card_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_rate_card(
+    contract_id: uuid.UUID,
+    rate_card_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> None:
+    """Delete a rate card from a contract."""
+    _get_contract(contract_id, db)  # 404 if contract not found
+    rc = db.get(RateCard, rate_card_id)
+    if rc is None or rc.contract_id != contract_id:
+        raise HTTPException(status_code=404, detail="Rate card not found")
+    db.delete(rc)
+    db.commit()
+
+
+# ── Guidelines ────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/contracts/{contract_id}/guidelines",
+    response_model=GuidelineDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_guideline(
+    contract_id: uuid.UUID,
+    payload: GuidelineCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> GuidelineDetail:
+    """Add a billing guideline to an existing contract."""
+    contract = _get_contract(contract_id, db)
+    g = Guideline(
+        contract_id=contract.id,
+        taxonomy_code=payload.taxonomy_code,
+        domain=payload.domain,
+        rule_type=payload.rule_type,
+        rule_params=payload.rule_params,
+        severity=payload.severity,
+        narrative_source=payload.narrative_source,
+        is_active=True,
+    )
+    db.add(g)
+    db.commit()
+    db.refresh(g)
+    return _to_guideline_detail(g)
+
+
+@router.put("/contracts/{contract_id}/guidelines/{guideline_id}", response_model=GuidelineDetail)
+def update_guideline(
+    contract_id: uuid.UUID,
+    guideline_id: uuid.UUID,
+    is_active: bool,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> GuidelineDetail:
+    """Toggle the is_active flag on a guideline."""
+    _get_contract(contract_id, db)
+    g = db.get(Guideline, guideline_id)
+    if g is None or g.contract_id != contract_id:
+        raise HTTPException(status_code=404, detail="Guideline not found")
+    g.is_active = is_active
+    db.commit()
+    db.refresh(g)
+    return _to_guideline_detail(g)
+
+
+@router.delete("/contracts/{contract_id}/guidelines/{guideline_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_guideline(
+    contract_id: uuid.UUID,
+    guideline_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> None:
+    """Delete a guideline from a contract."""
+    _get_contract(contract_id, db)
+    g = db.get(Guideline, guideline_id)
+    if g is None or g.contract_id != contract_id:
+        raise HTTPException(status_code=404, detail="Guideline not found")
+    db.delete(g)
+    db.commit()
+
+
 # ── Test cleanup (staging only) ───────────────────────────────────────────────
 
 
@@ -514,6 +707,58 @@ def delete_invoice(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
+
+
+def _get_contract(contract_id: uuid.UUID, db: Session) -> Contract:
+    contract = db.get(Contract, contract_id)
+    if contract is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    return contract
+
+
+def _to_rate_card_detail(rc: RateCard, db: Session) -> RateCardDetail:
+    item = db.get(TaxonomyItem, rc.taxonomy_code) if rc.taxonomy_code else None
+    return RateCardDetail(
+        id=rc.id,
+        taxonomy_code=rc.taxonomy_code,
+        taxonomy_label=item.label if item else None,
+        contracted_rate=rc.contracted_rate,
+        max_units=rc.max_units,
+        is_all_inclusive=rc.is_all_inclusive,
+        effective_from=rc.effective_from,
+        effective_to=rc.effective_to,
+    )
+
+
+def _to_guideline_detail(g: Guideline) -> GuidelineDetail:
+    return GuidelineDetail(
+        id=g.id,
+        taxonomy_code=g.taxonomy_code,
+        domain=g.domain,
+        rule_type=g.rule_type,
+        rule_params=g.rule_params or {},
+        severity=g.severity,
+        narrative_source=g.narrative_source,
+        is_active=g.is_active,
+    )
+
+
+def _to_contract_detail(c: Contract, db: Session) -> ContractDetail:
+    return ContractDetail(
+        id=c.id,
+        name=c.name,
+        supplier_id=c.supplier_id,
+        supplier_name=c.supplier.name if c.supplier else None,
+        carrier_id=c.carrier_id,
+        effective_from=c.effective_from,
+        effective_to=c.effective_to,
+        geography_scope=c.geography_scope,
+        state_codes=c.state_codes,
+        notes=c.notes,
+        is_active=c.is_active,
+        rate_cards=[_to_rate_card_detail(rc, db) for rc in c.rate_cards],
+        guidelines=[_to_guideline_detail(g) for g in c.guidelines],
+    )
 
 
 def _get_invoice(invoice_id: uuid.UUID, db: Session) -> Invoice:

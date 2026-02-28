@@ -72,6 +72,12 @@ export function NavBar() {
                 Suppliers
               </Link>
               <Link
+                href="/admin/contracts"
+                className="hover:text-blue-600 transition-colors"
+              >
+                Contracts
+              </Link>
+              <Link
                 href="/admin/mappings"
                 className="hover:text-blue-600 transition-colors"
               >

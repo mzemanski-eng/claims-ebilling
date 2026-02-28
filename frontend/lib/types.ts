@@ -118,6 +118,78 @@ export interface AdminContract {
   guideline_count: number;
 }
 
+export interface RateCardDetail {
+  id: string;
+  taxonomy_code: string;
+  taxonomy_label: string | null;
+  contracted_rate: string;
+  max_units: string | null;
+  is_all_inclusive: boolean;
+  effective_from: string;
+  effective_to: string | null;
+}
+
+export interface RateCardCreate {
+  taxonomy_code: string;
+  contracted_rate: string;
+  max_units: string | null;
+  is_all_inclusive: boolean;
+  effective_from: string;
+  effective_to: string | null;
+}
+
+export interface GuidelineDetail {
+  id: string;
+  taxonomy_code: string | null;
+  domain: string | null;
+  rule_type: string;
+  rule_params: Record<string, unknown>;
+  severity: string;
+  narrative_source: string | null;
+  is_active: boolean;
+}
+
+export interface GuidelineCreate {
+  taxonomy_code: string | null;
+  domain: string | null;
+  rule_type: string;
+  rule_params: Record<string, unknown>;
+  severity: string;
+  narrative_source: string | null;
+}
+
+export interface ContractCreate {
+  supplier_id: string;
+  name: string;
+  effective_from: string;
+  effective_to: string | null;
+  geography_scope: string;
+  state_codes: string[] | null;
+  notes: string | null;
+}
+
+export interface ContractDetail extends AdminContract {
+  state_codes: string[] | null;
+  notes: string | null;
+  rate_cards: RateCardDetail[];
+  guidelines: GuidelineDetail[];
+}
+
+export interface ParsedContractResult {
+  contract: {
+    supplier_id: string;
+    name: string;
+    effective_from: string;
+    effective_to: string | null;
+    geography_scope: string;
+    state_codes: string[] | null;
+    notes: string | null;
+  };
+  rate_cards: RateCardCreate[];
+  guidelines: GuidelineCreate[];
+  extraction_notes: string;
+}
+
 export interface InvoiceUploadResponse {
   invoice_id: string;
   status: string;
