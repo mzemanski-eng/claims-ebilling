@@ -31,6 +31,7 @@ import type {
   ParsedContractResult,
   RateCardCreate,
   RateCardDetail,
+  RateGap,
   SpendByDomain,
   SpendBySupplier,
   SpendByTaxonomy,
@@ -354,6 +355,10 @@ export function deleteGuideline(contractId: string, gId: string): Promise<void> 
   return apiFetch<void>(`/admin/contracts/${contractId}/guidelines/${gId}`, {
     method: "DELETE",
   });
+}
+
+export function getRateGaps(): Promise<RateGap[]> {
+  return apiFetch<RateGap[]>("/admin/analytics/rate-gaps");
 }
 
 export async function parseContractPdf(

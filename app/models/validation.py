@@ -44,6 +44,9 @@ class RequiredAction:
     ATTACH_DOC = "ATTACH_DOC"
     REQUEST_RECLASSIFICATION = "REQUEST_RECLASSIFICATION"
     ACCEPT_REDUCTION = "ACCEPT_REDUCTION"
+    # Service billed against a contract that has no rate card for this taxonomy code.
+    # Carrier action: add a rate card in the Contracts admin to resolve.
+    ESTABLISH_CONTRACT_RATE = "ESTABLISH_CONTRACT_RATE"
 
 
 class ExceptionStatus:

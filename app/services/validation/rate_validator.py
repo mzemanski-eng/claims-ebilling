@@ -99,11 +99,11 @@ class RateValidator:
                     status=ValidationStatus.FAIL,
                     severity=ValidationSeverity.ERROR,
                     message=(
-                        f"No contracted rate found for service "
-                        f"'{line_item.taxonomy_code}' under contract '{contract.name}'. "
-                        f"This service may not be covered or may require carrier pre-approval."
+                        f"No contracted rate found for '{line_item.taxonomy_code}' "
+                        f"under contract '{contract.name}'. "
+                        f"Add a rate card for this service in the Contracts admin to resolve."
                     ),
-                    required_action=RequiredAction.REQUEST_RECLASSIFICATION,
+                    required_action=RequiredAction.ESTABLISH_CONTRACT_RATE,
                 )
             )
             return results

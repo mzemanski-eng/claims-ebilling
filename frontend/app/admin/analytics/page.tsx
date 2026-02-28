@@ -16,14 +16,16 @@ import {
   CartesianGrid,
 } from "recharts";
 import { MetricCard } from "@/components/metric-card";
+import Link from "next/link";
 import {
   getAnalyticsSummary,
   getSpendByDomain,
   getSpendBySupplier,
   getSpendByTaxonomy,
   getExceptionBreakdown,
+  getRateGaps,
 } from "@/lib/api";
-import type { SpendByTaxonomy } from "@/lib/types";
+import type { RateGap, SpendByTaxonomy } from "@/lib/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -157,6 +159,10 @@ export default function AdminAnalyticsPage() {
   const { data: byTaxonomy, isLoading: loadingTaxonomy } = useQuery({
     queryKey: ["analytics-by-taxonomy"],
     queryFn: getSpendByTaxonomy,
+  });
+  const { data: rateGaps } = useQuery({
+    queryKey: ["analytics-rate-gaps"],
+    queryFn: getRateGaps,
   });
   const { data: exBreakdown, isLoading: loadingEx } = useQuery({
     queryKey: ["analytics-exceptions"],
@@ -650,6 +656,101 @@ export default function AdminAnalyticsPage() {
                         </>
                       ),
                     )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 5: Rate Card Gaps ───────────────────────────────── */}
+          <div className="rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Rate Card Gaps
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Services being billed with no contracted rate — add a rate card
+                  to resolve each gap
+                </p>
+              </div>
+              {rateGaps && rateGaps.length > 0 ? (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                  {rateGaps.length} gap{rateGaps.length !== 1 ? "s" : ""}
+                </span>
+              ) : (
+                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                  ✓ Clean
+                </span>
+              )}
+            </div>
+
+            {!rateGaps || rateGaps.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-green-700 font-medium">
+                  ✓ No rate card gaps detected
+                </p>
+                <p className="mt-1 text-xs text-gray-400">
+                  All billed taxonomy codes have matching contracted rates.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-100 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Taxonomy Code
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Service
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Supplier
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Open Exceptions
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Amount at Risk
+                      </th>
+                      <th className="w-16" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {rateGaps.map((gap: RateGap) => (
+                      <tr
+                        key={`${gap.taxonomy_code}-${gap.supplier_id}`}
+                        className="hover:bg-amber-50 transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-xs text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">
+                            {gap.taxonomy_code}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {gap.taxonomy_label ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {gap.supplier_name}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-amber-700 font-medium">
+                          {gap.open_count}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
+                          {formatCurrency(Number(gap.total_billed))}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            href={`/admin/contracts?supplier_id=${gap.supplier_id}`}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                            title="Go to supplier contracts to add rate card"
+                          >
+                            Fix →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

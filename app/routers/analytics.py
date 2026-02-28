@@ -9,6 +9,7 @@ which is the correct baseline for RFP benchmarking and contract negotiation.
   GET /admin/analytics/spend-by-supplier  → spend grouped by supplier
   GET /admin/analytics/spend-by-taxonomy  → spend grouped by taxonomy code
   GET /admin/analytics/exception-breakdown → exception counts by validation type
+  GET /admin/analytics/rate-gaps          → services billed with no contracted rate card
 """
 
 from decimal import Decimal
@@ -21,7 +22,7 @@ from app.database import get_db
 from app.models.invoice import Invoice, LineItem
 from app.models.supplier import Supplier, UserRole
 from app.models.taxonomy import TaxonomyItem
-from app.models.validation import ExceptionRecord, ExceptionStatus, ValidationResult
+from app.models.validation import ExceptionRecord, ExceptionStatus, RequiredAction, ValidationResult
 from app.routers.auth import require_role
 
 router = APIRouter(prefix="/admin/analytics", tags=["analytics"])
@@ -266,5 +267,63 @@ def get_exception_breakdown(
 
     return [
         {"validation_type": row.validation_type, "count": row.count}
+        for row in rows
+    ]
+
+
+# ── Rate Card Gaps ─────────────────────────────────────────────────────────────
+
+
+@router.get("/rate-gaps")
+def get_rate_gaps(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    Returns services being billed with no contracted rate card.
+
+    Finds ValidationResult rows where required_action=ESTABLISH_CONTRACT_RATE,
+    joins to LineItem → Invoice → Supplier, and groups by taxonomy_code + supplier.
+    Ordered by total billed descending so the highest-exposure gaps are first.
+
+    This gives carriers a clear action list: go to the Contracts admin and add
+    the missing rate card for each row.
+    """
+    rows = (
+        db.query(
+            LineItem.taxonomy_code,
+            TaxonomyItem.label.label("taxonomy_label"),
+            Supplier.id.label("supplier_id"),
+            Supplier.name.label("supplier_name"),
+            func.count(ValidationResult.id.distinct()).label("open_count"),
+            func.sum(LineItem.raw_amount).label("total_billed"),
+        )
+        .join(ValidationResult, ValidationResult.line_item_id == LineItem.id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Supplier, Supplier.id == Invoice.supplier_id)
+        .outerjoin(TaxonomyItem, TaxonomyItem.code == LineItem.taxonomy_code)
+        .filter(
+            Invoice.carrier_id == current_user.carrier_id,
+            ValidationResult.required_action == RequiredAction.ESTABLISH_CONTRACT_RATE,
+        )
+        .group_by(
+            LineItem.taxonomy_code,
+            TaxonomyItem.label,
+            Supplier.id,
+            Supplier.name,
+        )
+        .order_by(func.sum(LineItem.raw_amount).desc())
+        .all()
+    )
+
+    return [
+        {
+            "taxonomy_code": row.taxonomy_code,
+            "taxonomy_label": row.taxonomy_label,
+            "supplier_id": str(row.supplier_id),
+            "supplier_name": row.supplier_name,
+            "open_count": row.open_count,
+            "total_billed": str(row.total_billed or 0),
+        }
         for row in rows
     ]

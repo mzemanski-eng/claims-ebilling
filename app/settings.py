@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     # skipped and ai_description_assessment stays NULL on the line item.
     anthropic_api_key: str = ""
 
+    # ── Invoice Processing ──────────────────────────────────────────────────
+    # When true, invoices that pass all validations (zero ERROR-severity
+    # exceptions) are automatically approved without carrier review.
+    # All structured line-item data (taxonomy codes, rates, AI assessments)
+    # is preserved in the DB — only the status field changes.
+    # Set AUTO_APPROVE_CLEAN_INVOICES=false to require manual approval.
+    auto_approve_clean_invoices: bool = True
+
     # ── Derived helpers ────────────────────────────────────────────────────
     @property
     def is_production(self) -> bool:

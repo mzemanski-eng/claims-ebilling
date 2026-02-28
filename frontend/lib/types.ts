@@ -175,6 +175,15 @@ export interface ContractDetail extends AdminContract {
   guidelines: GuidelineDetail[];
 }
 
+export interface RateGap {
+  taxonomy_code: string;
+  taxonomy_label: string | null;
+  supplier_id: string;
+  supplier_name: string;
+  open_count: number;
+  total_billed: string;
+}
+
 export interface ParsedContractResult {
   contract: {
     supplier_id: string;

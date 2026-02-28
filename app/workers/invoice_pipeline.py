@@ -20,7 +20,8 @@ Pipeline steps:
      f. Update LineItem status (VALIDATED or EXCEPTION)
   5. Update Invoice status:
      - Any ERROR exceptions → REVIEW_REQUIRED
-     - All PASS/WARNING     → PENDING_CARRIER_REVIEW
+     - All PASS/WARNING     → APPROVED (if auto_approve_clean_invoices)
+                            → PENDING_CARRIER_REVIEW (if manual approval required)
   6. Write audit events throughout
 """
 
@@ -54,6 +55,7 @@ from app.services.ingestion.dispatcher import detect_format, get_parser
 from app.services.storage.base import get_storage
 from app.services.validation.guideline_validator import GuidelineValidator
 from app.services.validation.rate_validator import RateValidator
+from app.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +231,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     warning_count = 0
     pass_count = 0
     total_expected = 0
+    processed_lines: list = []
 
     for raw_item in parse_result.line_items:
         line_item, item_errors, item_warnings, item_expected = _process_line(
@@ -241,6 +244,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             rate_validator=rate_validator,
             guideline_validator=guideline_validator,
         )
+        processed_lines.append(line_item)
         error_count += item_errors
         warning_count += item_warnings
         if item_errors == 0:
@@ -255,6 +259,26 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
         if error_count > 0
         else SubmissionStatus.PENDING_CARRIER_REVIEW
     )
+
+    # ── Auto-approve clean invoices (if configured) ───────────────────────────
+    # Invoices with zero ERROR-severity exceptions advance directly to APPROVED.
+    # All line-item structured data (taxonomy codes, mapped rates, AI assessments,
+    # expected amounts) is preserved in the DB — only the status changes.
+    if (
+        new_status == SubmissionStatus.PENDING_CARRIER_REVIEW
+        and settings.auto_approve_clean_invoices
+    ):
+        new_status = SubmissionStatus.APPROVED
+        for line in processed_lines:
+            if line.status == LineItemStatus.VALIDATED:
+                line.status = LineItemStatus.APPROVED
+        logger.info(
+            "Invoice %s auto-approved: %d lines approved, %d warnings present",
+            invoice_id,
+            pass_count,
+            warning_count,
+        )
+
     old_status = invoice.status
     invoice.status = new_status
     db.flush()
