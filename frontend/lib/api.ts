@@ -18,6 +18,7 @@ import type {
   ExceptionView,
   InvoiceCreate,
   InvoiceDetail,
+  InvoiceListFilters,
   InvoiceListItem,
   InvoiceUploadResponse,
   LineItemCarrierView,
@@ -302,10 +303,16 @@ export function listAdminContracts(supplierId?: string): Promise<AdminContract[]
 
 // ── Admin — invoices ──────────────────────────────────────────────────────────
 
-/** List all invoices, optionally filtered by status. Omit statusFilter to get all. */
-export function listAdminInvoices(statusFilter?: string): Promise<InvoiceListItem[]> {
-  const qs = statusFilter ? `?status_filter=${statusFilter}` : "";
-  return apiFetch<InvoiceListItem[]>(`/admin/invoices${qs}`);
+/** List all invoices with optional search, supplier, date, and status filters. */
+export function listAdminInvoices(filters: InvoiceListFilters = {}): Promise<InvoiceListItem[]> {
+  const qs = new URLSearchParams();
+  if (filters.statusFilter) qs.set("status_filter", filters.statusFilter);
+  if (filters.search)       qs.set("search",         filters.search);
+  if (filters.supplierId)   qs.set("supplier_id",     filters.supplierId);
+  if (filters.dateFrom)     qs.set("date_from",        filters.dateFrom);
+  if (filters.dateTo)       qs.set("date_to",          filters.dateTo);
+  const q = qs.toString();
+  return apiFetch<InvoiceListItem[]>(`/admin/invoices${q ? `?${q}` : ""}`);
 }
 
 /** Get a single invoice with supplier + contract name enrichment. */

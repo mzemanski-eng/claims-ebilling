@@ -45,6 +45,15 @@ export interface InvoiceListItem {
   submitted_at: string | null;
   total_billed: string | null;
   exception_count: number;
+  supplier_name: string | null; // populated by admin endpoints; null for supplier views
+}
+
+export interface InvoiceListFilters {
+  statusFilter?: string;
+  search?: string;
+  supplierId?: string;
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string;   // YYYY-MM-DD
 }
 
 export interface InvoiceDetail {

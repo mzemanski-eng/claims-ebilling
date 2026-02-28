@@ -69,7 +69,7 @@ class InvoiceResponse(TimestampedSchema):
 
 
 class InvoiceListItem(BaseSchema):
-    """Compact row for listing invoices in the supplier dashboard."""
+    """Compact row for listing invoices."""
 
     id: uuid.UUID
     invoice_number: str
@@ -79,6 +79,7 @@ class InvoiceListItem(BaseSchema):
     submitted_at: Optional[datetime]
     total_billed: Optional[Decimal] = None
     exception_count: int = 0
+    supplier_name: Optional[str] = None  # populated by admin endpoints; null for supplier views
 
 
 # ── LineItem schemas ──────────────────────────────────────────────────────────

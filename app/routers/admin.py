@@ -17,7 +17,7 @@ Workflow:
 import csv
 import io
 import uuid
-from datetime import datetime, timezone
+from datetime import date as date_type, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
@@ -59,16 +59,32 @@ _CARRIER_ROLES = (
 @router.get("/invoices", response_model=list[InvoiceListItem])
 def list_pending_invoices(
     status_filter: str | None = None,
+    search: str | None = None,
+    supplier_id: str | None = None,
+    date_from: date_type | None = None,
+    date_to: date_type | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> list[InvoiceListItem]:
     """
-    Returns invoices. Optionally filter by ?status_filter=PENDING_CARRIER_REVIEW.
-    When status_filter is omitted, all invoices are returned (admin use).
+    Returns invoices, newest first. All filters are optional and combinable:
+      ?status_filter=PENDING_CARRIER_REVIEW
+      &search=INV-001          (case-insensitive invoice_number match)
+      &supplier_id=<uuid>
+      &date_from=2025-01-01    (submitted_at range, inclusive)
+      &date_to=2025-12-31
     """
-    q = db.query(Invoice).order_by(Invoice.submitted_at.asc().nulls_last())
+    q = db.query(Invoice).order_by(Invoice.submitted_at.desc().nulls_last())
     if status_filter:
         q = q.filter(Invoice.status == status_filter)
+    if search:
+        q = q.filter(Invoice.invoice_number.ilike(f"%{search}%"))
+    if supplier_id:
+        q = q.filter(Invoice.supplier_id == supplier_id)
+    if date_from:
+        q = q.filter(Invoice.submitted_at >= date_from)
+    if date_to:
+        q = q.filter(Invoice.submitted_at < date_to + timedelta(days=1))
     return [_to_invoice_list_item(inv) for inv in q.all()]
 
 
@@ -526,6 +542,7 @@ def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
         submitted_at=invoice.submitted_at,
         total_billed=total_billed,
         exception_count=exc_count,
+        supplier_name=invoice.supplier.name if invoice.supplier else None,
     )
 
 
