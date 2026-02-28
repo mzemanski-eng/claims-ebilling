@@ -198,12 +198,16 @@ def get_mapping_review_queue(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> list[dict]:
     """
-    Returns line items with LOW or MEDIUM mapping confidence for carrier review.
-    These are lines where the system classified but isn't confident.
+    Returns line items requiring mapping review:
+      - LOW or MEDIUM confidence mappings (classified but uncertain)
+      - UNRECOGNIZED lines (taxonomy_code IS NULL, status = EXCEPTION)
     """
     lines = (
         db.query(LineItem)
-        .filter(LineItem.mapping_confidence.in_(["LOW", "MEDIUM"]))
+        .filter(
+            (LineItem.mapping_confidence.in_(["LOW", "MEDIUM"]))
+            | (LineItem.taxonomy_code.is_(None) & (LineItem.status == "EXCEPTION"))
+        )
         .order_by(LineItem.created_at.desc())
         .limit(100)
         .all()
@@ -219,6 +223,7 @@ def get_mapping_review_queue(
             "billing_component": li.billing_component,
             "mapping_confidence": li.mapping_confidence,
             "raw_amount": str(li.raw_amount),
+            "ai_classification_suggestion": li.ai_classification_suggestion,
         }
         for li in lines
     ]
@@ -580,4 +585,5 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
         mapping_confidence=li.mapping_confidence,
         mapped_rate=li.mapped_rate,
         ai_description_assessment=li.ai_description_assessment,
+        ai_classification_suggestion=li.ai_classification_suggestion,
     )

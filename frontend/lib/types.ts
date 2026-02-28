@@ -78,8 +78,10 @@ export interface MappingQueueItem {
   raw_code: string | null;
   taxonomy_code: string | null;
   billing_component: string | null;
-  mapping_confidence: string;
+  mapping_confidence: string | null;
   raw_amount: string;
+  /** AI suggestion for UNRECOGNIZED lines; null for classified-but-uncertain lines. */
+  ai_classification_suggestion: AiClassificationSuggestion | null;
 }
 
 /** Admin supplier row */
@@ -166,6 +168,18 @@ export interface AiDescriptionAssessment {
   model: string;
 }
 
+export interface AiClassificationSuggestion {
+  verdict: "SUGGESTED" | "TAXONOMY_GAP" | "OUT_OF_SCOPE";
+  /** Taxonomy code (SUGGESTED only; null otherwise) */
+  suggested_code: string | null;
+  /** Last segment of the code, e.g. "PROF_FEE" (SUGGESTED only; null otherwise) */
+  suggested_billing_component: string | null;
+  /** Confidence level (SUGGESTED only; null otherwise) */
+  confidence: "HIGH" | "MEDIUM" | "LOW" | null;
+  rationale: string;
+  model: string;
+}
+
 export interface LineItemCarrierView extends LineItemSupplierView {
   taxonomy_code: string | null;
   taxonomy_label: string | null;
@@ -175,6 +189,8 @@ export interface LineItemCarrierView extends LineItemSupplierView {
   mapped_rate: string | null;
   /** AI description alignment assessment. Null when API key not set or call failed. */
   ai_description_assessment: AiDescriptionAssessment | null;
+  /** AI classification suggestion for UNRECOGNIZED lines. Null for classified lines. */
+  ai_classification_suggestion: AiClassificationSuggestion | null;
 }
 
 // ── Status constants (mirrors Python enums) ───────────────────────────────────

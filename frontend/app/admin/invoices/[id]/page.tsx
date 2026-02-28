@@ -14,6 +14,7 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { ValidationSummaryCard } from "@/components/validation-summary-card";
+import { AiClassificationSuggestion } from "@/components/ai-classification-suggestion";
 import { Button } from "@/components/ui/button";
 import type { LineItemCarrierView } from "@/lib/types";
 import { ResolutionActions } from "@/lib/types";
@@ -368,7 +369,9 @@ export default function AdminInvoiceDetailPage({
               {lines?.map((line) => {
                 const isExpanded = expandedLines.has(line.id);
                 const hasIssues =
-                  line.exceptions.length > 0 || line.needs_review;
+                  line.exceptions.length > 0 ||
+                  line.needs_review ||
+                  (!line.taxonomy_code && !!line.ai_classification_suggestion);
                 return (
                   <>
                     <tr
@@ -462,6 +465,13 @@ export default function AdminInvoiceDetailPage({
                                   </a>
                                   .
                                 </div>
+                              )}
+                            {/* AI classification suggestion for UNRECOGNIZED lines */}
+                            {!line.taxonomy_code &&
+                              line.ai_classification_suggestion && (
+                                <AiClassificationSuggestion
+                                  suggestion={line.ai_classification_suggestion}
+                                />
                               )}
                             {line.exceptions.map((exc) => (
                               <ExceptionRow

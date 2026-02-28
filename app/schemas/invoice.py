@@ -158,6 +158,10 @@ class LineItemCarrierView(LineItemSupplierView):
     # Shape: {"score": "ALIGNED|PARTIAL|MISALIGNED", "rationale": "...", "model": "..."}
     ai_description_assessment: Optional[dict] = None
 
+    # AI classification suggestion (NULL for classified lines or if API key unset)
+    # Shape: {"verdict": "SUGGESTED|TAXONOMY_GAP|OUT_OF_SCOPE", "suggested_code": ..., ...}
+    ai_classification_suggestion: Optional[dict] = None
+
 
 # ── Exception resolution schemas ─────────────────────────────────────────────
 

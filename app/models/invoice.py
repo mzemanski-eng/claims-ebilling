@@ -268,6 +268,18 @@ class LineItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         JSONB, nullable=True, comment="AI alignment score for raw_description vs taxonomy"
     )
 
+    # ── AI classification suggestion ──────────────────────────────────────────
+    # Set during pipeline for UNRECOGNIZED line items. NULL if no API key, call fails,
+    # or line was successfully classified.
+    # Shape: {"verdict": "SUGGESTED|TAXONOMY_GAP|OUT_OF_SCOPE",
+    #         "suggested_code": "...|null", "suggested_billing_component": "...|null",
+    #         "confidence": "HIGH|MEDIUM|LOW|null", "rationale": "...", "model": "..."}
+    ai_classification_suggestion: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="AI classification suggestion for UNRECOGNIZED line items",
+    )
+
     # Relationships
     invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="line_items")
     mapping_rule: Mapped[Optional["MappingRule"]] = relationship("MappingRule")

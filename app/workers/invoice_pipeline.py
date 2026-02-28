@@ -45,6 +45,7 @@ from app.models.validation import (
     ValidationStatus,
     ValidationType,
 )
+from app.services.ai_assessment.classification_suggester import suggest_classification
 from app.services.ai_assessment.description_assessor import assess_description_alignment
 from app.services.audit import logger as audit
 from app.services.classification.classifier import Classifier
@@ -356,6 +357,25 @@ def _process_line(
             db.add(exc_record)
             line_item.status = LineItemStatus.EXCEPTION
             error_count += 1
+
+            # ── AI classification suggestion ───────────────────────────────────
+            # Run a second Claude pass to give ops guidance on what this line
+            # might be (SUGGESTED code, TAXONOMY_GAP, or OUT_OF_SCOPE).
+            # Gracefully skips on failure — column stays NULL.
+            try:
+                suggestion = suggest_classification(
+                    raw_description=raw_item.raw_description,
+                    raw_code=raw_item.raw_code,
+                )
+                if suggestion:
+                    line_item.ai_classification_suggestion = suggestion
+            except Exception as ai_exc:
+                logger.warning(
+                    "AI classification suggestion skipped for line %d: %s",
+                    raw_item.line_number,
+                    ai_exc,
+                )
+
             return line_item, error_count, warning_count, 0
 
         # ── AI description alignment assessment ───────────────────────────────

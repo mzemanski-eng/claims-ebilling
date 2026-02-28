@@ -5,22 +5,33 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMappingReviewQueue, overrideMapping } from "@/lib/api";
 import { ConfidenceBadge } from "@/components/confidence-badge";
+import { AiClassificationSuggestion } from "@/components/ai-classification-suggestion";
 import { Button } from "@/components/ui/button";
 import type { MappingQueueItem } from "@/lib/types";
 
 type Scope = "this_line" | "this_supplier" | "global";
 
+/** Pre-filled values from an accepted AI suggestion. */
+interface PreFill {
+  taxonomyCode: string;
+  billingComponent: string;
+}
+
 function OverrideForm({
   item,
+  initialPreFill,
   onDone,
 }: {
   item: MappingQueueItem;
+  initialPreFill?: PreFill;
   onDone: () => void;
 }) {
   const qc = useQueryClient();
-  const [taxonomyCode, setTaxonomyCode] = useState(item.taxonomy_code ?? "");
+  const [taxonomyCode, setTaxonomyCode] = useState(
+    initialPreFill?.taxonomyCode ?? item.taxonomy_code ?? "",
+  );
   const [billingComponent, setBillingComponent] = useState(
-    item.billing_component ?? "",
+    initialPreFill?.billingComponent ?? item.billing_component ?? "",
   );
   const [scope, setScope] = useState<Scope>("this_supplier");
   const [notes, setNotes] = useState("");
@@ -127,11 +138,31 @@ function OverrideForm({
 
 export default function AdminMappingsPage() {
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
+  // Pre-fill values from an accepted AI suggestion, keyed by line_item_id
+  const [preFill, setPreFill] = useState<Record<string, PreFill>>({});
 
   const { data: items, isLoading } = useQuery({
     queryKey: ["mapping-queue"],
     queryFn: getMappingReviewQueue,
   });
+
+  /** Called when ops clicks "Accept Suggestion" on an AI SUGGESTED card. */
+  function handleAcceptSuggestion(
+    itemId: string,
+    code: string,
+    billingComponent: string,
+  ) {
+    setPreFill((prev) => ({
+      ...prev,
+      [itemId]: { taxonomyCode: code, billingComponent },
+    }));
+    // Auto-expand the override form
+    setExpandedItem(itemId);
+  }
+
+  const totalCount = items?.length ?? 0;
+  const unrecognizedCount = items?.filter((i) => !i.taxonomy_code).length ?? 0;
+  const lowConfCount = items?.filter((i) => i.taxonomy_code).length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -139,7 +170,13 @@ export default function AdminMappingsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mapping Queue</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {items?.length ?? 0} lines with LOW or MEDIUM mapping confidence
+            {totalCount} line{totalCount !== 1 ? "s" : ""} requiring review
+            {totalCount > 0 && (
+              <span className="ml-2 text-gray-400">
+                ({unrecognizedCount} unrecognized · {lowConfCount} low/medium
+                confidence)
+              </span>
+            )}
           </p>
         </div>
         <Link
@@ -156,7 +193,7 @@ export default function AdminMappingsPage() {
         </div>
       ) : items?.length === 0 ? (
         <div className="rounded-xl border bg-white py-16 text-center text-sm text-gray-400 shadow-sm">
-          No low-confidence mappings. The classifier is doing well!
+          No lines requiring mapping review. The classifier is doing well!
         </div>
       ) : (
         <div className="space-y-3">
@@ -168,7 +205,14 @@ export default function AdminMappingsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <ConfidenceBadge confidence={item.mapping_confidence} />
+                    {item.mapping_confidence ? (
+                      <ConfidenceBadge confidence={item.mapping_confidence} />
+                    ) : (
+                      /* UNRECOGNIZED — no taxonomy code, no confidence score */
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                        UNRECOGNIZED
+                      </span>
+                    )}
                     <Link
                       href={`/admin/invoices/${item.invoice_id}`}
                       className="text-xs text-blue-600 hover:underline"
@@ -194,6 +238,18 @@ export default function AdminMappingsPage() {
                       ${Number(item.raw_amount).toFixed(2)}
                     </span>
                   </div>
+
+                  {/* AI classification suggestion for UNRECOGNIZED lines */}
+                  <AiClassificationSuggestion
+                    suggestion={item.ai_classification_suggestion}
+                    onAccept={(code, billingComponent) =>
+                      handleAcceptSuggestion(
+                        item.line_item_id,
+                        code,
+                        billingComponent,
+                      )
+                    }
+                  />
                 </div>
                 <Button
                   variant="secondary"
@@ -213,7 +269,16 @@ export default function AdminMappingsPage() {
               {expandedItem === item.line_item_id && (
                 <OverrideForm
                   item={item}
-                  onDone={() => setExpandedItem(null)}
+                  initialPreFill={preFill[item.line_item_id]}
+                  onDone={() => {
+                    setExpandedItem(null);
+                    // Clear pre-fill after override is saved
+                    setPreFill((prev) => {
+                      const next = { ...prev };
+                      delete next[item.line_item_id];
+                      return next;
+                    });
+                  }}
                 />
               )}
             </div>
