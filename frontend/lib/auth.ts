@@ -56,5 +56,10 @@ export function isSupplier(): boolean {
 }
 
 export function isAdmin(): boolean {
-  return getRole() === "SYSTEM_ADMIN";
+  const role = getRole();
+  return (
+    role === "SYSTEM_ADMIN" ||
+    role === "CARRIER_ADMIN" ||
+    role === "CARRIER_REVIEWER"
+  );
 }
