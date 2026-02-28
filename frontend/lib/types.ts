@@ -195,6 +195,47 @@ export interface LineItemCarrierView extends LineItemSupplierView {
 
 // ── Status constants (mirrors Python enums) ───────────────────────────────────
 
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export interface AnalyticsSummary {
+  total_billed: string;
+  total_approved: string;
+  /** Billed minus approved on finalized invoices where raw > expected. */
+  total_savings: string;
+  open_exceptions: number;
+  total_exceptions: number;
+  invoice_status_counts: { status: string; count: number }[];
+}
+
+export interface SpendByDomain {
+  domain: string;
+  line_count: number;
+  total_billed: string;
+  total_approved: string;
+}
+
+export interface SpendBySupplier {
+  supplier_id: string;
+  supplier_name: string;
+  invoice_count: number;
+  total_billed: string;
+  total_approved: string;
+}
+
+export interface SpendByTaxonomy {
+  taxonomy_code: string;
+  label: string | null;
+  domain: string | null;
+  line_count: number;
+  total_billed: string;
+  total_approved: string;
+}
+
+export interface ExceptionBreakdown {
+  validation_type: string;
+  count: number;
+}
+
 export const SubmissionStatus = {
   DRAFT: "DRAFT",
   SUBMITTED: "SUBMITTED",

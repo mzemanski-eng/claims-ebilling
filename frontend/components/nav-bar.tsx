@@ -77,6 +77,12 @@ export function NavBar() {
               >
                 Mappings
               </Link>
+              <Link
+                href="/admin/analytics"
+                className="hover:text-blue-600 transition-colors"
+              >
+                Analytics
+              </Link>
             </>
           )}
 

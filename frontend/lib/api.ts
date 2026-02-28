@@ -13,6 +13,8 @@ import type {
   AdminContract,
   AdminInvoiceDetail,
   AdminSupplier,
+  AnalyticsSummary,
+  ExceptionBreakdown,
   ExceptionView,
   InvoiceCreate,
   InvoiceDetail,
@@ -21,6 +23,9 @@ import type {
   LineItemCarrierView,
   LineItemSupplierView,
   MappingQueueItem,
+  SpendByDomain,
+  SpendBySupplier,
+  SpendByTaxonomy,
   TokenResponse,
   UserInfo,
 } from "./types";
@@ -385,4 +390,26 @@ export function getExceptionDetails(
   exceptions: ExceptionView[],
 ): ExceptionView[] {
   return exceptions.filter((e) => e.status === "OPEN");
+}
+
+// ── Admin — analytics ─────────────────────────────────────────────────────────
+
+export function getAnalyticsSummary(): Promise<AnalyticsSummary> {
+  return apiFetch<AnalyticsSummary>("/admin/analytics/summary");
+}
+
+export function getSpendByDomain(): Promise<SpendByDomain[]> {
+  return apiFetch<SpendByDomain[]>("/admin/analytics/spend-by-domain");
+}
+
+export function getSpendBySupplier(): Promise<SpendBySupplier[]> {
+  return apiFetch<SpendBySupplier[]>("/admin/analytics/spend-by-supplier");
+}
+
+export function getSpendByTaxonomy(): Promise<SpendByTaxonomy[]> {
+  return apiFetch<SpendByTaxonomy[]>("/admin/analytics/spend-by-taxonomy");
+}
+
+export function getExceptionBreakdown(): Promise<ExceptionBreakdown[]> {
+  return apiFetch<ExceptionBreakdown[]>("/admin/analytics/exception-breakdown");
 }
