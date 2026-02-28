@@ -69,7 +69,7 @@ def create_app() -> FastAPI:
     # Dev: allow all origins. Staging/prod: explicit allowlist from ALLOWED_ORIGINS env var.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.is_development else settings.allowed_origins,
+        allow_origins=["*"] if not settings.is_production else settings.allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
