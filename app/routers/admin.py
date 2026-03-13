@@ -5,6 +5,7 @@ Workflow:
   GET  /admin/invoices                          → queue of invoices pending review
   GET  /admin/invoices/{id}/lines               → line items with taxonomy detail
   POST /admin/invoices/{id}/approve             → approve invoice (or specific lines)
+  POST /admin/invoices/bulk-approve             → approve multiple invoices at once
   DELETE /admin/invoices/{id}                   → delete invoice (staging only)
   POST /admin/mappings/override                 → override a line's taxonomy mapping
   GET  /admin/mappings/review-queue             → review low-confidence mapping queue
@@ -52,6 +53,7 @@ from app.models.validation import (
 from app.routers.auth import require_role
 from app.schemas.invoice import (
     ApprovalRequest,
+    BulkApprovalRequest,
     ExceptionSupplierView,
     InvoiceListItem,
     LineItemCarrierView,
@@ -360,6 +362,74 @@ def approve_invoice(
     db.commit()
 
     return {"message": f"Invoice {invoice.invoice_number} approved."}
+
+
+# ── Bulk Approve ──────────────────────────────────────────────────────────────
+
+
+@router.post("/invoices/bulk-approve")
+def bulk_approve_invoices(
+    payload: BulkApprovalRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """
+    Approve multiple invoices in a single request.
+
+    Invoices not in PENDING_CARRIER_REVIEW or CARRIER_REVIEWING are silently
+    skipped (they may have already been approved or are in an unresolvable state).
+    Returns counts so the frontend can show a precise summary toast.
+    """
+    approved = 0
+    skipped = 0
+    approved_numbers: list[str] = []
+
+    for invoice_id in payload.invoice_ids:
+        invoice = db.get(Invoice, invoice_id)
+        if invoice is None:
+            skipped += 1
+            continue
+
+        if invoice.status not in (
+            SubmissionStatus.PENDING_CARRIER_REVIEW,
+            SubmissionStatus.CARRIER_REVIEWING,
+        ):
+            skipped += 1
+            continue
+
+        # Advance all eligible line items to APPROVED
+        for li in invoice.line_items:
+            if li.status in (
+                LineItemStatus.VALIDATED,
+                LineItemStatus.OVERRIDE,
+                LineItemStatus.RESOLVED,
+            ):
+                li.status = LineItemStatus.APPROVED
+
+        old_status = invoice.status
+        invoice.status = SubmissionStatus.APPROVED
+        db.flush()
+
+        audit.log_invoice_status_changed(
+            db,
+            invoice,
+            from_status=old_status,
+            to_status=SubmissionStatus.APPROVED,
+            actor_type=ActorType.CARRIER,
+            actor_id=current_user.id,
+        )
+        approved += 1
+        approved_numbers.append(invoice.invoice_number)
+
+    db.commit()
+
+    return {
+        "approved": approved,
+        "skipped": skipped,
+        "approved_invoice_numbers": approved_numbers,
+    }
 
 
 # ── Export ────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import type {
   AdminInvoiceDetail,
   AdminSupplier,
   AnalyticsSummary,
+  BulkApprovalResult,
   ContractCreate,
   ContractDetail,
   ExceptionBreakdown,
@@ -422,6 +423,17 @@ export function approveAdminInvoice(
   return apiFetch<{ message: string }>(`/admin/invoices/${id}/approve`, {
     method: "POST",
     body: JSON.stringify({ line_item_ids: lineItemIds ?? null, notes: notes ?? null }),
+  });
+}
+
+/** Approve multiple invoices at once. Invoices already approved are silently skipped. */
+export function bulkApproveInvoices(
+  invoiceIds: string[],
+  notes?: string,
+): Promise<BulkApprovalResult> {
+  return apiFetch<BulkApprovalResult>("/admin/invoices/bulk-approve", {
+    method: "POST",
+    body: JSON.stringify({ invoice_ids: invoiceIds, notes: notes ?? null }),
   });
 }
 

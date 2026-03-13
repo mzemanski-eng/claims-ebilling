@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { listAdminInvoices, listAdminSuppliers } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { bulkApproveInvoices, listAdminInvoices, listAdminSuppliers } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
+import type { BulkApprovalResult } from "@/lib/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -20,20 +20,20 @@ const STATUS_TABS = [
 
 type StatusTab = (typeof STATUS_TABS)[number]["value"];
 
+/** Statuses that a carrier admin can approve in bulk. */
+const APPROVABLE_STATUSES = new Set(["PENDING_CARRIER_REVIEW", "CARRIER_REVIEWING"]);
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminInvoicesPage() {
-  const router       = useRouter();
-  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
-  // ── Filter state — initialise from URL ─────────────────────────────────────
-  const [activeTab,  setActiveTab]  = useState<StatusTab>(
-    (searchParams.get("status") as StatusTab) ?? "PENDING_CARRIER_REVIEW",
-  );
-  const [search,     setSearch]     = useState(searchParams.get("search")      ?? "");
-  const [supplierId, setSupplierId] = useState(searchParams.get("supplier_id") ?? "");
-  const [dateFrom,   setDateFrom]   = useState(searchParams.get("date_from")   ?? "");
-  const [dateTo,     setDateTo]     = useState(searchParams.get("date_to")     ?? "");
+  // ── Filter state — initialise from URL search params ──────────────────────
+  const [activeTab,  setActiveTab]  = useState<StatusTab>("PENDING_CARRIER_REVIEW");
+  const [search,     setSearch]     = useState("");
+  const [supplierId, setSupplierId] = useState("");
+  const [dateFrom,   setDateFrom]   = useState("");
+  const [dateTo,     setDateTo]     = useState("");
 
   // Debounce search — fire query 300 ms after user stops typing
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -45,17 +45,6 @@ export default function AdminInvoicesPage() {
     debounceTimer.current = setTimeout(() => setDebouncedSearch(value), 300);
   }
 
-  // ── Sync URL when filters change ───────────────────────────────────────────
-  useEffect(() => {
-    const qs = new URLSearchParams();
-    if (activeTab)        qs.set("status",      activeTab);
-    if (debouncedSearch)  qs.set("search",      debouncedSearch);
-    if (supplierId)       qs.set("supplier_id", supplierId);
-    if (dateFrom)         qs.set("date_from",   dateFrom);
-    if (dateTo)           qs.set("date_to",     dateTo);
-    router.replace(`?${qs.toString()}`, { scroll: false });
-  }, [activeTab, debouncedSearch, supplierId, dateFrom, dateTo, router]);
-
   const hasActiveFilters = !!(debouncedSearch || supplierId || dateFrom || dateTo);
 
   function clearFilters() {
@@ -65,6 +54,16 @@ export default function AdminInvoicesPage() {
     setDateFrom("");
     setDateTo("");
   }
+
+  // ── Bulk-selection state ───────────────────────────────────────────────────
+  const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set());
+  const [bulkResult,   setBulkResult]   = useState<BulkApprovalResult | null>(null);
+
+  // Clear selection + result banner whenever the filter set changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setBulkResult(null);
+  }, [activeTab, debouncedSearch, supplierId, dateFrom, dateTo]);
 
   // ── Data queries ───────────────────────────────────────────────────────────
   const { data: invoices, isLoading } = useQuery({
@@ -84,6 +83,45 @@ export default function AdminInvoicesPage() {
     queryKey: ["admin-suppliers"],
     queryFn:  listAdminSuppliers,
     staleTime: 5 * 60 * 1000,
+  });
+
+  // ── Derived selection helpers ──────────────────────────────────────────────
+  const approvableInvoices = (invoices ?? []).filter((inv) =>
+    APPROVABLE_STATUSES.has(inv.status),
+  );
+
+  const allApprovableSelected =
+    approvableInvoices.length > 0 &&
+    approvableInvoices.every((inv) => selectedIds.has(inv.id));
+
+  const someSelected = selectedIds.size > 0;
+
+  function toggleSelectAll() {
+    if (allApprovableSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(approvableInvoices.map((inv) => inv.id)));
+    }
+  }
+
+  function toggleRow(id: string, approvable: boolean) {
+    if (!approvable) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // ── Bulk approve mutation ──────────────────────────────────────────────────
+  const bulkMutation = useMutation({
+    mutationFn: () => bulkApproveInvoices(Array.from(selectedIds)),
+    onSuccess: (result) => {
+      setBulkResult(result);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
+    },
   });
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -116,6 +154,44 @@ export default function AdminInvoicesPage() {
           </Link>
         </div>
       </div>
+
+      {/* Bulk result banner */}
+      {bulkResult && (
+        <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+          <span className="text-sm font-medium text-green-800">
+            ✓ Approved {bulkResult.approved} invoice
+            {bulkResult.approved !== 1 ? "s" : ""}
+            {bulkResult.skipped > 0 && (
+              <span className="ml-1 font-normal text-green-600">
+                ({bulkResult.skipped} skipped — already processed)
+              </span>
+            )}
+          </span>
+          <button
+            onClick={() => setBulkResult(null)}
+            className="text-green-500 hover:text-green-700 text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Bulk approve error banner */}
+      {bulkMutation.isError && (
+        <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <span className="text-sm font-medium text-red-800">
+            Bulk approval failed — please try again.
+          </span>
+          <button
+            onClick={() => bulkMutation.reset()}
+            className="text-red-400 hover:text-red-600 text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-white p-4 shadow-sm">
@@ -211,6 +287,32 @@ export default function AdminInvoicesPage() {
         </nav>
       </div>
 
+      {/* Bulk action bar — visible only when items are selected */}
+      {someSelected && (
+        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+          <span className="text-sm font-medium text-blue-900">
+            {selectedIds.size} invoice{selectedIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Clear selection
+            </button>
+            <button
+              onClick={() => bulkMutation.mutate()}
+              disabled={bulkMutation.isPending}
+              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {bulkMutation.isPending
+                ? "Approving…"
+                : `Approve ${selectedIds.size} Invoice${selectedIds.size !== 1 ? "s" : ""}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         {isLoading ? (
@@ -237,6 +339,18 @@ export default function AdminInvoicesPage() {
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
+                {/* Select-all checkbox — only functional when approvable rows exist */}
+                <th className="w-10 px-4 py-3">
+                  {approvableInvoices.length > 0 && (
+                    <input
+                      type="checkbox"
+                      checked={allApprovableSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Select all approvable invoices"
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                  )}
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Invoice #
                 </th>
@@ -262,51 +376,76 @@ export default function AdminInvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {invoices?.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-sm font-medium text-gray-900">
-                      {inv.invoice_number}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {inv.supplier_name ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {inv.invoice_date}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={inv.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-sm text-gray-900">
-                    {inv.total_billed
-                      ? `$${Number(inv.total_billed).toFixed(2)}`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm">
-                    {inv.exception_count > 0 ? (
-                      <span className="font-semibold text-red-600">
-                        {inv.exception_count}
+              {invoices?.map((inv) => {
+                const approvable = APPROVABLE_STATUSES.has(inv.status);
+                const checked    = selectedIds.has(inv.id);
+                return (
+                  <tr
+                    key={inv.id}
+                    className={`transition-colors ${
+                      checked
+                        ? "bg-blue-50"
+                        : "hover:bg-gray-50"
+                    }`}
+                  >
+                    {/* Per-row checkbox */}
+                    <td className="px-4 py-3">
+                      {approvable ? (
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleRow(inv.id, approvable)}
+                          aria-label={`Select invoice ${inv.invoice_number}`}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      ) : (
+                        <span className="block h-4 w-4" />
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-sm font-medium text-gray-900">
+                        {inv.invoice_number}
                       </span>
-                    ) : (
-                      <span className="text-gray-400">0</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
-                    {inv.submitted_at
-                      ? new Date(inv.submitted_at).toLocaleDateString()
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/invoices/${inv.id}`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                    >
-                      Review →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {inv.supplier_name ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {inv.invoice_date}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={inv.status} />
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-gray-900">
+                      {inv.total_billed
+                        ? `$${Number(inv.total_billed).toFixed(2)}`
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      {inv.exception_count > 0 ? (
+                        <span className="font-semibold text-red-600">
+                          {inv.exception_count}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">0</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">
+                      {inv.submitted_at
+                        ? new Date(inv.submitted_at).toLocaleDateString()
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/admin/invoices/${inv.id}`}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        Review →
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

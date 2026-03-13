@@ -211,6 +211,13 @@ class ApprovalRequest(BaseSchema):
     notes: Optional[str] = None
 
 
+class BulkApprovalRequest(BaseSchema):
+    """Carrier admin approves multiple invoices in one request."""
+
+    invoice_ids: list[uuid.UUID] = Field(..., min_length=1)
+    notes: Optional[str] = None
+
+
 class ExportResponse(BaseSchema):
     """Returned when carrier exports approved lines."""
 

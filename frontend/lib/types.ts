@@ -199,6 +199,12 @@ export interface ParsedContractResult {
   extraction_notes: string;
 }
 
+export interface BulkApprovalResult {
+  approved: number;
+  skipped: number;
+  approved_invoice_numbers: string[];
+}
+
 export interface InvoiceUploadResponse {
   invoice_id: string;
   status: string;
