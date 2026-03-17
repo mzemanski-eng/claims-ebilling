@@ -27,6 +27,7 @@ Pipeline steps:
 
 import logging
 import uuid
+from datetime import date
 
 from app.database import SessionLocal
 from app.models.invoice import (
@@ -218,6 +219,28 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     contract = invoice.contract
     if contract is None:
         return _fail_invoice(db, invoice, "Contract not found for invoice")
+
+    # ── Verify the contract is active and currently effective ─────────────────
+    today = date.today()
+    if not contract.is_active:
+        return _fail_invoice(
+            db, invoice,
+            f"Contract '{contract.name}' is inactive. "
+            "An executed, active contract is required to process invoices."
+        )
+    if contract.effective_from > today:
+        return _fail_invoice(
+            db, invoice,
+            f"Contract '{contract.name}' is not yet effective "
+            f"(effective from {contract.effective_from}). "
+            "Invoice cannot be processed until the contract effective date."
+        )
+    if contract.effective_to is not None and contract.effective_to < today:
+        return _fail_invoice(
+            db, invoice,
+            f"Contract '{contract.name}' expired on {contract.effective_to}. "
+            "A current, executed contract is required to process invoices."
+        )
 
     guidelines = [g for g in contract.guidelines if g.is_active]
 

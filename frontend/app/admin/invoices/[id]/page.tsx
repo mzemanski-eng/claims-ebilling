@@ -97,6 +97,11 @@ function defaultResolutionAction(requiredAction: string): string {
     case "ESTABLISH_CONTRACT_RATE": return "HELD_CONTRACT_RATE";
     case "REQUEST_RECLASSIFICATION":return "RECLASSIFIED";
     case "REUPLOAD":                return "DENIED";
+    // Supplier billing outside contracted scope or with no active contract —
+    // these are not resolvable by the carrier adding a rate; denial is the
+    // appropriate action. Carrier can override to WAIVED if exceptional circumstances.
+    case "OUT_OF_SCOPE":            return "DENIED";
+    case "NO_ACTIVE_CONTRACT":      return "DENIED";
     case "ATTACH_DOC":
     case "NONE":
     default:                        return "WAIVED";
@@ -129,6 +134,10 @@ function ExceptionRow({
         toast.success("Invoice auto-approved", "All exceptions resolved — invoice is ready for export.");
       } else if (data?.invoice_status === "PENDING_CARRIER_REVIEW") {
         toast.success("All exceptions resolved", "Invoice is ready to approve.");
+      } else if (action === "DENIED" && exc.required_action === "OUT_OF_SCOPE") {
+        toast.warning("Line denied — out of scope", "Supplier billed outside their contracted service domain.");
+      } else if (action === "DENIED" && exc.required_action === "NO_ACTIVE_CONTRACT") {
+        toast.warning("Line denied — no active contract", "No executed contract was in effect at time of service.");
       } else if (action === "DENIED") {
         toast.warning("Line denied", "Exception recorded — invoice can still be approved for remaining lines.");
       } else {

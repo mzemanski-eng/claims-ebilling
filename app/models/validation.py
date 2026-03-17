@@ -45,8 +45,17 @@ class RequiredAction:
     REQUEST_RECLASSIFICATION = "REQUEST_RECLASSIFICATION"
     ACCEPT_REDUCTION = "ACCEPT_REDUCTION"
     # Service billed against a contract that has no rate card for this taxonomy code.
-    # Carrier action: add a rate card in the Contracts admin to resolve.
+    # The service domain IS within scope (other rate cards cover this domain).
+    # Carrier action: add the missing rate card in the Contracts admin.
     ESTABLISH_CONTRACT_RATE = "ESTABLISH_CONTRACT_RATE"
+    # Service taxonomy domain is not covered by any rate card in the active contract.
+    # Supplier is billing for a service type not within their contracted scope.
+    # Carrier action: investigate and typically deny; do not add a rate card.
+    OUT_OF_SCOPE = "OUT_OF_SCOPE"
+    # No active, currently-effective contract exists for this supplier.
+    # Invoice cannot be validated until a contract is executed.
+    # Carrier action: execute a contract; deny or hold the invoice.
+    NO_ACTIVE_CONTRACT = "NO_ACTIVE_CONTRACT"
 
 
 class ExceptionStatus:

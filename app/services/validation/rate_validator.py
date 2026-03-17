@@ -2,10 +2,19 @@
 Rate Validation Engine — deterministic, fully testable.
 
 For each LineItem, looks up the applicable RateCard and checks:
-  1. Expected amount = quantity × contracted_rate
-  2. Billed amount vs expected amount (with configurable tolerance)
-  3. Max units per rate card (if set)
-  4. Bundled charges violation (if rate card is_all_inclusive)
+  1. Contract is active and currently effective (checked once in the pipeline)
+  2. Taxonomy code domain is within the contract's contracted scope
+     — inferred from the domains of all rate cards on the contract.
+     If a contract has only ENG rate cards, an LA line is OUT_OF_SCOPE.
+  3. Expected amount = quantity × contracted_rate
+  4. Billed amount vs expected amount (with configurable tolerance)
+  5. Max units per rate card (if set)
+  6. Bundled charges violation (if rate card is_all_inclusive)
+
+Missing rate card decision tree:
+  • No taxonomy code               → REQUEST_RECLASSIFICATION (supplier action)
+  • Domain not in contract scope   → OUT_OF_SCOPE (carrier investigates/denies)
+  • Domain OK, no rate for code    → ESTABLISH_CONTRACT_RATE (carrier adds rate)
 
 Returns a list of ValidationResult-shaped dicts (not ORM objects —
 the worker persists these after all checks are complete).
@@ -90,6 +99,35 @@ class RateValidator:
             )
             return results
 
+        # ── Check: taxonomy domain within contracted scope ────────────────────
+        # Infer contracted domains from the taxonomy codes of all rate cards on
+        # this contract. A domain is the first segment of a taxonomy code
+        # (e.g. "ENG" from "ENG.STRUCT.L1", "LA" from "LA.ROOF_INSPECT.PROF_FEE").
+        # If the contract has rate cards but none match the line item's domain,
+        # the supplier is billing outside their contracted scope.
+        line_domain = line_item.taxonomy_code.split(".")[0]
+        contracted_domains = {
+            rc.taxonomy_code.split(".")[0]
+            for rc in contract.rate_cards
+            if rc.taxonomy_code
+        }
+
+        if contracted_domains and line_domain not in contracted_domains:
+            results.append(
+                RateValidationResult(
+                    status=ValidationStatus.FAIL,
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        f"Service '{line_item.taxonomy_code}' (domain: {line_domain}) "
+                        f"is not within the contracted scope of '{contract.name}'. "
+                        f"This contract covers: {', '.join(sorted(contracted_domains))}. "
+                        f"Supplier should only bill for services within their executed contract."
+                    ),
+                    required_action=RequiredAction.OUT_OF_SCOPE,
+                )
+            )
+            return results
+
         # ── Look up applicable rate card ──────────────────────────────────────
         rate_card = self._find_rate_card(line_item, contract)
 
@@ -101,7 +139,8 @@ class RateValidator:
                     message=(
                         f"No contracted rate found for '{line_item.taxonomy_code}' "
                         f"under contract '{contract.name}'. "
-                        f"Add a rate card for this service in the Contracts admin to resolve."
+                        f"This service domain ({line_domain}) is within scope — "
+                        f"add a rate card for this specific code in the Contracts admin."
                     ),
                     required_action=RequiredAction.ESTABLISH_CONTRACT_RATE,
                 )
