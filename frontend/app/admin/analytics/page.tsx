@@ -34,6 +34,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   ENG:     "Engineering & Forensic",
   IA:      "Independent Adjusting",
   INV:     "Investigation & Surveillance",
+  LA:      "Ladder Assist & Roof Access",
   REC:     "Record Retrieval",
   XDOMAIN: "Cross-Domain / Admin",
 };
@@ -43,11 +44,12 @@ const DOMAIN_COLORS: Record<string, string> = {
   ENG:     "#F59E0B",
   IA:      "#8B5CF6",
   INV:     "#EF4444",
+  LA:      "#14B8A6",
   REC:     "#10B981",
   XDOMAIN: "#6B7280",
 };
 
-const DOMAIN_ORDER = ["IME", "ENG", "IA", "INV", "REC", "XDOMAIN"];
+const DOMAIN_ORDER = ["IME", "ENG", "IA", "INV", "LA", "REC", "XDOMAIN"];
 
 // Statuses to show in the bar chart (excludes DRAFT and PROCESSING noise)
 const STATUS_ORDER = [

@@ -18,6 +18,7 @@ import { AiClassificationSuggestion } from "@/components/ai-classification-sugge
 import { Button } from "@/components/ui/button";
 import type { LineItemCarrierView } from "@/lib/types";
 import { ResolutionActions } from "@/lib/types";
+import { useToast } from "@/components/toast";
 
 // ── Inline Dialog ─────────────────────────────────────────────────────────────
 function Dialog({
@@ -111,6 +112,7 @@ function ExceptionRow({
   invoiceId: string;
 }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [action, setAction] = useState<string>(
     () => defaultResolutionAction(exc.required_action)
   );
@@ -118,9 +120,23 @@ function ExceptionRow({
 
   const resolveMut = useMutation({
     mutationFn: () => resolveAdminException(exc.exception_id, action, notes),
-    onSuccess: () => {
+    onSuccess: (data: { invoice_status?: string; line_status?: string }) => {
       qc.invalidateQueries({ queryKey: ["admin-invoice", invoiceId] });
       qc.invalidateQueries({ queryKey: ["admin-invoice-lines", invoiceId] });
+
+      const opt = RESOLUTION_OPTIONS.find((o) => o.value === action);
+      if (data?.invoice_status === "APPROVED") {
+        toast.success("Invoice auto-approved", "All exceptions resolved — invoice is ready for export.");
+      } else if (data?.invoice_status === "PENDING_CARRIER_REVIEW") {
+        toast.success("All exceptions resolved", "Invoice is ready to approve.");
+      } else if (action === "DENIED") {
+        toast.warning("Line denied", "Exception recorded — invoice can still be approved for remaining lines.");
+      } else {
+        toast.info(`Exception resolved: ${opt?.label ?? action}`);
+      }
+    },
+    onError: (err: Error) => {
+      toast.error("Could not resolve exception", err.message);
     },
   });
 
@@ -203,9 +219,6 @@ function ExceptionRow({
         </Button>
       </div>
 
-      {resolveMut.isError && (
-        <p className="text-red-600">{(resolveMut.error as Error).message}</p>
-      )}
     </div>
   );
 }
