@@ -268,6 +268,18 @@ class Guideline(Base, UUIDPrimaryKeyMixin, TimestampMixin):
       billing_increment:    {"min_increment": 0.25, "unit": "hour"}
       bundling_prohibition: {"prohibited_components": ["TRAVEL_TRANSPORT", "MILEAGE"]}
       cap_amount:           {"max_amount": 500.00}
+      max_pct_of_invoice:   {"max_pct": 5.0, "basis": "amount",
+                             "description": "Admin lines",
+                             "applies_to_codes": ["ENG.AOS.L6"],
+                             # OR use suffix matching:
+                             "applies_to_suffix": ".L1",
+                             "applies_to_domain": "ENG",
+                             # Denominator (optional — null = all lines):
+                             "denominator_domain": "ENG"}
+
+    Note: max_pct_of_invoice is an invoice-level check evaluated after all
+    line items are processed; it is intentionally skipped during per-line
+    validate() and handled by validate_invoice_percentages() instead.
     """
 
     __tablename__ = "guidelines"
@@ -295,7 +307,7 @@ class Guideline(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     rule_type: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
-        comment="max_units | requires_auth | billing_increment | bundling_prohibition | cap_amount",
+        comment="max_units | requires_auth | billing_increment | bundling_prohibition | cap_amount | max_pct_of_invoice",
     )
     rule_params: Mapped[dict] = mapped_column(JSONB, nullable=False)
     severity: Mapped[str] = mapped_column(

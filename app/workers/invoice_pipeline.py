@@ -253,6 +253,44 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
 
     db.flush()
 
+    # ── Invoice-level percentage guideline checks ─────────────────────────────
+    # max_pct_of_invoice rules need the full line list; they are deliberately
+    # skipped during the per-line loop above and evaluated here instead.
+    pct_pairs = guideline_validator.validate_invoice_percentages(
+        processed_lines, guidelines
+    )
+    for anchor_line, pct_result in pct_pairs:
+        pct_val = ValidationResult(
+            line_item_id=anchor_line.id,
+            validation_type=pct_result.validation_type,
+            guideline_id=uuid.UUID(pct_result.guideline_id)
+            if pct_result.guideline_id
+            else None,
+            status=pct_result.status,
+            severity=pct_result.severity,
+            message=pct_result.message,
+            expected_value=pct_result.expected_value,
+            actual_value=pct_result.actual_value,
+            required_action=pct_result.required_action,
+        )
+        db.add(pct_val)
+        db.flush()
+
+        if pct_result.status == ValidationStatus.FAIL:
+            exc_record = ExceptionRecord(
+                line_item_id=anchor_line.id,
+                validation_result_id=pct_val.id,
+                status=ExceptionStatus.OPEN,
+            )
+            db.add(exc_record)
+            audit.log_line_item_exception_opened(db, anchor_line, pct_result)
+            # Promote line to EXCEPTION if it had previously passed per-line checks
+            if anchor_line.status == LineItemStatus.VALIDATED:
+                anchor_line.status = LineItemStatus.EXCEPTION
+            error_count += 1
+        elif pct_result.status == ValidationStatus.WARNING:
+            warning_count += 1
+
     # ── Determine final invoice status ────────────────────────────────────────
     new_status = (
         SubmissionStatus.REVIEW_REQUIRED

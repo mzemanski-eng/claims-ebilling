@@ -20,6 +20,7 @@ const RULE_TYPES = [
   { value: "billing_increment", label: "Billing Increment" },
   { value: "bundling_prohibition", label: "Bundling Prohibition" },
   { value: "requires_auth", label: "Requires Authorization" },
+  { value: "max_pct_of_invoice", label: "Max % of Invoice" },
 ];
 
 // ── Blank form state ──────────────────────────────────────────────────────────
@@ -153,6 +154,156 @@ function RuleParamsFields({
           />
         </div>
       );
+    case "max_pct_of_invoice": {
+      const useSuffix = !!(params.applies_to_suffix || params.applies_to_domain);
+      return (
+        <div className="space-y-3">
+          {/* Row 1 — threshold + basis + description */}
+          <div className="flex flex-wrap gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                Max % of Invoice
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={(params.max_pct as string) ?? ""}
+                onChange={(e) => onChange({ ...params, max_pct: Number(e.target.value) })}
+                className="w-20 rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                placeholder="5.0"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Basis</label>
+              <select
+                value={(params.basis as string) ?? "amount"}
+                onChange={(e) => onChange({ ...params, basis: e.target.value })}
+                className="rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              >
+                <option value="amount">Dollars (amount)</option>
+                <option value="quantity">Hours (quantity)</option>
+              </select>
+            </div>
+            <div className="flex-1 min-w-[160px]">
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                Description (shown in exception)
+              </label>
+              <input
+                type="text"
+                value={(params.description as string) ?? ""}
+                onChange={(e) => onChange({ ...params, description: e.target.value })}
+                className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                placeholder="Admin and Office Support lines"
+              />
+            </div>
+          </div>
+
+          {/* Row 2 — numerator targeting */}
+          <div>
+            <div className="mb-1 flex items-center gap-3">
+              <span className="text-xs font-medium text-gray-500">Numerator — applies to:</span>
+              <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pct-numerator-mode"
+                  checked={!useSuffix}
+                  onChange={() => {
+                    const next = { ...params };
+                    delete next.applies_to_suffix;
+                    delete next.applies_to_domain;
+                    onChange(next);
+                  }}
+                />
+                Explicit codes
+              </label>
+              <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pct-numerator-mode"
+                  checked={useSuffix}
+                  onChange={() => {
+                    const next = { ...params };
+                    delete next.applies_to_codes;
+                    onChange(next);
+                  }}
+                />
+                Code suffix
+              </label>
+            </div>
+            {!useSuffix ? (
+              <input
+                type="text"
+                value={((params.applies_to_codes as string[]) ?? []).join(", ")}
+                onChange={(e) =>
+                  onChange({
+                    ...params,
+                    applies_to_codes: e.target.value
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+                className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                placeholder="e.g. ENG.AOS.L6, ENG.PM.L6"
+              />
+            ) : (
+              <div className="flex gap-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    Domain
+                  </label>
+                  <input
+                    type="text"
+                    value={(params.applies_to_domain as string) ?? ""}
+                    onChange={(e) =>
+                      onChange({ ...params, applies_to_domain: e.target.value })
+                    }
+                    className="w-24 rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="ENG"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    Code suffix
+                  </label>
+                  <input
+                    type="text"
+                    value={(params.applies_to_suffix as string) ?? ""}
+                    onChange={(e) =>
+                      onChange({ ...params, applies_to_suffix: e.target.value })
+                    }
+                    className="w-24 rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder=".L1"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Row 3 — denominator (optional) */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Denominator domain{" "}
+              <span className="font-normal text-gray-400">(leave blank = all invoice lines)</span>
+            </label>
+            <input
+              type="text"
+              value={(params.denominator_domain as string) ?? ""}
+              onChange={(e) =>
+                onChange({
+                  ...params,
+                  denominator_domain: e.target.value || undefined,
+                })
+              }
+              className="w-24 rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              placeholder="ENG"
+            />
+          </div>
+        </div>
+      );
+    }
     case "requires_auth":
     default:
       return <p className="text-xs text-gray-400">No additional parameters needed.</p>;

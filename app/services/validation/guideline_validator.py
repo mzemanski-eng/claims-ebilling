@@ -4,12 +4,29 @@ Guideline Validation Engine.
 Evaluates structured rules derived from contract narrative language.
 Each Guideline has a rule_type and rule_params (JSONB).
 
-Supported rule types (v1):
-  max_units           — quantity must not exceed a maximum
-  requires_auth       — line must have an auth number attached (stub in v1)
-  billing_increment   — quantity must be in allowed increments (e.g. 0.25 hr)
+Supported rule types:
+  max_units            — quantity must not exceed a maximum
+  requires_auth        — line must have an auth number attached (stub in v1)
+  billing_increment    — quantity must be in allowed increments (e.g. 0.1 hr)
   bundling_prohibition — listed components must not appear on the same invoice
-  cap_amount          — billed amount must not exceed a dollar cap
+  cap_amount           — billed amount must not exceed a dollar cap
+  max_pct_of_invoice   — named line(s) total must not exceed X% of invoice
+                         (or domain) total.  Invoice-level check — evaluated
+                         separately via validate_invoice_percentages(); skipped
+                         during per-line validate().
+
+Rule params for max_pct_of_invoice:
+  {
+    "max_pct":            5.0,            # % threshold (0–100)
+    "basis":              "amount",       # "amount" (dollars) | "quantity" (hrs)
+    "description":        "Admin...",     # label that appears in exception message
+    # Numerator targeting — use one of:
+    "applies_to_codes":   ["ENG.AOS.L6"], # explicit taxonomy code list  OR
+    "applies_to_suffix":  ".L1",          # match by code suffix
+    "applies_to_domain":  "ENG",          # required when using applies_to_suffix
+    # Denominator filter (optional):
+    "denominator_domain": "ENG",          # omit / null = all invoice lines
+  }
 
 Narrative source text is surfaced in every exception message for auditability.
 
@@ -63,12 +80,18 @@ class GuidelineValidator:
         self, line_item: LineItem, guidelines: list[Guideline]
     ) -> list[GuidelineValidationResult]:
         """
-        Run all applicable guideline checks for a line item.
+        Run all applicable guideline checks for a single line item.
         Returns a list of results (one per applicable guideline).
+
+        NOTE: max_pct_of_invoice guidelines are intentionally excluded here —
+        they need the full invoice context and are handled by
+        validate_invoice_percentages() after all lines are processed.
         """
         results: list[GuidelineValidationResult] = []
 
         for guideline in guidelines:
+            if guideline.rule_type == "max_pct_of_invoice":
+                continue  # Invoice-level check — handled separately
             if not self._applies_to(guideline, line_item):
                 continue
             result = self._evaluate(guideline, line_item)
@@ -290,6 +313,184 @@ class GuidelineValidator:
                 required_action=RequiredAction.ACCEPT_REDUCTION,
             )
         return None  # PASS
+
+    # ── Invoice-level percentage checks ──────────────────────────────────────
+
+    def validate_invoice_percentages(
+        self,
+        all_lines: list[LineItem],
+        guidelines: list[Guideline],
+    ) -> list[tuple[LineItem, "GuidelineValidationResult"]]:
+        """
+        Evaluate all max_pct_of_invoice guidelines against the full line list.
+
+        Returns a list of (line_item, result) tuples — one per failing guideline,
+        attributed to an arbitrary line in the numerator set so the caller can
+        attach it to an existing ValidationResult row.  If a guideline fires but
+        no numerator lines exist the tuple is (all_lines[0], result) so there is
+        always a line to attach to.
+
+        Called from the pipeline AFTER the per-line loop is complete.
+        """
+        output: list[tuple[LineItem, GuidelineValidationResult]] = []
+
+        pct_guidelines = [
+            g for g in guidelines
+            if g.rule_type == "max_pct_of_invoice" and g.is_active
+        ]
+        if not pct_guidelines or not all_lines:
+            return output
+
+        for guideline in pct_guidelines:
+            params = guideline.rule_params or {}
+            try:
+                result = self._check_max_pct_of_invoice(guideline, all_lines, params)
+            except Exception as exc:
+                logger.error(
+                    "Error evaluating max_pct_of_invoice guideline %s: %s",
+                    guideline.id,
+                    exc,
+                    exc_info=True,
+                )
+                result = GuidelineValidationResult(
+                    guideline_id=str(guideline.id),
+                    status=ValidationStatus.WARNING,
+                    severity=ValidationSeverity.WARNING,
+                    message=(
+                        "Percentage guideline check could not be evaluated. "
+                        "Carrier review required."
+                    ),
+                    required_action=RequiredAction.NONE,
+                )
+
+            if result is not None:
+                numerator_lines = self._pct_numerator_lines(all_lines, params)
+                anchor = numerator_lines[0] if numerator_lines else all_lines[0]
+                output.append((anchor, result))
+
+        return output
+
+    def _pct_numerator_lines(
+        self, lines: list[LineItem], params: dict
+    ) -> list[LineItem]:
+        """
+        Return the subset of lines that form the numerator of the percentage check.
+
+        Priority:
+          1. ``applies_to_codes``  — explicit taxonomy code list
+          2. ``applies_to_suffix`` + ``applies_to_domain`` — suffix match within domain
+        """
+        if "applies_to_codes" in params:
+            codes = set(params["applies_to_codes"])
+            return [li for li in lines if li.taxonomy_code in codes]
+
+        suffix = params.get("applies_to_suffix")
+        domain = params.get("applies_to_domain")
+        if suffix and domain:
+            return [
+                li for li in lines
+                if li.taxonomy_code
+                and li.taxonomy_code.startswith(f"{domain}.")
+                and li.taxonomy_code.endswith(suffix)
+            ]
+
+        # No targeting → numerator is all lines (unusual but allowed)
+        return list(lines)
+
+    def _pct_denominator_lines(
+        self, lines: list[LineItem], params: dict
+    ) -> list[LineItem]:
+        """
+        Return the subset of lines that form the denominator.
+
+        ``denominator_domain`` (optional): restrict to lines in that domain.
+        Omit / null → all invoice lines.
+        """
+        domain = params.get("denominator_domain")
+        if domain:
+            return [
+                li for li in lines
+                if li.taxonomy_code and li.taxonomy_code.startswith(f"{domain}.")
+            ]
+        return list(lines)
+
+    def _check_max_pct_of_invoice(
+        self,
+        guideline: Guideline,
+        all_lines: list[LineItem],
+        params: dict,
+    ) -> Optional[GuidelineValidationResult]:
+        """
+        Core percentage rule logic.
+
+        Computes numerator / denominator (in dollars or hours) and compares to
+        ``max_pct``.  Returns a FAIL result if the threshold is exceeded,
+        None otherwise.
+        """
+        try:
+            max_pct = Decimal(str(params["max_pct"]))
+        except (KeyError, InvalidOperation):
+            logger.warning(
+                "Guideline %s: missing or invalid max_pct in params: %s",
+                guideline.id,
+                params,
+            )
+            return None
+
+        basis = params.get("basis", "amount")  # "amount" | "quantity"
+        description = params.get("description", "specified lines")
+
+        numerator_lines = self._pct_numerator_lines(all_lines, params)
+        denominator_lines = self._pct_denominator_lines(all_lines, params)
+
+        if not denominator_lines:
+            return None  # No denominator — nothing to check
+
+        if basis == "quantity":
+            numerator_val = sum(
+                (li.raw_quantity or Decimal("0")) for li in numerator_lines
+            )
+            denominator_val = sum(
+                (li.raw_quantity or Decimal("0")) for li in denominator_lines
+            )
+            unit_label = "hours"
+        else:
+            numerator_val = sum(
+                (li.raw_amount or Decimal("0")) for li in numerator_lines
+            )
+            denominator_val = sum(
+                (li.raw_amount or Decimal("0")) for li in denominator_lines
+            )
+            unit_label = "dollars"
+
+        if denominator_val == 0:
+            return None
+
+        actual_pct = (numerator_val / denominator_val * Decimal("100")).quantize(
+            Decimal("0.01")
+        )
+
+        if actual_pct <= max_pct:
+            return None  # PASS
+
+        narrative = self._narrative_cite(guideline)
+        return GuidelineValidationResult(
+            guideline_id=str(guideline.id),
+            status=ValidationStatus.FAIL,
+            severity=guideline.severity,
+            message=(
+                f"{description} total ({actual_pct}% of invoice {unit_label}) "
+                f"exceeds the contract limit of {max_pct}%. "
+                f"Numerator: {numerator_val} {unit_label}; "
+                f"Denominator: {denominator_val} {unit_label}. "
+                f"{narrative}"
+            ),
+            expected_value=f"≤ {max_pct}%",
+            actual_value=f"{actual_pct}%",
+            required_action=RequiredAction.ACCEPT_REDUCTION
+            if guideline.severity == ValidationSeverity.ERROR
+            else RequiredAction.NONE,
+        )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
