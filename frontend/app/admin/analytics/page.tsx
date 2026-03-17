@@ -24,6 +24,8 @@ import {
   getSpendByTaxonomy,
   getExceptionBreakdown,
   getRateGaps,
+  getSupplierComparisonCsv,
+  downloadBlob,
 } from "@/lib/api";
 import type { RateGap, SpendByTaxonomy } from "@/lib/types";
 
@@ -145,6 +147,17 @@ export default function AdminAnalyticsPage() {
     key: "total_billed",
     dir: "desc",
   });
+  const [csvDownloading, setCsvDownloading] = useState(false);
+
+  async function handleCsvExport() {
+    setCsvDownloading(true);
+    try {
+      const blob = await getSupplierComparisonCsv();
+      downloadBlob(blob, "supplier-comparison.csv");
+    } finally {
+      setCsvDownloading(false);
+    }
+  }
 
   const { data: summary, isLoading: loadingSummary } = useQuery({
     queryKey: ["analytics-summary"],
@@ -289,11 +302,25 @@ export default function AdminAnalyticsPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Claims ALAE spend intelligence — all-time baseline
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Claims ALAE spend intelligence — all-time baseline
+          </p>
+        </div>
+        <button
+          onClick={handleCsvExport}
+          disabled={csvDownloading}
+          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:border-blue-200 hover:text-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {csvDownloading ? (
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-400 border-t-gray-700 inline-block" />
+          ) : (
+            <span>⬇</span>
+          )}
+          Export CSV
+        </button>
       </div>
 
       {isLoading ? (

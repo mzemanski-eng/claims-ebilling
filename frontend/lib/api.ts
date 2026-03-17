@@ -36,6 +36,7 @@ import type {
   SpendByDomain,
   SpendBySupplier,
   SpendByTaxonomy,
+  SupplierComparisonRow,
   TokenResponse,
   UserInfo,
 } from "./types";
@@ -519,4 +520,22 @@ export function getSpendByTaxonomy(): Promise<SpendByTaxonomy[]> {
 
 export function getExceptionBreakdown(): Promise<ExceptionBreakdown[]> {
   return apiFetch<ExceptionBreakdown[]>("/admin/analytics/exception-breakdown");
+}
+
+export function getRateGaps(): Promise<RateGap[]> {
+  return apiFetch<RateGap[]>("/admin/analytics/rate-gaps");
+}
+
+export function getSupplierComparison(): Promise<SupplierComparisonRow[]> {
+  return apiFetch<SupplierComparisonRow[]>("/admin/analytics/supplier-comparison");
+}
+
+/** Fetch the supplier comparison as a CSV blob for download. */
+export async function getSupplierComparisonCsv(): Promise<Blob> {
+  const token = getToken();
+  const headers: Record<string, string> = { Accept: "text/csv" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}/admin/analytics/supplier-comparison?format=csv`, { headers });
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return res.blob();
 }

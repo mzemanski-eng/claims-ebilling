@@ -332,6 +332,29 @@ export interface ExceptionBreakdown {
   count: number;
 }
 
+export interface RateGap {
+  taxonomy_code: string;
+  taxonomy_label: string | null;
+  supplier_id: string;
+  supplier_name: string;
+  /** Number of open exceptions with required_action = ESTABLISH_CONTRACT_RATE */
+  open_count: number;
+  /** Total billed amount across all lines with this gap (Decimal as string) */
+  total_billed: string;
+}
+
+export interface SupplierComparisonRow {
+  taxonomy_code: string;
+  taxonomy_label: string | null;
+  supplier_id: string;
+  supplier_name: string;
+  invoice_count: number;
+  total_billed: string;
+  total_expected: string;
+  total_savings: string;
+  exception_rate: string;
+}
+
 export const SubmissionStatus = {
   DRAFT: "DRAFT",
   SUBMITTED: "SUBMITTED",

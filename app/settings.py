@@ -75,6 +75,18 @@ class Settings(BaseSettings):
     # skipped and ai_description_assessment stays NULL on the line item.
     anthropic_api_key: str = ""
 
+    # ── Email / SMTP ────────────────────────────────────────────────────────
+    # Leave SMTP_HOST empty to disable email notifications entirely.
+    # Compatible with any SMTP provider: Postmark, SendGrid, Gmail, etc.
+    # Example Postmark:  SMTP_HOST=smtp.postmarkapp.com  SMTP_PORT=587
+    # Example SendGrid:  SMTP_HOST=smtp.sendgrid.net     SMTP_PORT=587
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""        # Defaults to smtp_user if blank
+    smtp_use_tls: bool = True  # STARTTLS — set false for port 465 / SSL wrappers
+
     # ── Invoice Processing ──────────────────────────────────────────────────
     # When true, invoices that pass all validations (zero ERROR-severity
     # exceptions) are automatically approved without carrier review.

@@ -61,6 +61,7 @@ from app.schemas.invoice import (
     ValidationResultSupplierView,
 )
 from app.services.audit import logger as audit
+from app.services.notifications.email import notify_exception_resolved
 from app.settings import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -374,6 +375,9 @@ def resolve_exception(
             )
 
     db.commit()
+
+    # ── Supplier notification (non-blocking — never raises) ───────────────────
+    notify_exception_resolved(db, invoice, line_item, exc, resolution_action)
 
     return {
         "message": f"Exception resolved: {resolution_action}",

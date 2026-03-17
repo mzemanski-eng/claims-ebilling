@@ -4,17 +4,22 @@ Analytics API routes for carrier admins.
 Provides aggregated spend and billing operations metrics — all-time by default,
 which is the correct baseline for RFP benchmarking and contract negotiation.
 
-  GET /admin/analytics/summary            → KPI scalars (billed, approved, savings, exceptions)
-  GET /admin/analytics/spend-by-domain    → spend grouped by service domain (IME, ENG, etc.)
-  GET /admin/analytics/spend-by-supplier  → spend grouped by supplier
-  GET /admin/analytics/spend-by-taxonomy  → spend grouped by taxonomy code
-  GET /admin/analytics/exception-breakdown → exception counts by validation type
-  GET /admin/analytics/rate-gaps          → services billed with no contracted rate card
+  GET /admin/analytics/summary               → KPI scalars (billed, approved, savings, exceptions)
+  GET /admin/analytics/spend-by-domain       → spend grouped by service domain (IME, ENG, etc.)
+  GET /admin/analytics/spend-by-supplier     → spend grouped by supplier
+  GET /admin/analytics/spend-by-taxonomy     → spend grouped by taxonomy code
+  GET /admin/analytics/exception-breakdown   → exception counts by validation type
+  GET /admin/analytics/rate-gaps             → services billed with no contracted rate card
+  GET /admin/analytics/supplier-comparison   → side-by-side spend per supplier × taxonomy code
+                                               ?format=csv returns a downloadable CSV file
 """
 
+import csv
+import io
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -327,3 +332,105 @@ def get_rate_gaps(
         }
         for row in rows
     ]
+
+
+# ── Supplier Comparison ───────────────────────────────────────────────────────
+
+
+@router.get("/supplier-comparison")
+def get_supplier_comparison(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    format: str = Query(default="json", pattern="^(json|csv)$"),
+):
+    """
+    Side-by-side spend analysis per supplier × taxonomy code.
+
+    Returns every (supplier, taxonomy_code) pair that has at least one
+    processed invoice line, with billed vs. expected amounts and the
+    number of exceptions raised.
+
+    Query params:
+      ?format=csv  — returns a downloadable CSV file instead of JSON
+    """
+    rows = (
+        db.query(
+            LineItem.taxonomy_code,
+            TaxonomyItem.label.label("taxonomy_label"),
+            Supplier.id.label("supplier_id"),
+            Supplier.name.label("supplier_name"),
+            func.count(LineItem.id.distinct()).label("invoice_count"),
+            func.sum(LineItem.raw_amount).label("total_billed"),
+            func.sum(LineItem.expected_amount).label("total_expected"),
+            func.count(ExceptionRecord.id.distinct()).label("exception_count"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Supplier, Supplier.id == Invoice.supplier_id)
+        .outerjoin(TaxonomyItem, TaxonomyItem.code == LineItem.taxonomy_code)
+        .outerjoin(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+        .filter(
+            Invoice.carrier_id == current_user.carrier_id,
+            LineItem.taxonomy_code.isnot(None),
+        )
+        .group_by(
+            LineItem.taxonomy_code,
+            TaxonomyItem.label,
+            Supplier.id,
+            Supplier.name,
+        )
+        .order_by(Supplier.name, LineItem.taxonomy_code)
+        .all()
+    )
+
+    def _savings(billed, expected) -> Decimal:
+        b = Decimal(str(billed or 0))
+        e = Decimal(str(expected or 0))
+        diff = b - e
+        return diff if diff > 0 else Decimal("0")
+
+    def _exception_rate(exception_count, invoice_count) -> str:
+        if not invoice_count:
+            return "0.0"
+        return f"{round(exception_count / invoice_count * 100, 1)}"
+
+    records = [
+        {
+            "taxonomy_code": row.taxonomy_code,
+            "taxonomy_label": row.taxonomy_label,
+            "supplier_id": str(row.supplier_id),
+            "supplier_name": row.supplier_name,
+            "invoice_count": row.invoice_count,
+            "total_billed": str(row.total_billed or 0),
+            "total_expected": str(row.total_expected or 0),
+            "total_savings": str(_savings(row.total_billed, row.total_expected)),
+            "exception_rate": _exception_rate(row.exception_count, row.invoice_count),
+        }
+        for row in rows
+    ]
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.DictWriter(
+            output,
+            fieldnames=[
+                "supplier_name",
+                "taxonomy_code",
+                "taxonomy_label",
+                "invoice_count",
+                "total_billed",
+                "total_expected",
+                "total_savings",
+                "exception_rate",
+            ],
+            extrasaction="ignore",
+        )
+        writer.writeheader()
+        writer.writerows(records)
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=supplier-comparison.csv"},
+        )
+
+    return records

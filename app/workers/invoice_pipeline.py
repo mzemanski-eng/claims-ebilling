@@ -54,6 +54,11 @@ from app.services.classification.classifier import Classifier
 from app.services.ingestion.base import ParseError, RawLineItem
 from app.services.ingestion.dispatcher import detect_format, get_parser
 from app.services.storage.base import get_storage
+from app.services.notifications.email import (
+    notify_invoice_approved,
+    notify_invoice_flagged,
+    notify_invoice_pending_approval,
+)
 from app.services.validation.guideline_validator import GuidelineValidator
 from app.services.validation.rate_validator import RateValidator
 from app.settings import settings
@@ -387,6 +392,14 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     )
 
     db.commit()
+
+    # ── Supplier notifications (non-blocking — never raises) ──────────────────
+    if new_status == SubmissionStatus.REVIEW_REQUIRED:
+        notify_invoice_flagged(db, invoice)
+    elif new_status == SubmissionStatus.APPROVED:
+        notify_invoice_approved(db, invoice)
+    elif new_status == SubmissionStatus.PENDING_CARRIER_REVIEW:
+        notify_invoice_pending_approval(db, invoice)
 
     summary = {
         "invoice_id": invoice_id,
