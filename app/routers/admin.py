@@ -279,34 +279,107 @@ def resolve_exception(
 ) -> dict:
     """
     Carrier resolves an exception.
-    resolution_action: WAIVED | HELD_CONTRACT_RATE | RECLASSIFIED | ACCEPTED_REDUCTION
+
+    resolution_action options:
+      WAIVED            — rule waived for this instance; line accepted as billed
+      ACCEPTED_REDUCTION— supplier agreed to reduced amount (rate/cap exception)
+      HELD_CONTRACT_RATE— contract rate enforced; supplier accepts reduction
+      RECLASSIFIED      — line reclassified to a different taxonomy code
+      DENIED            — line rejected; supplier must correct and resubmit
+
+    After resolving:
+    - Accepting actions (all except DENIED) promote the line to APPROVED if no
+      other open exceptions remain on that line.
+    - When all exceptions on the invoice reach a terminal state, the invoice
+      advances from REVIEW_REQUIRED → PENDING_CARRIER_REVIEW automatically.
+    - If AUTO_APPROVE_CLEAN_INVOICES is enabled and no lines remain in EXCEPTION
+      status, the invoice advances directly to APPROVED.
     """
-    valid_actions = {
+    # ── Accepting actions promote the line; DENIED leaves it flagged ─────────
+    _ACCEPTING = {
         ResolutionAction.WAIVED,
         ResolutionAction.HELD_CONTRACT_RATE,
         ResolutionAction.RECLASSIFIED,
         ResolutionAction.ACCEPTED_REDUCTION,
     }
+    valid_actions = _ACCEPTING | {ResolutionAction.DENIED}
     if resolution_action not in valid_actions:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid resolution_action. Must be one of: {valid_actions}",
+            detail=f"Invalid resolution_action. Must be one of: {sorted(valid_actions)}",
         )
 
     exc = db.get(ExceptionRecord, exception_id)
     if exc is None:
         raise HTTPException(status_code=404, detail="Exception not found")
 
+    _ACTIVE_STATUSES = {
+        ExceptionStatus.OPEN,
+        ExceptionStatus.SUPPLIER_RESPONDED,
+        ExceptionStatus.CARRIER_REVIEWING,
+    }
+    if exc.status not in _ACTIVE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Exception is already in a terminal state: {exc.status}",
+        )
+
+    # ── Resolve the exception record ──────────────────────────────────────────
     exc.status = ExceptionStatus.RESOLVED
     exc.resolution_action = resolution_action
-    exc.resolution_notes = resolution_notes
+    exc.resolution_notes = resolution_notes or None
     exc.resolved_at = datetime.now(timezone.utc)
     exc.resolved_by_user_id = current_user.id
+    db.flush()
 
     audit.log_exception_resolved(db, exc, actor_id=current_user.id)
+
+    # ── Promote line item if this was an accepting resolution ─────────────────
+    line_item = exc.line_item
+    if resolution_action in _ACCEPTING:
+        other_open_on_line = [
+            e for e in line_item.exceptions
+            if e.id != exc.id and e.status in _ACTIVE_STATUSES
+        ]
+        if not other_open_on_line:
+            line_item.status = LineItemStatus.APPROVED
+
+    # ── Auto-advance invoice if all exceptions are now resolved ───────────────
+    invoice = line_item.invoice
+    if invoice.status == SubmissionStatus.REVIEW_REQUIRED:
+        remaining_open = [
+            e
+            for li in invoice.line_items
+            for e in li.exceptions
+            if e.id != exc.id and e.status in _ACTIVE_STATUSES
+        ]
+        if not remaining_open:
+            old_inv_status = invoice.status
+            # If any lines are still EXCEPTION (DENIED), require manual approve.
+            # Otherwise auto-approve if configured.
+            exception_lines = [
+                li for li in invoice.line_items
+                if li.status == LineItemStatus.EXCEPTION
+            ]
+            if settings.auto_approve_clean_invoices and not exception_lines:
+                invoice.status = SubmissionStatus.APPROVED
+                for li in invoice.line_items:
+                    if li.status == LineItemStatus.VALIDATED:
+                        li.status = LineItemStatus.APPROVED
+            else:
+                invoice.status = SubmissionStatus.PENDING_CARRIER_REVIEW
+
+            audit.log_invoice_status_changed(
+                db, invoice, from_status=old_inv_status, to_status=invoice.status
+            )
+
     db.commit()
 
-    return {"message": f"Exception resolved with action: {resolution_action}"}
+    return {
+        "message": f"Exception resolved: {resolution_action}",
+        "invoice_status": invoice.status,
+        "line_status": line_item.status,
+    }
 
 
 # ── Approve Invoice ───────────────────────────────────────────────────────────

@@ -50,6 +50,58 @@ function Dialog({
   );
 }
 
+// ── Resolution action config ──────────────────────────────────────────────────
+const RESOLUTION_OPTIONS: {
+  value: string;
+  label: string;
+  hint: string;
+  accepting: boolean;
+}[] = [
+  {
+    value: "WAIVED",
+    label: "Waive — accept as billed",
+    hint: "Rule waived for this instance; line paid as submitted",
+    accepting: true,
+  },
+  {
+    value: "ACCEPTED_REDUCTION",
+    label: "Accept reduction",
+    hint: "Supplier agrees to the contracted / expected amount",
+    accepting: true,
+  },
+  {
+    value: "HELD_CONTRACT_RATE",
+    label: "Hold contract rate",
+    hint: "Contract rate enforced; payment capped at expected amount",
+    accepting: true,
+  },
+  {
+    value: "RECLASSIFIED",
+    label: "Reclassified",
+    hint: "Line reclassified to a different taxonomy code; billing accepted",
+    accepting: true,
+  },
+  {
+    value: "DENIED",
+    label: "Deny — reject line",
+    hint: "Line rejected; supplier must correct and resubmit",
+    accepting: false,
+  },
+];
+
+/** Pick the best default resolution action based on the exception's required_action. */
+function defaultResolutionAction(requiredAction: string): string {
+  switch (requiredAction) {
+    case "ACCEPT_REDUCTION":        return "ACCEPTED_REDUCTION";
+    case "ESTABLISH_CONTRACT_RATE": return "HELD_CONTRACT_RATE";
+    case "REQUEST_RECLASSIFICATION":return "RECLASSIFIED";
+    case "REUPLOAD":                return "DENIED";
+    case "ATTACH_DOC":
+    case "NONE":
+    default:                        return "WAIVED";
+  }
+}
+
 // ── Exception resolve row ─────────────────────────────────────────────────────
 function ExceptionRow({
   exc,
@@ -59,7 +111,9 @@ function ExceptionRow({
   invoiceId: string;
 }) {
   const qc = useQueryClient();
-  const [action, setAction] = useState<string>(ResolutionActions.WAIVED);
+  const [action, setAction] = useState<string>(
+    () => defaultResolutionAction(exc.required_action)
+  );
   const [notes, setNotes] = useState("");
 
   const resolveMut = useMutation({
@@ -70,55 +124,85 @@ function ExceptionRow({
     },
   });
 
-  if (exc.status !== "OPEN" && exc.status !== "SUPPLIER_RESPONDED") {
+  const isDenying = action === "DENIED";
+  const selectedOption = RESOLUTION_OPTIONS.find((o) => o.value === action);
+
+  if (exc.status !== "OPEN" && exc.status !== "SUPPLIER_RESPONDED" && exc.status !== "CARRIER_REVIEWING") {
+    const isResolved = exc.status === "RESOLVED" || exc.status === "WAIVED";
     return (
-      <div className="flex items-center gap-2 rounded bg-gray-50 px-3 py-2 text-xs text-gray-500">
+      <div className={`flex items-start gap-2 rounded px-3 py-2 text-xs ${isResolved ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-500"}`}>
         <StatusBadge status={exc.status} />
-        <span>{exc.message}</span>
+        <span className="flex-1">{exc.message}</span>
+        {exc.resolution_action && (
+          <span className="font-medium shrink-0">
+            {RESOLUTION_OPTIONS.find((o) => o.value === exc.resolution_action)?.label
+              ?? exc.resolution_action}
+          </span>
+        )}
       </div>
     );
   }
 
   return (
     <div className="rounded border border-orange-200 bg-orange-50 p-3 text-xs space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <div>
+      <div>
+        <div className="flex items-center gap-2 mb-1">
           <StatusBadge status={exc.status} />
-          <p className="mt-1 text-gray-700">{exc.message}</p>
-          {exc.supplier_response && (
-            <p className="mt-1 italic text-gray-500">
-              Supplier: {exc.supplier_response}
-            </p>
+          <span className="font-mono text-gray-500">{exc.required_action}</span>
+        </div>
+        <p className="text-gray-800">{exc.message}</p>
+        {exc.supplier_response && (
+          <p className="mt-1 italic text-gray-500">
+            Supplier note: {exc.supplier_response}
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="flex flex-col gap-1">
+          <select
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            className={`rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              isDenying
+                ? "border-red-300 bg-red-50 text-red-700"
+                : "border-gray-300 bg-white text-gray-800"
+            }`}
+          >
+            {RESOLUTION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {selectedOption && (
+            <p className="text-gray-400 pl-0.5">{selectedOption.hint}</p>
           )}
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <select
-          value={action}
-          onChange={(e) => setAction(e.target.value)}
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          {Object.values(ResolutionActions).map((a) => (
-            <option key={a} value={a}>
-              {a.replace(/_/g, " ")}
-            </option>
-          ))}
-        </select>
+
         <input
           type="text"
-          placeholder="Notes (optional)"
+          placeholder={isDenying ? "Reason for denial (required)" : "Notes (optional)"}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={`flex-1 min-w-32 rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+            isDenying && !notes.trim()
+              ? "border-red-300 bg-red-50"
+              : "border-gray-300 bg-white"
+          }`}
         />
+
         <Button
           size="sm"
+          variant={isDenying ? "danger" : "primary"}
           loading={resolveMut.isPending}
+          disabled={isDenying && !notes.trim()}
           onClick={() => resolveMut.mutate()}
         >
-          Resolve
+          {isDenying ? "Deny" : "Resolve"}
         </Button>
       </div>
+
       {resolveMut.isError && (
         <p className="text-red-600">{(resolveMut.error as Error).message}</p>
       )}
