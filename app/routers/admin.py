@@ -12,6 +12,7 @@ Workflow:
   POST /admin/exceptions/{id}/resolve           → carrier resolves an exception
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
   GET  /admin/suppliers                         → list all suppliers
+  POST /admin/suppliers/{id}/audit              → AI audit report (on-demand, no DB write)
   GET  /admin/contracts                         → list all contracts
   GET  /admin/contracts/{id}                    → contract detail with rate cards + guidelines
   POST /admin/contracts                         → create contract
@@ -60,6 +61,7 @@ from app.schemas.invoice import (
     MappingOverrideRequest,
     ValidationResultSupplierView,
 )
+from app.services.ai_assessment.supplier_auditor import audit_supplier
 from app.services.audit import logger as audit
 from app.services.notifications.email import notify_exception_resolved
 from app.settings import settings
@@ -126,6 +128,8 @@ def get_invoice_detail(
         **base.model_dump(),
         "supplier_name": invoice.supplier.name if invoice.supplier else None,
         "contract_name": invoice.contract.name if invoice.contract else None,
+        "triage_risk_level": invoice.triage_risk_level,
+        "triage_notes": invoice.triage_notes,
     }
 
 
@@ -616,6 +620,111 @@ def list_suppliers(
     ]
 
 
+# ── Supplier Audit (AI) ───────────────────────────────────────────────────────
+
+
+@router.post("/suppliers/{supplier_id}/audit")
+def run_supplier_audit(
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> dict:
+    """
+    On-demand AI audit of a supplier's billing history.
+
+    Aggregates invoice counts, exception patterns, and top-billed taxonomy codes,
+    then calls Claude to produce a structured audit report with risk rating, findings,
+    and actionable recommendations.
+
+    No DB writes — result is returned directly to the caller.
+    Returns 503 if ANTHROPIC_API_KEY is not configured.
+    """
+    from sqlalchemy import func
+
+    supplier = db.get(Supplier, supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    # ── Invoice counts by status ───────────────────────────────────────────────
+    invoice_summary_rows = (
+        db.query(Invoice.status, func.count(Invoice.id).label("count"))
+        .filter(Invoice.supplier_id == supplier_id)
+        .group_by(Invoice.status)
+        .all()
+    )
+    invoice_summary = [
+        {"status": row.status, "count": row.count}
+        for row in invoice_summary_rows
+    ]
+
+    # ── Exception patterns by taxonomy_code + required_action ─────────────────
+    from app.models.validation import ExceptionRecord, ValidationResult as VR
+    exception_summary_rows = (
+        db.query(
+            LineItem.taxonomy_code,
+            VR.required_action,
+            func.count(ExceptionRecord.id).label("count"),
+        )
+        .join(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+        .join(VR, VR.id == ExceptionRecord.validation_result_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .filter(Invoice.supplier_id == supplier_id)
+        .group_by(LineItem.taxonomy_code, VR.required_action)
+        .order_by(func.count(ExceptionRecord.id).desc())
+        .limit(20)
+        .all()
+    )
+    exception_summary = [
+        {
+            "taxonomy_code": row.taxonomy_code,
+            "required_action": row.required_action,
+            "count": row.count,
+        }
+        for row in exception_summary_rows
+    ]
+
+    # ── Top taxonomy codes by total billed ────────────────────────────────────
+    top_codes_rows = (
+        db.query(
+            LineItem.taxonomy_code,
+            func.sum(LineItem.raw_amount).label("total_billed"),
+            func.count(Invoice.id.distinct()).label("invoice_count"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .filter(
+            Invoice.supplier_id == supplier_id,
+            LineItem.taxonomy_code.isnot(None),
+        )
+        .group_by(LineItem.taxonomy_code)
+        .order_by(func.sum(LineItem.raw_amount).desc())
+        .limit(10)
+        .all()
+    )
+    top_codes = [
+        {
+            "taxonomy_code": row.taxonomy_code,
+            "total_billed": float(row.total_billed or 0),
+            "invoice_count": row.invoice_count,
+        }
+        for row in top_codes_rows
+    ]
+
+    result = audit_supplier(
+        supplier_name=supplier.name,
+        invoice_summary=invoice_summary,
+        exception_summary=exception_summary,
+        top_codes=top_codes,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI audit is not available — ANTHROPIC_API_KEY not configured.",
+        )
+
+    return result
+
+
 # ── Contracts ─────────────────────────────────────────────────────────────────
 
 
@@ -935,6 +1044,7 @@ def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
         total_billed=total_billed,
         exception_count=exc_count,
         supplier_name=invoice.supplier.name if invoice.supplier else None,
+        triage_risk_level=invoice.triage_risk_level,
     )
 
 
@@ -970,6 +1080,8 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
             else "NONE",
             supplier_response=exc.supplier_response,
             resolution_action=exc.resolution_action,
+            ai_recommendation=exc.ai_recommendation,
+            ai_reasoning=exc.ai_reasoning,
         )
         for exc in li.exceptions
     ]

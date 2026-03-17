@@ -54,6 +54,8 @@ from app.services.classification.classifier import Classifier
 from app.services.ingestion.base import ParseError, RawLineItem
 from app.services.ingestion.dispatcher import detect_format, get_parser
 from app.services.storage.base import get_storage
+from app.services.ai_assessment.exception_resolver import assess_exception
+from app.services.ai_assessment.invoice_triage import triage_invoice
 from app.services.notifications.email import (
     notify_invoice_approved,
     notify_invoice_flagged,
@@ -248,6 +250,33 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
         )
 
     guidelines = [g for g in contract.guidelines if g.is_active]
+
+    # ── AI invoice triage (non-blocking) ──────────────────────────────────────
+    try:
+        prior_rr_count = _prior_review_required_count(db, invoice.supplier_id)
+        estimated_total = sum(
+            float(item.raw_amount or 0) for item in parse_result.line_items
+        )
+        triage_result = triage_invoice(
+            supplier_name=invoice.supplier.name,
+            invoice_number=invoice.invoice_number,
+            invoice_date=str(invoice.invoice_date),
+            line_item_count=len(parse_result.line_items),
+            estimated_total=estimated_total,
+            prior_review_required_count=prior_rr_count,
+        )
+        if triage_result:
+            invoice.triage_risk_level = triage_result["risk_level"]
+            invoice.triage_notes = "\n".join(triage_result.get("risk_factors", []))
+            db.flush()
+            logger.info(
+                "Invoice %s triage: %s (%d risk factors)",
+                invoice_id,
+                triage_result["risk_level"],
+                len(triage_result.get("risk_factors", [])),
+            )
+    except Exception as triage_exc:
+        logger.warning("Invoice triage failed for %s: %s", invoice_id, triage_exc)
 
     # ── Instantiate services ──────────────────────────────────────────────────
     classifier = Classifier(db)
@@ -569,6 +598,8 @@ def _process_line(
                 status=ExceptionStatus.OPEN,
             )
             db.add(exc_record)
+            db.flush()
+            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract)
             audit.log_line_item_exception_opened(db, line_item, rate_result)
             error_count += 1
             if rate_result.expected_value:
@@ -608,6 +639,8 @@ def _process_line(
                 status=ExceptionStatus.OPEN,
             )
             db.add(exc_record)
+            db.flush()
+            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract)
             audit.log_line_item_exception_opened(db, line_item, guide_result)
             error_count += 1
         elif guide_result.status == ValidationStatus.WARNING:
@@ -623,6 +656,65 @@ def _process_line(
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+
+def _prior_review_required_count(db, supplier_id) -> int:
+    """Count REVIEW_REQUIRED invoices for this supplier in the past 90 days."""
+    from datetime import timedelta
+    from app.models.invoice import Invoice as _Invoice, SubmissionStatus as _SS
+    cutoff = date.today() - timedelta(days=90)
+    return (
+        db.query(_Invoice)
+        .filter(
+            _Invoice.supplier_id == supplier_id,
+            _Invoice.status == _SS.REVIEW_REQUIRED,
+            _Invoice.submitted_at >= cutoff,
+        )
+        .count()
+    )
+
+
+def _prior_exception_count(db, supplier_id, taxonomy_code) -> int:
+    """Count exceptions for this supplier + taxonomy code in the past 90 days."""
+    if not taxonomy_code:
+        return 0
+    from datetime import timedelta
+    from app.models.invoice import Invoice as _Invoice, LineItem as _LI
+    from app.models.validation import ExceptionRecord as _ER
+    cutoff = date.today() - timedelta(days=90)
+    return (
+        db.query(_ER)
+        .join(_LI, _LI.id == _ER.line_item_id)
+        .join(_Invoice, _Invoice.id == _LI.invoice_id)
+        .filter(
+            _Invoice.supplier_id == supplier_id,
+            _LI.taxonomy_code == taxonomy_code,
+            _Invoice.submitted_at >= cutoff,
+        )
+        .count()
+    )
+
+
+def _attach_ai_recommendation(db, exc_record, val_result, line_item, invoice, contract) -> None:
+    """
+    Call the exception resolver and attach ai_recommendation + ai_reasoning
+    to the exception record. Non-blocking — silently skips on any failure.
+    """
+    try:
+        prior = _prior_exception_count(db, invoice.supplier_id, line_item.taxonomy_code)
+        rec = assess_exception(
+            exception_message=val_result.message,
+            required_action=val_result.required_action,
+            taxonomy_code=line_item.taxonomy_code,
+            contract_name=contract.name,
+            supplier_name=invoice.supplier.name,
+            prior_exception_count=prior,
+        )
+        if rec:
+            exc_record.ai_recommendation = rec["recommendation"]
+            exc_record.ai_reasoning = rec["reasoning"]
+    except Exception as ai_exc:
+        logger.warning("Exception resolver failed: %s", ai_exc)
 
 
 def _fail_invoice(db, invoice, reason: str) -> dict:

@@ -80,6 +80,7 @@ class InvoiceListItem(BaseSchema):
     total_billed: Optional[Decimal] = None
     exception_count: int = 0
     supplier_name: Optional[str] = None  # populated by admin endpoints; null for supplier views
+    triage_risk_level: Optional[str] = None  # set by AI triage agent; null until processed
 
 
 # ── LineItem schemas ──────────────────────────────────────────────────────────
@@ -111,6 +112,10 @@ class ExceptionSupplierView(BaseSchema):
     resolution_action: Optional[str] = (
         None  # Set once carrier resolves (e.g. DENIED, WAIVED)
     )
+
+    # ── AI agent fields (set by exception_resolver; null until processed) ─────
+    ai_recommendation: Optional[str] = None  # ResolutionAction constant
+    ai_reasoning: Optional[str] = None  # Explanation for the carrier
 
 
 class LineItemSupplierView(BaseSchema):

@@ -36,6 +36,7 @@ import type {
   SpendByDomain,
   SpendBySupplier,
   SpendByTaxonomy,
+  SupplierAuditResult,
   SupplierComparisonRow,
   TokenResponse,
   UserInfo,
@@ -528,6 +529,13 @@ export function getRateGaps(): Promise<RateGap[]> {
 
 export function getSupplierComparison(): Promise<SupplierComparisonRow[]> {
   return apiFetch<SupplierComparisonRow[]>("/admin/analytics/supplier-comparison");
+}
+
+/** Run an AI audit on a supplier — returns findings and risk rating. No DB writes. */
+export function runSupplierAudit(supplierId: string): Promise<SupplierAuditResult> {
+  return apiFetch<SupplierAuditResult>(`/admin/suppliers/${supplierId}/audit`, {
+    method: "POST",
+  });
 }
 
 /** Fetch the supplier comparison as a CSV blob for download. */

@@ -7,6 +7,26 @@ import { bulkApproveInvoices, listAdminInvoices, listAdminSuppliers } from "@/li
 import { StatusBadge } from "@/components/status-badge";
 import type { BulkApprovalResult } from "@/lib/types";
 
+// ── Risk Badge ────────────────────────────────────────────────────────────────
+
+const RISK_CONFIG: Record<string, { dot: string; label: string; text: string }> = {
+  LOW:      { dot: "bg-green-400",  label: "LOW",      text: "text-green-700" },
+  MEDIUM:   { dot: "bg-amber-400",  label: "MED",      text: "text-amber-700" },
+  HIGH:     { dot: "bg-red-500",    label: "HIGH",     text: "text-red-700"   },
+  CRITICAL: { dot: "bg-red-600",    label: "CRIT",     text: "text-red-800"   },
+};
+
+function RiskBadge({ level }: { level: string | null }) {
+  if (!level) return <span className="text-gray-300 text-xs">—</span>;
+  const cfg = RISK_CONFIG[level] ?? RISK_CONFIG.MEDIUM;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold ${cfg.text}`}>
+      <span className={`inline-block h-2 w-2 rounded-full ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  );
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_TABS = [
@@ -363,6 +383,9 @@ export default function AdminInvoicesPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Status
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Risk
+                </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Billed
                 </th>
@@ -415,6 +438,9 @@ export default function AdminInvoicesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={inv.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <RiskBadge level={inv.triage_risk_level} />
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-gray-900">
                       {inv.total_billed

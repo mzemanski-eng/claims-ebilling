@@ -46,6 +46,7 @@ export interface InvoiceListItem {
   total_billed: string | null;
   exception_count: number;
   supplier_name: string | null; // populated by admin endpoints; null for supplier views
+  triage_risk_level: string | null; // LOW | MEDIUM | HIGH | CRITICAL; set by AI triage
 }
 
 export interface InvoiceListFilters {
@@ -72,10 +73,12 @@ export interface InvoiceDetail {
   validation_summary: ValidationSummary | null;
 }
 
-/** Admin-enriched invoice detail — includes supplier + contract name. */
+/** Admin-enriched invoice detail — includes supplier + contract name + AI triage. */
 export interface AdminInvoiceDetail extends InvoiceDetail {
   supplier_name: string | null;
   contract_name: string | null;
+  triage_risk_level: string | null; // LOW | MEDIUM | HIGH | CRITICAL
+  triage_notes: string | null; // newline-separated risk factors
 }
 
 /** One row from the mapping review queue. */
@@ -175,15 +178,6 @@ export interface ContractDetail extends AdminContract {
   guidelines: GuidelineDetail[];
 }
 
-export interface RateGap {
-  taxonomy_code: string;
-  taxonomy_label: string | null;
-  supplier_id: string;
-  supplier_name: string;
-  open_count: number;
-  total_billed: string;
-}
-
 export interface ParsedContractResult {
   contract: {
     supplier_id: string;
@@ -238,6 +232,10 @@ export interface ExceptionView {
   required_action: string;
   supplier_response: string | null;
   resolution_action: string | null;
+  /** AI-suggested resolution action (a ResolutionAction constant). Null until processed. */
+  ai_recommendation: string | null;
+  /** AI explanation shown to carrier. Null until processed. */
+  ai_reasoning: string | null;
 }
 
 // ── Line Items ────────────────────────────────────────────────────────────────
@@ -353,6 +351,18 @@ export interface SupplierComparisonRow {
   total_expected: string;
   total_savings: string;
   exception_rate: string;
+}
+
+export interface SupplierAuditFinding {
+  title: string;
+  detail: string;
+  severity: "INFO" | "WARNING" | "ERROR";
+}
+
+export interface SupplierAuditResult {
+  risk_rating: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  findings: SupplierAuditFinding[];
+  recommendations: string[];
 }
 
 export const SubmissionStatus = {

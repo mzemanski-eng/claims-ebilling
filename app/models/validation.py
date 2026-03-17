@@ -207,6 +207,18 @@ class ExceptionRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
     )
 
+    # ── AI agent fields (set by exception_resolver during pipeline) ───────────
+    ai_recommendation: Mapped[Optional[str]] = mapped_column(
+        String(32),
+        nullable=True,
+        comment="AI-suggested resolution action (a ResolutionAction constant)",
+    )
+    ai_reasoning: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="AI explanation for the recommendation — displayed to carrier in UI",
+    )
+
     # Relationships
     line_item: Mapped["LineItem"] = relationship(
         "LineItem", back_populates="exceptions"

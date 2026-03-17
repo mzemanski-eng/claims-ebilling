@@ -130,6 +130,19 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Supplier memo on initial submission
     submission_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # ── AI triage fields (set by invoice_triage agent during pipeline) ─────────
+    triage_risk_level: Mapped[Optional[str]] = mapped_column(
+        String(16),
+        nullable=True,
+        index=True,
+        comment="AI triage risk level: LOW | MEDIUM | HIGH | CRITICAL",
+    )
+    triage_notes: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Newline-separated AI risk factors from triage assessment",
+    )
+
     # Relationships
     supplier: Mapped["Supplier"] = relationship("Supplier", back_populates="invoices")
     contract: Mapped["Contract"] = relationship("Contract", back_populates="invoices")

@@ -118,8 +118,9 @@ function ExceptionRow({
 }) {
   const qc = useQueryClient();
   const toast = useToast();
+  // Pre-select AI recommendation when present; fall back to rule-based default
   const [action, setAction] = useState<string>(
-    () => defaultResolutionAction(exc.required_action)
+    () => exc.ai_recommendation ?? defaultResolutionAction(exc.required_action)
   );
   const [notes, setNotes] = useState("");
 
@@ -151,6 +152,9 @@ function ExceptionRow({
 
   const isDenying = action === "DENIED";
   const selectedOption = RESOLUTION_OPTIONS.find((o) => o.value === action);
+  const aiOption = exc.ai_recommendation
+    ? RESOLUTION_OPTIONS.find((o) => o.value === exc.ai_recommendation)
+    : null;
 
   if (exc.status !== "OPEN" && exc.status !== "SUPPLIER_RESPONDED" && exc.status !== "CARRIER_REVIEWING") {
     const isResolved = exc.status === "RESOLVED" || exc.status === "WAIVED";
@@ -182,6 +186,18 @@ function ExceptionRow({
           </p>
         )}
       </div>
+
+      {/* AI recommendation card */}
+      {exc.ai_recommendation && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <p className="font-semibold text-amber-800">
+            ✦ AI suggests: {aiOption?.label ?? exc.ai_recommendation}
+          </p>
+          {exc.ai_reasoning && (
+            <p className="mt-1 text-amber-700 leading-relaxed">{exc.ai_reasoning}</p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-start gap-2">
         <div className="flex flex-col gap-1">
@@ -246,6 +262,7 @@ export default function AdminInvoiceDetailPage({
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [approvalNotes, setApprovalNotes] = useState("");
   const [exportError, setExportError] = useState<string | null>(null);
+  const [triageExpanded, setTriageExpanded] = useState(false);
 
   const { data: invoice, isLoading: loadingInvoice } = useQuery({
     queryKey: ["admin-invoice", id],
@@ -426,6 +443,55 @@ export default function AdminInvoiceDetailPage({
           </p>
         </div>
       </div>
+
+      {/* AI Triage panel */}
+      {invoice.triage_risk_level && (() => {
+        const level = invoice.triage_risk_level!;
+        const isHigh = level === "HIGH" || level === "CRITICAL";
+        const riskColors: Record<string, { border: string; bg: string; badge: string; text: string }> = {
+          LOW:      { border: "border-green-200",  bg: "bg-green-50",  badge: "bg-green-100 text-green-800",  text: "text-green-700" },
+          MEDIUM:   { border: "border-amber-200",  bg: "bg-amber-50",  badge: "bg-amber-100 text-amber-800",  text: "text-amber-700" },
+          HIGH:     { border: "border-red-200",    bg: "bg-red-50",    badge: "bg-red-100 text-red-800",      text: "text-red-700"   },
+          CRITICAL: { border: "border-red-300",    bg: "bg-red-50",    badge: "bg-red-600 text-white",        text: "text-red-800"   },
+        };
+        const c = riskColors[level] ?? riskColors.MEDIUM;
+        const factors = invoice.triage_notes
+          ? invoice.triage_notes.split("\n").filter(Boolean)
+          : [];
+        return (
+          <div className={`mb-6 rounded-xl border ${isHigh ? c.border : "border-gray-200"} ${isHigh ? c.bg : "bg-white"} shadow-sm overflow-hidden`}>
+            <button
+              onClick={() => setTriageExpanded((v) => !v)}
+              className="flex w-full items-center justify-between px-6 py-3 text-left hover:bg-black/[0.02] transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-gray-700">✦ AI Triage</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${c.badge}`}>
+                  {level}
+                </span>
+                {factors.length > 0 && !triageExpanded && (
+                  <span className={`text-xs ${c.text}`}>
+                    {factors.length} risk factor{factors.length !== 1 ? "s" : ""} — click to expand
+                  </span>
+                )}
+              </div>
+              <span className="text-gray-400 text-xs">{triageExpanded ? "▲" : "▼"}</span>
+            </button>
+            {triageExpanded && factors.length > 0 && (
+              <div className="border-t border-gray-100 px-6 py-4">
+                <ul className={`space-y-1.5 text-sm ${c.text}`}>
+                  {factors.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0">•</span>
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Validation summary */}
       {invoice.validation_summary && (
