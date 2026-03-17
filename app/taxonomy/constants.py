@@ -8,12 +8,70 @@ Code format: {DOMAIN}.{SERVICE_ITEM}.{COMPONENT}
 
 Domains:
   IME     Independent Medical Examination
-  ENG     Engineering & Forensic Services
+  ENG     Engineering & Forensic Services  (level-based: ENG.{SERVICE}.L{1-6})
   IA      Independent Adjusting
   INV     Investigation & Surveillance
   REC     Record Retrieval & Management
   XDOMAIN Cross-domain (pass-through, misc admin)
+
+ENG level convention:
+  L1  Principal Engineer (highest rate)
+  L2  Senior Engineer
+  L3  Staff Engineer
+  L4  Associate Engineer
+  L5  Junior Engineer / Technician
+  L6  Administrative / Support Staff
 """
+
+# ── ENG level-based entry generator ──────────────────────────────────────────
+
+_ENG_SERVICES: list[tuple[str, str]] = [
+    ("AAR",  "Auto Accident Reconstruction"),
+    ("CT",   "Component Testing"),
+    ("DA",   "Damage Assessment"),
+    ("CAO",  "Engineering Cause and Origin"),
+    ("EA",   "Engineering Analysis"),
+    ("FA",   "Failure Analysis"),
+    ("FOC",  "Fire Origin and Cause"),
+    ("PR",   "Peer Review"),
+    ("RPT",  "Reporting"),
+    ("EWD",  "Expert Witness / Deposition"),
+    ("AOS",  "Admin and Office Support"),
+    ("PM",   "Project Management"),
+]
+
+_ENG_LEVEL_TITLES: dict[int, str] = {
+    1: "Principal Engineer",
+    2: "Senior Engineer",
+    3: "Staff Engineer",
+    4: "Associate Engineer",
+    5: "Junior Engineer / Technician",
+    6: "Administrative / Support Staff",
+}
+
+
+def _eng_entries() -> list[dict]:
+    """Generate 72 ENG entries: 12 service types × 6 levels."""
+    entries = []
+    for svc_code, svc_name in _ENG_SERVICES:
+        for lvl in range(1, 7):
+            lvl_code = f"L{lvl}"
+            entries.append(
+                {
+                    "code": f"ENG.{svc_code}.{lvl_code}",
+                    "domain": "ENG",
+                    "service_item": svc_code,
+                    "billing_component": lvl_code,
+                    "unit_model": "per_hour",
+                    "label": f"{svc_name} — Level {lvl}",
+                    "description": (
+                        f"{svc_name} services at Level {lvl} "
+                        f"({_ENG_LEVEL_TITLES[lvl]} seniority). Billed per hour."
+                    ),
+                }
+            )
+    return entries
+
 
 TAXONOMY: list[dict] = [
     # ══════════════════════════════════════════════════════════════════════════
@@ -132,88 +190,10 @@ TAXONOMY: list[dict] = [
     },
     # ══════════════════════════════════════════════════════════════════════════
     # ENG — Engineering & Forensic Services
+    # 12 service types × 6 levels = 72 codes.  See _eng_entries() above.
+    # Code format: ENG.{SERVICE}.L{N}  (L1 = Principal … L6 = Admin/Support)
     # ══════════════════════════════════════════════════════════════════════════
-    {
-        "code": "ENG.PROPERTY_INSPECT.PROF_FEE",
-        "domain": "ENG",
-        "service_item": "PROPERTY_INSPECT",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_file",
-        "label": "Engineering Property Inspection — Professional Fee",
-        "description": "On-site property inspection by a licensed engineer or inspector.",
-    },
-    {
-        "code": "ENG.PROPERTY_INSPECT.TRAVEL_TRANSPORT",
-        "domain": "ENG",
-        "service_item": "PROPERTY_INSPECT",
-        "billing_component": "TRAVEL_TRANSPORT",
-        "unit_model": "actual",
-        "label": "Engineering Property Inspection — Transportation",
-        "description": "Actual transportation cost for engineer travel to inspection site.",
-    },
-    {
-        "code": "ENG.PROPERTY_INSPECT.MILEAGE",
-        "domain": "ENG",
-        "service_item": "PROPERTY_INSPECT",
-        "billing_component": "MILEAGE",
-        "unit_model": "per_mile",
-        "label": "Engineering Property Inspection — Mileage",
-        "description": "Mileage reimbursement for engineer driving to inspection site.",
-    },
-    {
-        "code": "ENG.CAUSE_ORIGIN.PROF_FEE",
-        "domain": "ENG",
-        "service_item": "CAUSE_ORIGIN",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_file",
-        "label": "Engineering Cause & Origin Investigation — Professional Fee",
-        "description": "Investigation to determine the cause and origin of loss (fire, water, mechanical failure, etc.).",
-    },
-    {
-        "code": "ENG.STRUCTURAL_ASSESS.PROF_FEE",
-        "domain": "ENG",
-        "service_item": "STRUCTURAL_ASSESS",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_file",
-        "label": "Engineering Structural Assessment — Professional Fee",
-        "description": "Assessment of structural integrity, damage, or construction defect.",
-    },
-    {
-        "code": "ENG.EXPERT_REPORT.PROF_FEE",
-        "domain": "ENG",
-        "service_item": "EXPERT_REPORT",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_report",
-        "label": "Engineering Expert Report — Professional Fee",
-        "description": "Formal written expert report for litigation or claim resolution.",
-    },
-    {
-        "code": "ENG.FILE_REVIEW.PROF_FEE",
-        "domain": "ENG",
-        "service_item": "FILE_REVIEW",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_hour",
-        "label": "Engineering File Review — Professional Fee",
-        "description": "Hourly fee for engineer review of documents, photos, or records without site visit.",
-    },
-    {
-        "code": "ENG.SUPPLEMENTAL_INSPECT.PROF_FEE",
-        "domain": "ENG",
-        "service_item": "SUPPLEMENTAL_INSPECT",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_file",
-        "label": "Engineering Supplemental Inspection — Professional Fee",
-        "description": "Follow-up inspection after initial report (re-inspection, supplement, or reinspection).",
-    },
-    {
-        "code": "ENG.TESTIMONY_DEPO.PROF_FEE",
-        "domain": "ENG",
-        "service_item": "TESTIMONY_DEPO",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_hour",
-        "label": "Engineering Expert Testimony / Deposition — Professional Fee",
-        "description": "Hourly fee for deposition or trial testimony by engineering expert.",
-    },
+    *_eng_entries(),
     # ══════════════════════════════════════════════════════════════════════════
     # IA — Independent Adjusting
     # ══════════════════════════════════════════════════════════════════════════

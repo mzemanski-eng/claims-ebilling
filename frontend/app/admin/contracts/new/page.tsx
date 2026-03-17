@@ -11,67 +11,7 @@ import {
   parseContractPdf,
 } from "@/lib/api";
 import type { GuidelineCreate, RateCardCreate } from "@/lib/types";
-
-// ── Taxonomy options ───────────────────────────────────────────────────────────
-
-const TAXONOMY_OPTIONS = [
-  // IME
-  { code: "IME.PHY_EXAM.PROF_FEE", label: "Physician Examination Professional Fee", domain: "IME" },
-  { code: "IME.PHY_EXAM.TRAVEL_TRANSPORT", label: "Transportation", domain: "IME" },
-  { code: "IME.PHY_EXAM.TRAVEL_LODGING", label: "Lodging", domain: "IME" },
-  { code: "IME.PHY_EXAM.TRAVEL_MEALS", label: "Meals & Per Diem", domain: "IME" },
-  { code: "IME.PHY_EXAM.MILEAGE", label: "Mileage", domain: "IME" },
-  { code: "IME.MULTI_SPECIALTY.PROF_FEE", label: "Multi-Specialty Panel", domain: "IME" },
-  { code: "IME.RECORDS_REVIEW.PROF_FEE", label: "Records Review No Exam", domain: "IME" },
-  { code: "IME.ADDENDUM.PROF_FEE", label: "Addendum Report", domain: "IME" },
-  { code: "IME.PEER_REVIEW.PROF_FEE", label: "Peer Review", domain: "IME" },
-  { code: "IME.CANCELLATION.CANCEL_FEE", label: "Cancellation Fee", domain: "IME" },
-  { code: "IME.NO_SHOW.NO_SHOW_FEE", label: "No-Show Fee", domain: "IME" },
-  { code: "IME.ADMIN.SCHEDULING_FEE", label: "Administrative/Scheduling Fee", domain: "IME" },
-  // ENG
-  { code: "ENG.PROPERTY_INSPECT.PROF_FEE", label: "Property Inspection Professional Fee", domain: "ENG" },
-  { code: "ENG.PROPERTY_INSPECT.TRAVEL_TRANSPORT", label: "Transportation", domain: "ENG" },
-  { code: "ENG.PROPERTY_INSPECT.MILEAGE", label: "Mileage", domain: "ENG" },
-  { code: "ENG.CAUSE_ORIGIN.PROF_FEE", label: "Cause & Origin Investigation", domain: "ENG" },
-  { code: "ENG.STRUCTURAL_ASSESS.PROF_FEE", label: "Structural Assessment", domain: "ENG" },
-  { code: "ENG.EXPERT_REPORT.PROF_FEE", label: "Expert Report", domain: "ENG" },
-  { code: "ENG.FILE_REVIEW.PROF_FEE", label: "File Review", domain: "ENG" },
-  { code: "ENG.SUPPLEMENTAL_INSPECT.PROF_FEE", label: "Supplemental Inspection", domain: "ENG" },
-  { code: "ENG.TESTIMONY_DEPO.PROF_FEE", label: "Expert Testimony/Deposition", domain: "ENG" },
-  // IA
-  { code: "IA.FIELD_ASSIGN.PROF_FEE", label: "Field Assignment Professional Fee", domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.TRAVEL_TRANSPORT", label: "Transportation", domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.MILEAGE", label: "Mileage", domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.TRAVEL_LODGING", label: "Lodging", domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.TRAVEL_MEALS", label: "Meals & Per Diem", domain: "IA" },
-  { code: "IA.DESK_ASSIGN.PROF_FEE", label: "Desk Assignment Professional Fee", domain: "IA" },
-  { code: "IA.CAT_ASSIGN.PROF_FEE", label: "Catastrophe Assignment Professional Fee", domain: "IA" },
-  { code: "IA.PHOTO_DOC.PROF_FEE", label: "Photo & Documentation Services", domain: "IA" },
-  { code: "IA.SUPPLEMENT_HANDLING.PROF_FEE", label: "Supplement Handling", domain: "IA" },
-  { code: "IA.ADMIN.FILE_OPEN_FEE", label: "Administrative/File Open Fee", domain: "IA" },
-  // INV
-  { code: "INV.SURVEILLANCE.PROF_FEE", label: "Surveillance Professional Fee", domain: "INV" },
-  { code: "INV.SURVEILLANCE.TRAVEL_TRANSPORT", label: "Transportation", domain: "INV" },
-  { code: "INV.SURVEILLANCE.MILEAGE", label: "Mileage", domain: "INV" },
-  { code: "INV.STATEMENT.PROF_FEE", label: "Recorded Statement", domain: "INV" },
-  { code: "INV.BACKGROUND_ASSET.PROF_FEE", label: "Background/Asset Search", domain: "INV" },
-  { code: "INV.AOE_COE.PROF_FEE", label: "AOE/COE Investigation", domain: "INV" },
-  { code: "INV.SKIP_TRACE.PROF_FEE", label: "Skip Trace", domain: "INV" },
-  // REC
-  { code: "REC.MED_RECORDS.RETRIEVAL_FEE", label: "Medical Records Retrieval Fee", domain: "REC" },
-  { code: "REC.MED_RECORDS.COPY_REPRO", label: "Copy/Reproduction Fee", domain: "REC" },
-  { code: "REC.MED_RECORDS.POSTAGE_COURIER", label: "Postage/Courier", domain: "REC" },
-  { code: "REC.MED_RECORDS.RUSH_PREMIUM", label: "Rush/Expedite Premium", domain: "REC" },
-  { code: "REC.MED_RECORDS.CERT_COPY_FEE", label: "Certified Copy Fee", domain: "REC" },
-  { code: "REC.EMPLOYMENT_RECORDS.RETRIEVAL_FEE", label: "Employment Records Retrieval", domain: "REC" },
-  { code: "REC.LEGAL_RECORDS.RETRIEVAL_FEE", label: "Legal/Court Records Retrieval", domain: "REC" },
-  { code: "REC.ADMIN.PROCESSING_FEE", label: "Administrative/Processing Fee", domain: "REC" },
-  // XDOMAIN
-  { code: "XDOMAIN.PASS_THROUGH.THIRD_PARTY_COST", label: "Pass-Through Third-Party Cost", domain: "XDOMAIN" },
-  { code: "XDOMAIN.ADMIN_MISC.ADMIN_FEE", label: "Miscellaneous Administrative Fee", domain: "XDOMAIN" },
-];
-
-const DOMAINS = [...new Set(TAXONOMY_OPTIONS.map((t) => t.domain))];
+import { TAXONOMY_DOMAINS, TAXONOMY_OPTIONS } from "@/lib/taxonomy";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -412,7 +352,7 @@ export default function NewContractPage() {
                             className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
                           >
                             <option value="">Select…</option>
-                            {DOMAINS.map((domain) => (
+                            {TAXONOMY_DOMAINS.map((domain) => (
                               <optgroup key={domain} label={domain}>
                                 {TAXONOMY_OPTIONS.filter((t) => t.domain === domain).map((t) => (
                                   <option key={t.code} value={t.code}>
