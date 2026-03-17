@@ -5,15 +5,21 @@ Evaluates structured rules derived from contract narrative language.
 Each Guideline has a rule_type and rule_params (JSONB).
 
 Supported rule types:
-  max_units            — quantity must not exceed a maximum
-  requires_auth        — line must have an auth number attached (stub in v1)
-  billing_increment    — quantity must be in allowed increments (e.g. 0.1 hr)
-  bundling_prohibition — listed components must not appear on the same invoice
-  cap_amount           — billed amount must not exceed a dollar cap
-  max_pct_of_invoice   — named line(s) total must not exceed X% of invoice
-                         (or domain) total.  Invoice-level check — evaluated
-                         separately via validate_invoice_percentages(); skipped
-                         during per-line validate().
+  max_units               — quantity must not exceed a maximum
+  requires_auth           — line must have an auth number attached (stub in v1)
+  billing_increment       — quantity must be in allowed increments (e.g. 0.1 hr)
+  bundling_prohibition    — listed billing components must not appear on the invoice
+  cap_amount              — billed amount must not exceed a dollar cap
+  max_pct_of_invoice      — named line(s) total must not exceed X% of invoice
+                            (or domain) total.  Invoice-level check — evaluated
+                            separately via validate_invoice_percentages(); skipped
+                            during per-line validate().
+  invoice_codes_exclusive — at most one code from a mutually exclusive set may appear
+                            on the same invoice (e.g. LA service hierarchy: only one
+                            of Harness Inspection / Roof Inspection / Ladder Access
+                            per visit).  Invoice-level check — evaluated separately
+                            via validate_invoice_exclusivity(); skipped during
+                            per-line validate().
 
 Rule params for max_pct_of_invoice:
   {
@@ -26,6 +32,14 @@ Rule params for max_pct_of_invoice:
     "applies_to_domain":  "ENG",          # required when using applies_to_suffix
     # Denominator filter (optional):
     "denominator_domain": "ENG",          # omit / null = all invoice lines
+  }
+
+Rule params for invoice_codes_exclusive:
+  {
+    "exclusive_codes":  ["LA.ROOF_INSPECT_HARNESS.FLAT_FEE",
+                         "LA.ROOF_INSPECT.FLAT_FEE",
+                         "LA.LADDER_ACCESS.FLAT_FEE"],
+    "description":      "primary ladder/roof service",  # label in exception message
   }
 
 Narrative source text is surfaced in every exception message for auditability.
@@ -83,14 +97,17 @@ class GuidelineValidator:
         Run all applicable guideline checks for a single line item.
         Returns a list of results (one per applicable guideline).
 
-        NOTE: max_pct_of_invoice guidelines are intentionally excluded here —
-        they need the full invoice context and are handled by
-        validate_invoice_percentages() after all lines are processed.
+        NOTE: max_pct_of_invoice and invoice_codes_exclusive guidelines are
+        intentionally excluded here — they need the full invoice context and
+        are handled by validate_invoice_percentages() and
+        validate_invoice_exclusivity() after all lines are processed.
         """
         results: list[GuidelineValidationResult] = []
 
+        _INVOICE_LEVEL_TYPES = {"max_pct_of_invoice", "invoice_codes_exclusive"}
+
         for guideline in guidelines:
-            if guideline.rule_type == "max_pct_of_invoice":
+            if guideline.rule_type in _INVOICE_LEVEL_TYPES:
                 continue  # Invoice-level check — handled separately
             if not self._applies_to(guideline, line_item):
                 continue
@@ -313,6 +330,116 @@ class GuidelineValidator:
                 required_action=RequiredAction.ACCEPT_REDUCTION,
             )
         return None  # PASS
+
+    # ── Invoice-level code exclusivity checks ────────────────────────────────
+
+    def validate_invoice_exclusivity(
+        self,
+        all_lines: list[LineItem],
+        guidelines: list[Guideline],
+    ) -> list[tuple[LineItem, "GuidelineValidationResult"]]:
+        """
+        Evaluate all invoice_codes_exclusive guidelines against the full line list.
+
+        Returns (anchor_line, result) tuples for every firing guideline.
+        The anchor_line is the first conflicting line found so the caller can
+        attach a ValidationResult + ExceptionRecord to an existing line.
+
+        Called from the pipeline AFTER the per-line loop is complete.
+        """
+        output: list[tuple[LineItem, GuidelineValidationResult]] = []
+
+        excl_guidelines = [
+            g for g in guidelines
+            if g.rule_type == "invoice_codes_exclusive" and g.is_active
+        ]
+        if not excl_guidelines or not all_lines:
+            return output
+
+        for guideline in excl_guidelines:
+            params = guideline.rule_params or {}
+            try:
+                result = self._check_invoice_codes_exclusive(
+                    guideline, all_lines, params
+                )
+            except Exception as exc:
+                logger.error(
+                    "Error evaluating invoice_codes_exclusive guideline %s: %s",
+                    guideline.id,
+                    exc,
+                    exc_info=True,
+                )
+                result = GuidelineValidationResult(
+                    guideline_id=str(guideline.id),
+                    status=ValidationStatus.WARNING,
+                    severity=ValidationSeverity.WARNING,
+                    message=(
+                        "Exclusivity guideline check could not be evaluated. "
+                        "Carrier review required."
+                    ),
+                    required_action=RequiredAction.NONE,
+                )
+
+            if result is not None:
+                exclusive_set = set(params.get("exclusive_codes", []))
+                conflicting = [
+                    li for li in all_lines if li.taxonomy_code in exclusive_set
+                ]
+                anchor = conflicting[0] if conflicting else all_lines[0]
+                output.append((anchor, result))
+
+        return output
+
+    def _check_invoice_codes_exclusive(
+        self,
+        guideline: Guideline,
+        all_lines: list[LineItem],
+        params: dict,
+    ) -> Optional[GuidelineValidationResult]:
+        """
+        If more than one code from the exclusive set appears on the same invoice,
+        return a FAIL result.
+
+        params: {
+            "exclusive_codes": ["LA.ROOF_INSPECT_HARNESS.FLAT_FEE",
+                                "LA.ROOF_INSPECT.FLAT_FEE",
+                                "LA.LADDER_ACCESS.FLAT_FEE"],
+            "description": "primary ladder/roof service"   # optional label
+        }
+        """
+        exclusive_codes = params.get("exclusive_codes", [])
+        if not exclusive_codes:
+            logger.warning(
+                "Guideline %s: invoice_codes_exclusive has no exclusive_codes",
+                guideline.id,
+            )
+            return None
+
+        exclusive_set = set(exclusive_codes)
+        present_codes = sorted(
+            {li.taxonomy_code for li in all_lines if li.taxonomy_code in exclusive_set}
+        )
+
+        if len(present_codes) <= 1:
+            return None  # PASS — zero or one exclusive code present
+
+        description = params.get("description", "exclusive service codes")
+        narrative = self._narrative_cite(guideline)
+        return GuidelineValidationResult(
+            guideline_id=str(guideline.id),
+            status=ValidationStatus.FAIL,
+            severity=guideline.severity,
+            message=(
+                f"Multiple {description} billed on the same invoice: "
+                f"{', '.join(present_codes)}. "
+                f"Only one primary service code from this group may be billed per visit. "
+                f"Remove the lower-tier line or resubmit with a single service code. "
+                f"{narrative}"
+            ),
+            expected_value=f"At most 1 of: {', '.join(sorted(exclusive_codes))}",
+            actual_value=f"{len(present_codes)} present: {', '.join(present_codes)}",
+            required_action=RequiredAction.REUPLOAD,
+        )
 
     # ── Invoice-level percentage checks ──────────────────────────────────────
 

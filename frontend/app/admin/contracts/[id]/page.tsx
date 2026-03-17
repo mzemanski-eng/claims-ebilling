@@ -21,6 +21,7 @@ const RULE_TYPES = [
   { value: "bundling_prohibition", label: "Bundling Prohibition" },
   { value: "requires_auth", label: "Requires Authorization" },
   { value: "max_pct_of_invoice", label: "Max % of Invoice" },
+  { value: "invoice_codes_exclusive", label: "Service Hierarchy (Exclusive Codes)" },
 ];
 
 // ── Blank form state ──────────────────────────────────────────────────────────
@@ -304,6 +305,48 @@ function RuleParamsFields({
         </div>
       );
     }
+    case "invoice_codes_exclusive":
+      return (
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Description{" "}
+              <span className="font-normal text-gray-400">(shown in exception message)</span>
+            </label>
+            <input
+              type="text"
+              value={(params.description as string) ?? ""}
+              onChange={(e) => onChange({ ...params, description: e.target.value })}
+              className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              placeholder="primary ladder/roof service"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Mutually exclusive codes{" "}
+              <span className="font-normal text-gray-400">(comma-separated — at most one may appear per invoice)</span>
+            </label>
+            <input
+              type="text"
+              value={((params.exclusive_codes as string[]) ?? []).join(", ")}
+              onChange={(e) =>
+                onChange({
+                  ...params,
+                  exclusive_codes: e.target.value
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                })
+              }
+              className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              placeholder="e.g. LA.ROOF_INSPECT_HARNESS.FLAT_FEE, LA.ROOF_INSPECT.FLAT_FEE, LA.LADDER_ACCESS.FLAT_FEE"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Example: Ladder Assist service hierarchy — billing Roof Inspection includes Ladder Access, so both cannot appear together.
+            </p>
+          </div>
+        </div>
+      );
     case "requires_auth":
     default:
       return <p className="text-xs text-gray-400">No additional parameters needed.</p>;

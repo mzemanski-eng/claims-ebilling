@@ -253,6 +253,44 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
 
     db.flush()
 
+    # ── Invoice-level exclusivity guideline checks ────────────────────────────
+    # invoice_codes_exclusive rules fire when mutually exclusive service codes
+    # appear on the same invoice (e.g. LA service hierarchy: only one of
+    # Harness Inspection / Roof Inspection / Ladder Access per visit).
+    excl_pairs = guideline_validator.validate_invoice_exclusivity(
+        processed_lines, guidelines
+    )
+    for anchor_line, excl_result in excl_pairs:
+        excl_val = ValidationResult(
+            line_item_id=anchor_line.id,
+            validation_type=excl_result.validation_type,
+            guideline_id=uuid.UUID(excl_result.guideline_id)
+            if excl_result.guideline_id
+            else None,
+            status=excl_result.status,
+            severity=excl_result.severity,
+            message=excl_result.message,
+            expected_value=excl_result.expected_value,
+            actual_value=excl_result.actual_value,
+            required_action=excl_result.required_action,
+        )
+        db.add(excl_val)
+        db.flush()
+
+        if excl_result.status == ValidationStatus.FAIL:
+            exc_record = ExceptionRecord(
+                line_item_id=anchor_line.id,
+                validation_result_id=excl_val.id,
+                status=ExceptionStatus.OPEN,
+            )
+            db.add(exc_record)
+            audit.log_line_item_exception_opened(db, anchor_line, excl_result)
+            if anchor_line.status == LineItemStatus.VALIDATED:
+                anchor_line.status = LineItemStatus.EXCEPTION
+            error_count += 1
+        elif excl_result.status == ValidationStatus.WARNING:
+            warning_count += 1
+
     # ── Invoice-level percentage guideline checks ─────────────────────────────
     # max_pct_of_invoice rules need the full line list; they are deliberately
     # skipped during the per-line loop above and evaluated here instead.

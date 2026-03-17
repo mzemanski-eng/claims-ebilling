@@ -277,9 +277,15 @@ class Guideline(Base, UUIDPrimaryKeyMixin, TimestampMixin):
                              # Denominator (optional — null = all lines):
                              "denominator_domain": "ENG"}
 
-    Note: max_pct_of_invoice is an invoice-level check evaluated after all
-    line items are processed; it is intentionally skipped during per-line
-    validate() and handled by validate_invoice_percentages() instead.
+      invoice_codes_exclusive: {"exclusive_codes": ["LA.ROOF_INSPECT_HARNESS.FLAT_FEE",
+                                                    "LA.ROOF_INSPECT.FLAT_FEE",
+                                                    "LA.LADDER_ACCESS.FLAT_FEE"],
+                                "description": "primary ladder/roof service"}
+
+    Note: max_pct_of_invoice and invoice_codes_exclusive are invoice-level checks
+    evaluated after all line items are processed; they are intentionally skipped
+    during per-line validate() and handled by validate_invoice_percentages() and
+    validate_invoice_exclusivity() respectively.
     """
 
     __tablename__ = "guidelines"
@@ -307,7 +313,7 @@ class Guideline(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     rule_type: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
-        comment="max_units | requires_auth | billing_increment | bundling_prohibition | cap_amount | max_pct_of_invoice",
+        comment="max_units | requires_auth | billing_increment | bundling_prohibition | cap_amount | max_pct_of_invoice | invoice_codes_exclusive",
     )
     rule_params: Mapped[dict] = mapped_column(JSONB, nullable=False)
     severity: Mapped[str] = mapped_column(
