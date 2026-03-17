@@ -257,7 +257,7 @@ function ExceptionRow({
             ✦ AI suggests: {aiOption?.label ?? exc.ai_recommendation}
           </p>
           {exc.ai_reasoning && (
-            <p className="mt-0.5 text-xs text-gray-600 leading-relaxed">{exc.ai_reasoning}</p>
+            <p className="mt-1 text-xs leading-relaxed text-gray-600">{exc.ai_reasoning}</p>
           )}
         </div>
       )}
