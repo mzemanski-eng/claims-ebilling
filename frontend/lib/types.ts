@@ -236,6 +236,12 @@ export interface ExceptionView {
   ai_recommendation: string | null;
   /** AI explanation shown to carrier. Null until processed. */
   ai_reasoning: string | null;
+  /** AI assessment of supplier response: SUFFICIENT | INSUFFICIENT | PARTIAL. Null until supplier responds. */
+  ai_response_assessment: string | null;
+  /** AI explanation of the response assessment. Null until supplier responds. */
+  ai_response_reasoning: string | null;
+  /** Whether the carrier accepted the AI recommendation. Null if no AI rec existed. */
+  ai_recommendation_accepted: boolean | null;
 }
 
 // ── Line Items ────────────────────────────────────────────────────────────────

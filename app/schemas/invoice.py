@@ -113,9 +113,16 @@ class ExceptionSupplierView(BaseSchema):
         None  # Set once carrier resolves (e.g. DENIED, WAIVED)
     )
 
-    # ── AI agent fields (set by exception_resolver; null until processed) ─────
+    # ── AI exception resolver fields (set at pipeline time) ───────────────────
     ai_recommendation: Optional[str] = None  # ResolutionAction constant
     ai_reasoning: Optional[str] = None  # Explanation for the carrier
+
+    # ── AI response assessment (set when supplier responds) ────────────────────
+    ai_response_assessment: Optional[str] = None  # SUFFICIENT | INSUFFICIENT | PARTIAL
+    ai_response_reasoning: Optional[str] = None   # Explanation for the carrier
+
+    # ── AI accuracy tracking (set when carrier resolves) ───────────────────────
+    ai_recommendation_accepted: Optional[bool] = None  # True if AI rec followed
 
 
 class LineItemSupplierView(BaseSchema):

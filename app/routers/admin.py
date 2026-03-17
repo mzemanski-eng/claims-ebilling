@@ -335,6 +335,13 @@ def resolve_exception(
     exc.resolution_notes = resolution_notes or None
     exc.resolved_at = datetime.now(timezone.utc)
     exc.resolved_by_user_id = current_user.id
+
+    # ── AI accuracy tracking ───────────────────────────────────────────────────
+    # Record whether the carrier accepted the AI recommendation.
+    # NULL means no AI recommendation existed at resolution time.
+    if exc.ai_recommendation is not None:
+        exc.ai_recommendation_accepted = (resolution_action == exc.ai_recommendation)
+
     db.flush()
 
     audit.log_exception_resolved(db, exc, actor_id=current_user.id)
@@ -1082,6 +1089,9 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
             resolution_action=exc.resolution_action,
             ai_recommendation=exc.ai_recommendation,
             ai_reasoning=exc.ai_reasoning,
+            ai_response_assessment=exc.ai_response_assessment,
+            ai_response_reasoning=exc.ai_response_reasoning,
+            ai_recommendation_accepted=exc.ai_recommendation_accepted,
         )
         for exc in li.exceptions
     ]

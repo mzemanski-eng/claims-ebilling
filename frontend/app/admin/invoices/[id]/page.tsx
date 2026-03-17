@@ -222,14 +222,31 @@ function ExceptionRow({
   if (exc.status !== "OPEN" && exc.status !== "SUPPLIER_RESPONDED" && exc.status !== "CARRIER_REVIEWING") {
     const isResolved = exc.status === "RESOLVED" || exc.status === "WAIVED";
     return (
-      <div className={`flex items-start gap-2 rounded px-3 py-2 text-xs ${isResolved ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-500"}`}>
-        <StatusBadge status={exc.status} />
-        <span className="flex-1">{exc.message}</span>
-        {exc.resolution_action && (
-          <span className="font-medium shrink-0">
-            {RESOLUTION_OPTIONS.find((o) => o.value === exc.resolution_action)?.label
-              ?? exc.resolution_action}
-          </span>
+      <div className={`rounded px-3 py-2 text-xs ${isResolved ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-500"}`}>
+        <div className="flex items-start gap-2">
+          <StatusBadge status={exc.status} />
+          <span className="flex-1">{exc.message}</span>
+          {exc.resolution_action && (
+            <span className="font-medium shrink-0">
+              {RESOLUTION_OPTIONS.find((o) => o.value === exc.resolution_action)?.label
+                ?? exc.resolution_action}
+            </span>
+          )}
+        </div>
+        {/* AI accuracy indicator — only shown when an AI recommendation was made */}
+        {exc.ai_recommendation !== null && exc.ai_recommendation_accepted !== null && (
+          <div className="mt-1.5 text-[10px]">
+            {exc.ai_recommendation_accepted ? (
+              <span className="text-green-600">✓ AI prediction followed</span>
+            ) : (
+              <span className="text-gray-400">
+                ↺ AI predicted{" "}
+                {RESOLUTION_OPTIONS.find((o) => o.value === exc.ai_recommendation)?.label
+                  ?? exc.ai_recommendation}{" "}
+                — carrier overrode
+              </span>
+            )}
+          </div>
         )}
       </div>
     );
@@ -249,6 +266,37 @@ function ExceptionRow({
           </p>
         )}
       </div>
+
+      {/* AI response assessment card — shown after supplier responds */}
+      {exc.supplier_response && exc.ai_response_assessment && (
+        <div className={`rounded border-l-4 bg-white pl-3 pr-2 py-2 ${
+          exc.ai_response_assessment === "SUFFICIENT"
+            ? "border-green-400"
+            : exc.ai_response_assessment === "PARTIAL"
+            ? "border-amber-400"
+            : "border-red-400"
+        }`}>
+          <p className={`text-xs font-semibold ${
+            exc.ai_response_assessment === "SUFFICIENT"
+              ? "text-green-700"
+              : exc.ai_response_assessment === "PARTIAL"
+              ? "text-amber-700"
+              : "text-red-700"
+          }`}>
+            ✦ AI response review:{" "}
+            {exc.ai_response_assessment === "SUFFICIENT"
+              ? "Response appears sufficient"
+              : exc.ai_response_assessment === "PARTIAL"
+              ? "Response partially addresses the issue"
+              : "Response insufficient — consider denying"}
+          </p>
+          {exc.ai_response_reasoning && (
+            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+              {exc.ai_response_reasoning}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* AI recommendation card */}
       {exc.ai_recommendation && (

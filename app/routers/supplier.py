@@ -11,11 +11,14 @@ Workflow:
   POST /supplier/exceptions/{id}/respond → supplier responds to an exception
 """
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -40,6 +43,7 @@ from app.schemas.invoice import (
     ExceptionSupplierView,
     ExceptionResponsePayload,
 )
+from app.services.ai_assessment.supplier_response_assessor import assess_supplier_response
 from app.services.audit import logger as audit
 from app.services.ingestion.dispatcher import detect_format
 from app.services.storage.base import get_storage
@@ -326,6 +330,23 @@ def respond_to_exception(
 
     exc.supplier_response = payload.supplier_response
     exc.status = ExceptionStatus.SUPPLIER_RESPONDED
+
+    # ── AI response assessment (non-blocking) ─────────────────────────────────
+    try:
+        vr = exc.validation_result
+        contract = db.get(Contract, invoice.contract_id)
+        assessment = assess_supplier_response(
+            exception_message=vr.message if vr else "",
+            required_action=vr.required_action if vr else "NONE",
+            supplier_response=payload.supplier_response,
+            taxonomy_code=line_item.taxonomy_code,
+            contract_name=contract.name if contract else "Unknown",
+        )
+        if assessment:
+            exc.ai_response_assessment = assessment["assessment"]
+            exc.ai_response_reasoning = assessment["reasoning"]
+    except Exception as _ai_err:
+        logger.warning("Supplier response assessor failed: %s", _ai_err)
 
     # Update invoice status
     if invoice.status == SubmissionStatus.REVIEW_REQUIRED:

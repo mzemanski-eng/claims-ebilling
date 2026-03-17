@@ -219,6 +219,25 @@ class ExceptionRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         comment="AI explanation for the recommendation — displayed to carrier in UI",
     )
 
+    # ── AI response assessment (set when supplier responds) ────────────────────
+    ai_response_assessment: Mapped[Optional[str]] = mapped_column(
+        String(16),
+        nullable=True,
+        comment="AI verdict on supplier response: SUFFICIENT | INSUFFICIENT | PARTIAL",
+    )
+    ai_response_reasoning: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="AI explanation of the response assessment — displayed to carrier",
+    )
+
+    # ── AI accuracy tracking (set when carrier resolves) ───────────────────────
+    ai_recommendation_accepted: Mapped[Optional[bool]] = mapped_column(
+        nullable=True,
+        comment="True if carrier chose the AI recommendation; False if overridden; "
+                "NULL if no AI recommendation existed at resolution time",
+    )
+
     # Relationships
     line_item: Mapped["LineItem"] = relationship(
         "LineItem", back_populates="exceptions"
