@@ -95,6 +95,14 @@ export const TAXONOMY_OPTIONS: TaxonomyOption[] = [
   { code: "REC.LEGAL_RECORDS.RETRIEVAL_FEE", label: "Legal / Court Records — Retrieval Fee",       domain: "REC" },
   { code: "REC.ADMIN.PROCESSING_FEE",        label: "Administrative / Processing Fee",             domain: "REC" },
 
+  // ── LA — Ladder Assist & Roof Access ─────────────────────────────────────
+  { code: "LA.LADDER_ACCESS.FLAT_FEE",       label: "Ladder Access",                               domain: "LA" },
+  { code: "LA.ROOF_INSPECT.FLAT_FEE",        label: "Roof Inspection",                             domain: "LA" },
+  { code: "LA.ROOF_INSPECT_HARNESS.FLAT_FEE",label: "Roof Inspection with Harness Equipment",      domain: "LA" },
+  { code: "LA.TARP_COVER.FLAT_FEE",          label: "Tarp / Roof Covering",                        domain: "LA" },
+  { code: "LA.CANCEL.CANCEL_FEE",            label: "Appointment Cancellation Fee",                domain: "LA" },
+  { code: "LA.TRIP_CHARGE.TRIP_FEE",         label: "Trip Charge",                                 domain: "LA" },
+
   // ── XDOMAIN — Cross-Domain ────────────────────────────────────────────────
   { code: "XDOMAIN.PASS_THROUGH.THIRD_PARTY_COST", label: "Pass-Through Third-Party Cost",         domain: "XDOMAIN" },
   { code: "XDOMAIN.ADMIN_MISC.ADMIN_FEE",    label: "Miscellaneous Administrative Fee",            domain: "XDOMAIN" },

@@ -11,6 +11,7 @@ Domains:
   ENG     Engineering & Forensic Services  (level-based: ENG.{SERVICE}.L{1-6})
   IA      Independent Adjusting
   INV     Investigation & Surveillance
+  LA      Ladder Assist & Roof Access
   REC     Record Retrieval & Management
   XDOMAIN Cross-domain (pass-through, misc admin)
 
@@ -427,6 +428,78 @@ TAXONOMY: list[dict] = [
         "unit_model": "flat_fee",
         "label": "Record Retrieval Administrative / Processing Fee",
         "description": "Administrative processing fee for record retrieval management.",
+    },
+    # ══════════════════════════════════════════════════════════════════════════
+    # LA — Ladder Assist & Roof Access
+    # ══════════════════════════════════════════════════════════════════════════
+    {
+        "code": "LA.LADDER_ACCESS.FLAT_FEE",
+        "domain": "LA",
+        "service_item": "LADDER_ACCESS",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Ladder Access",
+        "description": (
+            "Ladder placement and stabilisation by a ladder assist technician "
+            "to allow adjuster or inspector access to a roof or elevated area."
+        ),
+    },
+    {
+        "code": "LA.ROOF_INSPECT.FLAT_FEE",
+        "domain": "LA",
+        "service_item": "ROOF_INSPECT",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Roof Inspection",
+        "description": "On-roof inspection of damage or construction by a ladder assist technician.",
+    },
+    {
+        "code": "LA.ROOF_INSPECT_HARNESS.FLAT_FEE",
+        "domain": "LA",
+        "service_item": "ROOF_INSPECT_HARNESS",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Roof Inspection with Harness Equipment",
+        "description": (
+            "On-roof inspection requiring fall-protection harness equipment "
+            "(steep pitch or OSHA-mandated). Carries a higher rate than standard inspection."
+        ),
+    },
+    {
+        "code": "LA.TARP_COVER.FLAT_FEE",
+        "domain": "LA",
+        "service_item": "TARP_COVER",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Tarp or Roof Covering",
+        "description": (
+            "Emergency application of a tarp or other temporary roof covering "
+            "to prevent further damage pending permanent repair."
+        ),
+    },
+    {
+        "code": "LA.CANCEL.CANCEL_FEE",
+        "domain": "LA",
+        "service_item": "CANCEL",
+        "billing_component": "CANCEL_FEE",
+        "unit_model": "flat_fee",
+        "label": "Appointment Cancellation Fee",
+        "description": (
+            "Fee charged when a scheduled ladder assist appointment is cancelled "
+            "within the contract-specified notice window."
+        ),
+    },
+    {
+        "code": "LA.TRIP_CHARGE.TRIP_FEE",
+        "domain": "LA",
+        "service_item": "TRIP_CHARGE",
+        "billing_component": "TRIP_FEE",
+        "unit_model": "flat_fee",
+        "label": "Trip Charge",
+        "description": (
+            "Fee charged when the technician is dispatched and arrives on site "
+            "but is unable to complete the service (e.g., access denied, unsafe conditions)."
+        ),
     },
     # ══════════════════════════════════════════════════════════════════════════
     # XDOMAIN — Cross-Domain (Pass-Through, Misc Admin)
