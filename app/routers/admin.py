@@ -184,7 +184,20 @@ def override_mapping(
     line_item.status = LineItemStatus.OVERRIDE
     db.flush()
 
-    audit.log_mapping_overridden(db, line_item, old_taxonomy, current_user.id)
+    audit.log_event(
+        db,
+        "line_item",
+        line_item.id,
+        "line_item.mapping_overridden",
+        payload={
+            "old_taxonomy_code": old_taxonomy,
+            "new_taxonomy_code": line_item.taxonomy_code,
+            "billing_component": line_item.billing_component,
+            "scope": payload.scope,
+        },
+        actor_type=ActorType.CARRIER,
+        actor_id=current_user.id,
+    )
 
     # ── Create persistent MappingRule (if scope > this_line) ─────────────────
     rule_id = None
