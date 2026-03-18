@@ -488,7 +488,7 @@ export function resolveAdminException(
   exceptionId: string,
   resolutionAction: string,
   resolutionNotes = "",
-): Promise<{ message: string }> {
+): Promise<{ message: string; invoice_status?: string; line_status?: string }> {
   const qs = new URLSearchParams({
     resolution_action: resolutionAction,
     resolution_notes: resolutionNotes,
