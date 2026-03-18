@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -44,7 +44,21 @@ function formatInvoiceDate(iso: string | null) {
   });
 }
 
+// ── Suspense wrapper — required by Next.js 14 when using useSearchParams ──────
+
 export default function AdminInvoicesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-16">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      </div>
+    }>
+      <AdminInvoicesContent />
+    </Suspense>
+  );
+}
+
+function AdminInvoicesContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
 
