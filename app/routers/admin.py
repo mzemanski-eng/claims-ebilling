@@ -108,7 +108,12 @@ def list_pending_invoices(
       &date_from=2025-01-01    (submitted_at range, inclusive)
       &date_to=2025-12-31
     """
-    q = db.query(Invoice).order_by(Invoice.submitted_at.desc().nulls_last())
+    q = (
+        db.query(Invoice)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(Contract.carrier_id == current_user.carrier_id)
+        .order_by(Invoice.submitted_at.desc().nulls_last())
+    )
     if status_filter:
         q = q.filter(Invoice.status == status_filter)
     if search:
@@ -134,7 +139,7 @@ def get_invoice_detail(
     """Single invoice detail with supplier + contract metadata (admin enrichment)."""
     from app.routers.supplier import _to_invoice_response
 
-    invoice = _get_invoice(invoice_id, db)
+    invoice = _get_invoice(invoice_id, db, current_user)
     base = _to_invoice_response(invoice, db)
     return {
         **base.model_dump(),
@@ -152,7 +157,7 @@ def get_line_items_carrier(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> list[LineItemCarrierView]:
     """Full line item detail including taxonomy codes and mapping internals."""
-    invoice = _get_invoice(invoice_id, db)
+    invoice = _get_invoice(invoice_id, db, current_user)
     return [_to_line_item_carrier_view(li, db) for li in invoice.line_items]
 
 
@@ -174,6 +179,12 @@ def override_mapping(
     line_item = db.get(LineItem, payload.line_item_id)
     if line_item is None:
         raise HTTPException(status_code=404, detail="Line item not found")
+
+    # Verify this line item belongs to the current carrier
+    _inv = db.get(Invoice, line_item.invoice_id)
+    _contract = db.get(Contract, _inv.contract_id) if _inv else None
+    if _contract is None or _contract.carrier_id != current_user.carrier_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     old_taxonomy = line_item.taxonomy_code
 
@@ -266,17 +277,39 @@ def get_mapping_review_queue(
     Returns line items requiring mapping review:
       - LOW or MEDIUM confidence mappings (classified but uncertain)
       - UNRECOGNIZED lines (taxonomy_code IS NULL, status = EXCEPTION)
+
+    Scoped to the current carrier. If the user has category_scope or
+    supplier_scope set, the queue is pre-filtered to their assigned domains /
+    suppliers. Unclassified lines (NULL taxonomy_code) always appear regardless
+    of scope so they can be triaged.
     """
-    lines = (
+    from sqlalchemy import or_
+
+    q = (
         db.query(LineItem)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
         .filter(
+            Contract.carrier_id == current_user.carrier_id,
             (LineItem.mapping_confidence.in_(["LOW", "MEDIUM"]))
-            | (LineItem.taxonomy_code.is_(None) & (LineItem.status == "EXCEPTION"))
+            | (LineItem.taxonomy_code.is_(None) & (LineItem.status == "EXCEPTION")),
         )
-        .order_by(LineItem.created_at.desc())
-        .limit(100)
-        .all()
     )
+
+    # Auditor scope: filter classified lines to assigned taxonomy domains
+    if current_user.category_scope:
+        domain_filters = [
+            LineItem.taxonomy_code.like(f"{domain}.%")
+            for domain in current_user.category_scope
+        ]
+        # Always include unclassified lines (NULL taxonomy) — they need triage
+        q = q.filter(or_(*domain_filters, LineItem.taxonomy_code.is_(None)))
+
+    # Auditor scope: filter to assigned suppliers
+    if current_user.supplier_scope:
+        q = q.filter(Invoice.supplier_id.in_(current_user.supplier_scope))
+
+    lines = q.order_by(LineItem.created_at.desc()).limit(100).all()
     return [
         {
             "line_item_id": str(li.id),
@@ -342,6 +375,11 @@ def resolve_exception(
     exc = db.get(ExceptionRecord, exception_id)
     if exc is None:
         raise HTTPException(status_code=404, detail="Exception not found")
+
+    # Verify this exception belongs to the current carrier
+    _exc_contract = db.get(Contract, exc.line_item.invoice.contract_id)
+    if _exc_contract is None or _exc_contract.carrier_id != current_user.carrier_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     _ACTIVE_STATUSES = {
         ExceptionStatus.OPEN,
@@ -438,7 +476,7 @@ def approve_invoice(
     Approve an invoice (or specific line items).
     Sets status to APPROVED.
     """
-    invoice = _get_invoice(invoice_id, db)
+    invoice = _get_invoice(invoice_id, db, current_user)
 
     if invoice.status not in (
         SubmissionStatus.PENDING_CARRIER_REVIEW,
@@ -505,6 +543,12 @@ def bulk_approve_invoices(
             skipped += 1
             continue
 
+        # Carrier isolation check
+        _bulk_contract = db.get(Contract, invoice.contract_id)
+        if _bulk_contract is None or _bulk_contract.carrier_id != current_user.carrier_id:
+            skipped += 1
+            continue
+
         if invoice.status not in (
             SubmissionStatus.PENDING_CARRIER_REVIEW,
             SubmissionStatus.CARRIER_REVIEWING,
@@ -558,7 +602,7 @@ def export_invoice(
     Export approved line items as CSV for AP system import.
     Sets invoice status to EXPORTED (terminal state).
     """
-    invoice = _get_invoice(invoice_id, db)
+    invoice = _get_invoice(invoice_id, db, current_user)
 
     if invoice.status != SubmissionStatus.APPROVED:
         raise HTTPException(
@@ -637,8 +681,19 @@ def list_suppliers(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> list[dict]:
-    """List all suppliers with basic stats."""
-    suppliers = db.query(Supplier).order_by(Supplier.name).all()
+    """List suppliers that have at least one contract with the current carrier."""
+    supplier_ids_subq = (
+        db.query(Contract.supplier_id)
+        .filter(Contract.carrier_id == current_user.carrier_id)
+        .distinct()
+        .subquery()
+    )
+    suppliers = (
+        db.query(Supplier)
+        .filter(Supplier.id.in_(supplier_ids_subq))
+        .order_by(Supplier.name)
+        .all()
+    )
     return [
         {
             "id": str(s.id),
@@ -896,7 +951,7 @@ def list_contracts(
     List all contracts. Optionally filter by ?supplier_id=<uuid>.
     Returns contract details including rate card count.
     """
-    q = db.query(Contract)
+    q = db.query(Contract).filter(Contract.carrier_id == current_user.carrier_id)
     if supplier_id:
         q = q.filter(Contract.supplier_id == supplier_id)
     contracts = q.order_by(Contract.effective_from.desc()).all()
@@ -928,7 +983,7 @@ def get_contract_detail(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> ContractDetail:
     """Full contract detail including rate cards (with taxonomy labels) and guidelines."""
-    contract = _get_contract(contract_id, db)
+    contract = _get_contract(contract_id, db, current_user)
     return _to_contract_detail(contract, db)
 
 
@@ -997,7 +1052,7 @@ def add_rate_card(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> RateCardDetail:
     """Add a rate card to an existing contract."""
-    contract = _get_contract(contract_id, db)
+    contract = _get_contract(contract_id, db, current_user)
     rc = RateCard(
         contract_id=contract.id,
         taxonomy_code=payload.taxonomy_code,
@@ -1024,7 +1079,7 @@ def delete_rate_card(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> None:
     """Delete a rate card from a contract."""
-    _get_contract(contract_id, db)  # 404 if contract not found
+    _get_contract(contract_id, db, current_user)  # 404/403 guard
     rc = db.get(RateCard, rate_card_id)
     if rc is None or rc.contract_id != contract_id:
         raise HTTPException(status_code=404, detail="Rate card not found")
@@ -1047,7 +1102,7 @@ def add_guideline(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> GuidelineDetail:
     """Add a billing guideline to an existing contract."""
-    contract = _get_contract(contract_id, db)
+    contract = _get_contract(contract_id, db, current_user)
     g = Guideline(
         contract_id=contract.id,
         taxonomy_code=payload.taxonomy_code,
@@ -1075,7 +1130,7 @@ def update_guideline(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> GuidelineDetail:
     """Toggle the is_active flag on a guideline."""
-    _get_contract(contract_id, db)
+    _get_contract(contract_id, db, current_user)
     g = db.get(Guideline, guideline_id)
     if g is None or g.contract_id != contract_id:
         raise HTTPException(status_code=404, detail="Guideline not found")
@@ -1096,7 +1151,7 @@ def delete_guideline(
     current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> None:
     """Delete a guideline from a contract."""
-    _get_contract(contract_id, db)
+    _get_contract(contract_id, db, current_user)
     g = db.get(Guideline, guideline_id)
     if g is None or g.contract_id != contract_id:
         raise HTTPException(status_code=404, detail="Guideline not found")
@@ -1133,10 +1188,14 @@ def delete_invoice(
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 
-def _get_contract(contract_id: uuid.UUID, db: Session) -> Contract:
+def _get_contract(
+    contract_id: uuid.UUID, db: Session, current_user: User | None = None
+) -> Contract:
     contract = db.get(Contract, contract_id)
     if contract is None:
         raise HTTPException(status_code=404, detail="Contract not found")
+    if current_user is not None and contract.carrier_id != current_user.carrier_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     return contract
 
 
@@ -1185,10 +1244,16 @@ def _to_contract_detail(c: Contract, db: Session) -> ContractDetail:
     )
 
 
-def _get_invoice(invoice_id: uuid.UUID, db: Session) -> Invoice:
+def _get_invoice(
+    invoice_id: uuid.UUID, db: Session, current_user: User | None = None
+) -> Invoice:
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    if current_user is not None:
+        contract = db.get(Contract, invoice.contract_id)
+        if contract is None or contract.carrier_id != current_user.carrier_id:
+            raise HTTPException(status_code=403, detail="Access denied")
     return invoice
 
 

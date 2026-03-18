@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.invoice import Invoice, LineItem
-from app.models.supplier import Supplier, UserRole
+from app.models.supplier import Contract, Supplier, User, UserRole
 from app.models.taxonomy import TaxonomyItem
 from app.models.validation import (
     ExceptionRecord,
@@ -50,7 +50,7 @@ _CARRIER_ROLES = (
 @router.get("/summary")
 def get_analytics_summary(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ):
     """
     Returns five KPI scalars + invoice status breakdown for the header cards
@@ -58,40 +58,80 @@ def get_analytics_summary(
     """
 
     # Total billed: sum raw_amount across all non-draft/non-processing invoices
-    total_billed = db.query(func.sum(LineItem.raw_amount)).join(Invoice).filter(
-        Invoice.status.notin_(["DRAFT", "PROCESSING"])
-    ).scalar() or Decimal(0)
-
-    # Total approved: expected_amount on finalized invoices, excluding denied lines
-    total_approved = db.query(func.sum(LineItem.expected_amount)).join(Invoice).filter(
-        Invoice.status.in_(["APPROVED", "EXPORTED"]),
-        LineItem.status != "DENIED",
-        LineItem.expected_amount.isnot(None),
-    ).scalar() or Decimal(0)
-
-    # Identified savings: lines where billed exceeded contract rate (approved < billed)
-    total_savings = db.query(
-        func.sum(LineItem.raw_amount - LineItem.expected_amount)
-    ).join(Invoice).filter(
-        Invoice.status.in_(["APPROVED", "EXPORTED"]),
-        LineItem.expected_amount.isnot(None),
-        LineItem.raw_amount > LineItem.expected_amount,
-    ).scalar() or Decimal(0)
-
-    # Invoice counts by status (all statuses — let the frontend filter)
-    status_rows = (
-        db.query(Invoice.status, func.count(Invoice.id)).group_by(Invoice.status).all()
+    total_billed = (
+        db.query(func.sum(LineItem.raw_amount))
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            Invoice.status.notin_(["DRAFT", "PROCESSING"]),
+        )
+        .scalar()
+        or Decimal(0)
     )
 
-    # Open exception count (OPEN only)
+    # Total approved: expected_amount on finalized invoices, excluding denied lines
+    total_approved = (
+        db.query(func.sum(LineItem.expected_amount))
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            Invoice.status.in_(["APPROVED", "EXPORTED"]),
+            LineItem.status != "DENIED",
+            LineItem.expected_amount.isnot(None),
+        )
+        .scalar()
+        or Decimal(0)
+    )
+
+    # Identified savings: lines where billed exceeded contract rate (approved < billed)
+    total_savings = (
+        db.query(func.sum(LineItem.raw_amount - LineItem.expected_amount))
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            Invoice.status.in_(["APPROVED", "EXPORTED"]),
+            LineItem.expected_amount.isnot(None),
+            LineItem.raw_amount > LineItem.expected_amount,
+        )
+        .scalar()
+        or Decimal(0)
+    )
+
+    # Invoice counts by status — scoped to this carrier
+    status_rows = (
+        db.query(Invoice.status, func.count(Invoice.id))
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(Contract.carrier_id == current_user.carrier_id)
+        .group_by(Invoice.status)
+        .all()
+    )
+
+    # Open exception count (OPEN only) — scoped to this carrier
     open_exceptions = (
         db.query(func.count(ExceptionRecord.id))
-        .filter(ExceptionRecord.status == ExceptionStatus.OPEN)
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            ExceptionRecord.status == ExceptionStatus.OPEN,
+        )
         .scalar()
         or 0
     )
 
-    total_exceptions = db.query(func.count(ExceptionRecord.id)).scalar() or 0
+    total_exceptions = (
+        db.query(func.count(ExceptionRecord.id))
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(Contract.carrier_id == current_user.carrier_id)
+        .scalar()
+        or 0
+    )
 
     return {
         "total_billed": str(total_billed),
@@ -111,7 +151,7 @@ def get_analytics_summary(
 @router.get("/spend-by-domain")
 def get_spend_by_domain(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ):
     """
     Groups classified line items by the first segment of their taxonomy code
@@ -129,7 +169,12 @@ def get_spend_by_domain(
                 "total_approved"
             ),
         )
-        .filter(LineItem.taxonomy_code.isnot(None))
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            LineItem.taxonomy_code.isnot(None),
+        )
         .group_by(domain_expr)
         .order_by(func.sum(LineItem.raw_amount).desc())
         .all()
@@ -152,7 +197,7 @@ def get_spend_by_domain(
 @router.get("/spend-by-supplier")
 def get_spend_by_supplier(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ):
     """
     Supplier-level spend rollup for RFP benchmarking.
@@ -170,7 +215,11 @@ def get_spend_by_supplier(
         )
         .join(Invoice, Invoice.supplier_id == Supplier.id)
         .join(LineItem, LineItem.invoice_id == Invoice.id)
-        .filter(Invoice.status.notin_(["DRAFT", "PROCESSING"]))
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            Invoice.status.notin_(["DRAFT", "PROCESSING"]),
+        )
         .group_by(Supplier.id, Supplier.name)
         .order_by(func.sum(LineItem.raw_amount).desc())
         .all()
@@ -194,7 +243,7 @@ def get_spend_by_supplier(
 @router.get("/spend-by-taxonomy")
 def get_spend_by_taxonomy(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ):
     """
     Full taxonomy code breakdown — the data foundation for the spend intelligence table.
@@ -212,7 +261,12 @@ def get_spend_by_taxonomy(
             ),
         )
         .join(TaxonomyItem, LineItem.taxonomy_code == TaxonomyItem.code, isouter=True)
-        .filter(LineItem.taxonomy_code.isnot(None))
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            LineItem.taxonomy_code.isnot(None),
+        )
         .group_by(LineItem.taxonomy_code, TaxonomyItem.label, TaxonomyItem.domain)
         .order_by(func.sum(LineItem.raw_amount).desc())
         .all()
@@ -237,7 +291,7 @@ def get_spend_by_taxonomy(
 @router.get("/exception-breakdown")
 def get_exception_breakdown(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ):
     """
     Groups exceptions by their source validation type (RATE / GUIDELINE / CLASSIFICATION)
@@ -252,6 +306,10 @@ def get_exception_breakdown(
             ExceptionRecord,
             ExceptionRecord.validation_result_id == ValidationResult.id,
         )
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(Contract.carrier_id == current_user.carrier_id)
         .group_by(ValidationResult.validation_type)
         .order_by(func.count(ExceptionRecord.id).desc())
         .all()
@@ -268,13 +326,13 @@ def get_exception_breakdown(
 @router.get("/rate-gaps")
 def get_rate_gaps(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ):
     """
     Returns services being billed with no contracted rate card.
 
     Finds ValidationResult rows where required_action=ESTABLISH_CONTRACT_RATE,
-    joins to LineItem → Invoice → Supplier, and groups by taxonomy_code + supplier.
+    joins to LineItem → Invoice → Contract → Supplier, and groups by taxonomy_code + supplier.
     Ordered by total billed descending so the highest-exposure gaps are first.
 
     This gives carriers a clear action list: go to the Contracts admin and add
@@ -291,10 +349,11 @@ def get_rate_gaps(
         )
         .join(ValidationResult, ValidationResult.line_item_id == LineItem.id)
         .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
         .join(Supplier, Supplier.id == Invoice.supplier_id)
         .outerjoin(TaxonomyItem, TaxonomyItem.code == LineItem.taxonomy_code)
         .filter(
-            Invoice.carrier_id == current_user.carrier_id,
+            Contract.carrier_id == current_user.carrier_id,
             ValidationResult.required_action == RequiredAction.ESTABLISH_CONTRACT_RATE,
         )
         .group_by(
@@ -326,7 +385,7 @@ def get_rate_gaps(
 @router.get("/supplier-comparison")
 def get_supplier_comparison(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
     format: str = Query(default="json", pattern="^(json|csv)$"),
 ):
     """
@@ -351,11 +410,12 @@ def get_supplier_comparison(
             func.count(ExceptionRecord.id.distinct()).label("exception_count"),
         )
         .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
         .join(Supplier, Supplier.id == Invoice.supplier_id)
         .outerjoin(TaxonomyItem, TaxonomyItem.code == LineItem.taxonomy_code)
         .outerjoin(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
         .filter(
-            Invoice.carrier_id == current_user.carrier_id,
+            Contract.carrier_id == current_user.carrier_id,
             LineItem.taxonomy_code.isnot(None),
         )
         .group_by(
@@ -430,7 +490,7 @@ def get_supplier_comparison(
 @router.get("/ai-accuracy")
 def get_ai_accuracy(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(*_CARRIER_ROLES)),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ):
     """
     AI recommendation accuracy stats.
@@ -458,8 +518,9 @@ def get_ai_accuracy(
         )
         .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
         .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
         .filter(
-            Invoice.carrier_id == current_user.carrier_id,
+            Contract.carrier_id == current_user.carrier_id,
             ExceptionRecord.ai_recommendation.isnot(None),
         )
         .group_by(ExceptionRecord.ai_recommendation)

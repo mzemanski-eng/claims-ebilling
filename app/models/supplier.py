@@ -73,6 +73,20 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Boolean, nullable=False, default=True, server_default="true"
     )
 
+    # Auditor scope — NULL means full access across all items for this carrier.
+    # category_scope: list of taxonomy domain prefixes, e.g. ["ENG", "LA"].
+    # supplier_scope: list of supplier UUIDs (as strings), e.g. ["<uuid1>", "<uuid2>"].
+    category_scope: Mapped[Optional[list]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Taxonomy domain prefixes this auditor is responsible for. NULL = all domains.",
+    )
+    supplier_scope: Mapped[Optional[list]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Supplier UUIDs (strings) this auditor is assigned to. NULL = all suppliers.",
+    )
+
     # Relationships
     supplier: Mapped[Optional["Supplier"]] = relationship(
         "Supplier", back_populates="users", foreign_keys=[supplier_id]
