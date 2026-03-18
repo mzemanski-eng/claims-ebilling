@@ -34,7 +34,7 @@ export default function LoginPage() {
         tokenRes.role === "CARRIER_ADMIN" ||
         tokenRes.role === "CARRIER_REVIEWER"
       ) {
-        router.push("/carrier/queue");
+        router.push("/admin");
       } else {
         router.push("/");
       }
