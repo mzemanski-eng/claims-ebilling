@@ -552,10 +552,6 @@ export function getExceptionBreakdown(): Promise<ExceptionBreakdown[]> {
   return apiFetch<ExceptionBreakdown[]>("/admin/analytics/exception-breakdown");
 }
 
-export function getRateGaps(): Promise<RateGap[]> {
-  return apiFetch<RateGap[]>("/admin/analytics/rate-gaps");
-}
-
 export function getSupplierComparison(): Promise<SupplierComparisonRow[]> {
   return apiFetch<SupplierComparisonRow[]>("/admin/analytics/supplier-comparison");
 }
