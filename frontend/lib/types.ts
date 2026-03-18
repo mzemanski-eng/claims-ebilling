@@ -104,6 +104,7 @@ export interface AdminSupplier {
   is_active: boolean;
   contract_count: number;
   invoice_count: number;
+  user_count: number;
 }
 
 /** Admin contract row */

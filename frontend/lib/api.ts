@@ -319,6 +319,23 @@ export function createAdminSupplier(payload: {
   });
 }
 
+export function listSupplierUsers(
+  supplierId: string,
+): Promise<{ id: string; email: string; is_active: boolean }[]> {
+  return apiFetch(`/admin/suppliers/${supplierId}/users`);
+}
+
+export function createSupplierUser(
+  supplierId: string,
+  payload: { email: string; password: string },
+): Promise<{ id: string; email: string; is_active: boolean }> {
+  return apiFetch(`/admin/suppliers/${supplierId}/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listAdminContracts(supplierId?: string): Promise<AdminContract[]> {
   const qs = supplierId ? `?supplier_id=${supplierId}` : "";
   return apiFetch<AdminContract[]>(`/admin/contracts${qs}`);

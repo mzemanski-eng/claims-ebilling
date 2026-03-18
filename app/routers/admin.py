@@ -13,6 +13,8 @@ Workflow:
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
   GET  /admin/suppliers                         → list all suppliers
   POST /admin/suppliers                         → create a new supplier
+  GET  /admin/suppliers/{id}/users              → list user accounts for a supplier
+  POST /admin/suppliers/{id}/users              → create a login for a supplier
   POST /admin/suppliers/{id}/audit              → AI audit report (on-demand, no DB write)
   GET  /admin/contracts                         → list all contracts
   GET  /admin/contracts/{id}                    → contract detail with rate cards + guidelines
@@ -623,6 +625,9 @@ def list_suppliers(
             "is_active": s.is_active,
             "contract_count": len(s.contracts),
             "invoice_count": len(s.invoices),
+            "user_count": sum(
+                1 for u in s.users if u.role == UserRole.SUPPLIER and u.is_active
+            ),
         }
         for s in suppliers
     ]
@@ -667,6 +672,83 @@ def create_supplier(
         "is_active": supplier.is_active,
         "contract_count": 0,
         "invoice_count": 0,
+    }
+
+
+@router.get("/suppliers/{supplier_id}/users")
+def list_supplier_users(
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("CARRIER_ADMIN", "SYSTEM_ADMIN")),
+) -> list[dict]:
+    """List all user accounts linked to a supplier."""
+    supplier = db.get(Supplier, supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    users = (
+        db.query(User)
+        .filter(User.supplier_id == supplier_id, User.role == UserRole.SUPPLIER)
+        .order_by(User.email)
+        .all()
+    )
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "is_active": u.is_active,
+        }
+        for u in users
+    ]
+
+
+@router.post("/suppliers/{supplier_id}/users", status_code=201)
+def create_supplier_user(
+    supplier_id: uuid.UUID,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("CARRIER_ADMIN", "SYSTEM_ADMIN")),
+) -> dict:
+    """
+    Create a login account for a supplier.
+
+    Body: { "email": str, "password": str }
+    The user is created with role=SUPPLIER and linked to the given supplier.
+    Returns 404 if supplier not found, 409 if email already exists.
+    """
+    from app.routers.auth import hash_password
+
+    supplier = db.get(Supplier, supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    email = (payload.get("email") or "").strip().lower()
+    password = payload.get("password") or ""
+
+    if not email:
+        raise HTTPException(status_code=422, detail="Email is required.")
+    if len(password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters.")
+
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"An account for '{email}' already exists.")
+
+    user = User(
+        email=email,
+        hashed_password=hash_password(password),
+        role=UserRole.SUPPLIER,
+        supplier_id=supplier_id,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "is_active": user.is_active,
     }
 
 

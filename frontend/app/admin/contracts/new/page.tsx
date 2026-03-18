@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   createAdminContract,
@@ -23,16 +23,18 @@ interface GuidelineRow extends GuidelineCreate {
   _key: number;
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page (inner — uses useSearchParams) ───────────────────────────────────────
 
-export default function NewContractPage() {
+function NewContractContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   let _nextKey = 0;
   const nextKey = () => ++_nextKey;
 
   // ── Form state ──────────────────────────────────────────────────────────────
-  const [supplierId, setSupplierId] = useState("");
+  // Pre-select supplier if navigated from Suppliers page via ?supplier_id=
+  const [supplierId, setSupplierId] = useState(searchParams.get("supplier_id") ?? "");
   const [name, setName] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [effectiveTo, setEffectiveTo] = useState("");
@@ -544,5 +546,19 @@ export default function NewContractPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// ── Suspense shell (required for useSearchParams in Next.js 14) ───────────────
+
+export default function NewContractPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-16">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      </div>
+    }>
+      <NewContractContent />
+    </Suspense>
   );
 }
