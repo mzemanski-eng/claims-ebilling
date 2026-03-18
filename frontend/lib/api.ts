@@ -13,6 +13,9 @@ import type {
   AdminContract,
   AdminInvoiceDetail,
   AdminSupplier,
+  CarrierUser,
+  CarrierUserCreate,
+  UserScopeUpdate,
   AiAccuracyStats,
   AnalyticsSummary,
   BulkApprovalResult,
@@ -575,4 +578,27 @@ export async function getSupplierComparisonCsv(): Promise<Blob> {
   const res = await fetch(`${BASE_URL}/admin/analytics/supplier-comparison?format=csv`, { headers });
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   return res.blob();
+}
+
+// ── Admin — Carrier Team ──────────────────────────────────────────────────────
+
+export function listCarrierUsers(): Promise<CarrierUser[]> {
+  return apiFetch<CarrierUser[]>("/admin/users");
+}
+
+export function createCarrierUser(payload: CarrierUserCreate): Promise<CarrierUser> {
+  return apiFetch<CarrierUser>("/admin/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateUserScope(
+  userId: string,
+  payload: UserScopeUpdate,
+): Promise<CarrierUser> {
+  return apiFetch<CarrierUser>(`/admin/users/${userId}/scope`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }

@@ -833,6 +833,144 @@ def create_supplier_user(
     }
 
 
+# ── Carrier Team (Users) ─────────────────────────────────────────────────────
+
+
+@router.get("/users")
+def list_carrier_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> list[dict]:
+    """List all admin and reviewer accounts for the current carrier."""
+    users = (
+        db.query(User)
+        .filter(
+            User.carrier_id == current_user.carrier_id,
+            User.role.in_([UserRole.CARRIER_ADMIN, UserRole.CARRIER_REVIEWER]),
+        )
+        .order_by(User.email)
+        .all()
+    )
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "role": u.role,
+            "is_active": u.is_active,
+            "category_scope": u.category_scope,
+            "supplier_scope": u.supplier_scope,
+        }
+        for u in users
+    ]
+
+
+@router.post("/users", status_code=201)
+def create_carrier_user(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """
+    Create a login account for a carrier admin or reviewer.
+
+    Body: { "email": str, "password": str, "role": "CARRIER_ADMIN" | "CARRIER_REVIEWER" }
+    Returns 409 if email already exists.
+    """
+    from app.routers.auth import hash_password
+
+    email = (payload.get("email") or "").strip().lower()
+    password = payload.get("password") or ""
+    role = payload.get("role") or UserRole.CARRIER_REVIEWER
+
+    if not email:
+        raise HTTPException(status_code=422, detail="Email is required.")
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=422, detail="Password must be at least 8 characters."
+        )
+    if role not in (UserRole.CARRIER_ADMIN, UserRole.CARRIER_REVIEWER):
+        raise HTTPException(
+            status_code=422,
+            detail="Role must be CARRIER_ADMIN or CARRIER_REVIEWER.",
+        )
+
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        raise HTTPException(
+            status_code=409, detail=f"An account for '{email}' already exists."
+        )
+
+    user = User(
+        email=email,
+        hashed_password=hash_password(password),
+        role=role,
+        carrier_id=current_user.carrier_id,
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "role": user.role,
+        "is_active": user.is_active,
+        "category_scope": user.category_scope,
+        "supplier_scope": user.supplier_scope,
+    }
+
+
+@router.patch("/users/{user_id}/scope", status_code=200)
+def update_user_scope(
+    user_id: uuid.UUID,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """
+    Update the auditor scope for a carrier user.
+
+    Body: {
+      "category_scope": ["ENG", "LA"] | null,  // null clears → all domains
+      "supplier_scope":  ["<uuid>", ...]  | null   // null clears → all suppliers
+    }
+
+    Only CARRIER_REVIEWER users need scopes set (admins see everything by default).
+    Returns 404 if user not found; 403 if user belongs to a different carrier.
+    """
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.carrier_id != current_user.carrier_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if "category_scope" in payload:
+        cats = payload["category_scope"]
+        user.category_scope = cats if cats else None
+    if "supplier_scope" in payload:
+        sups = payload["supplier_scope"]
+        user.supplier_scope = sups if sups else None
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "role": user.role,
+        "is_active": user.is_active,
+        "category_scope": user.category_scope,
+        "supplier_scope": user.supplier_scope,
+    }
+
+
 # ── Supplier Audit (AI) ───────────────────────────────────────────────────────
 
 

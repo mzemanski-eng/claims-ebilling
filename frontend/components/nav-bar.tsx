@@ -14,6 +14,7 @@ const ADMIN_LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/admin/contracts", label: "Contracts" },
   { href: "/admin/mappings",  label: "Mappings" },
   { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/team",      label: "Team" },
 ];
 
 // ── NavLink helper ─────────────────────────────────────────────────────────────

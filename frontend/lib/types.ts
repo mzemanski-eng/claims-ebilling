@@ -451,3 +451,28 @@ export const UserRoles = {
   CARRIER_REVIEWER: "CARRIER_REVIEWER",
   SYSTEM_ADMIN: "SYSTEM_ADMIN",
 } as const;
+
+
+// ── Carrier Team ──────────────────────────────────────────────────────────────
+
+export interface CarrierUser {
+  id: string;
+  email: string;
+  role: "CARRIER_ADMIN" | "CARRIER_REVIEWER";
+  is_active: boolean;
+  /** Taxonomy domain prefixes this auditor is responsible for. null = all domains. */
+  category_scope: string[] | null;
+  /** Supplier UUIDs this auditor is assigned to. null = all suppliers. */
+  supplier_scope: string[] | null;
+}
+
+export interface CarrierUserCreate {
+  email: string;
+  password: string;
+  role: "CARRIER_ADMIN" | "CARRIER_REVIEWER";
+}
+
+export interface UserScopeUpdate {
+  category_scope: string[] | null;
+  supplier_scope: string[] | null;
+}
