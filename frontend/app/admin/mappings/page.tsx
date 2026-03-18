@@ -111,7 +111,18 @@ function OverrideForm({
         </div>
       </div>
       {mut.isError && (
-        <p className="text-xs text-red-600">{(mut.error as Error).message}</p>
+        <p className="text-xs text-red-600">
+          {(mut.error as Error).message === "Failed to fetch"
+            ? "Network error — please try again."
+            : (mut.error as Error).message}
+          {" "}
+          <button
+            className="underline hover:no-underline"
+            onClick={() => mut.mutate()}
+          >
+            Retry
+          </button>
+        </p>
       )}
       {mut.isSuccess && (
         <p className="text-xs text-green-700">
@@ -142,6 +153,8 @@ export default function AdminMappingsPage() {
   const [preFill, setPreFill] = useState<Record<string, PreFill>>({});
   // Track which items are mid-flight for the one-click Accept & Save
   const [savingItems, setSavingItems] = useState<Set<string>>(new Set());
+  // Track items where the one-click save hit a network error
+  const [failedItems, setFailedItems] = useState<Set<string>>(new Set());
 
   const qc = useQueryClient();
 
@@ -157,11 +170,13 @@ export default function AdminMappingsPage() {
     billingComponent: string,
   ) {
     setSavingItems((prev) => new Set(prev).add(itemId));
+    setFailedItems((prev) => { const n = new Set(prev); n.delete(itemId); return n; });
     try {
       await overrideMapping(itemId, code, billingComponent, "this_supplier");
       qc.invalidateQueries({ queryKey: ["mapping-queue"] });
     } catch (err) {
       console.error("Accept & Save failed:", err);
+      setFailedItems((prev) => new Set(prev).add(itemId));
     } finally {
       setSavingItems((prev) => {
         const next = new Set(prev);
@@ -274,6 +289,7 @@ export default function AdminMappingsPage() {
                       handleAcceptAndSave(item.line_item_id, code, billingComponent)
                     }
                     isSaving={savingItems.has(item.line_item_id)}
+                    saveError={failedItems.has(item.line_item_id)}
                   />
                 </div>
                 <Button

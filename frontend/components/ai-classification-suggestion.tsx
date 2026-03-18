@@ -46,6 +46,8 @@ interface Props {
   onAcceptAndSave?: (code: string, billingComponent: string) => void;
   /** True while an onAcceptAndSave mutation is in-flight. */
   isSaving?: boolean;
+  /** True if the last onAcceptAndSave attempt failed — shows inline retry message. */
+  saveError?: boolean;
 }
 
 export function AiClassificationSuggestion({
@@ -53,6 +55,7 @@ export function AiClassificationSuggestion({
   onAccept,
   onAcceptAndSave,
   isSaving,
+  saveError,
 }: Props) {
   if (!suggestion) return null;
 
@@ -112,6 +115,12 @@ export function AiClassificationSuggestion({
                   {canOneClick ? "Review first…" : "Accept Suggestion"}
                 </button>
               </div>
+            )}
+            {/* Network error feedback for one-click save */}
+            {saveError && (
+              <p className="mt-1 text-xs text-red-600">
+                Network error — please try again.
+              </p>
             )}
           </div>
         </div>
