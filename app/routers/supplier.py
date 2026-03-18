@@ -17,11 +17,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-
-logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.audit import ActorType
 from app.models.invoice import (
     Invoice,
     InvoiceVersion,
@@ -33,15 +32,15 @@ from app.models.supplier import Contract, User, UserRole
 from app.models.validation import ExceptionRecord, ExceptionStatus, ValidationStatus
 from app.routers.auth import require_role
 from app.schemas.invoice import (
+    ExceptionResponsePayload,
+    ExceptionSupplierView,
     InvoiceCreate,
     InvoiceListItem,
     InvoiceResponse,
     InvoiceUploadResponse,
-    ValidationSummary,
     LineItemSupplierView,
     ValidationResultSupplierView,
-    ExceptionSupplierView,
-    ExceptionResponsePayload,
+    ValidationSummary,
 )
 from app.services.ai_assessment.supplier_response_assessor import (
     assess_supplier_response,
@@ -50,7 +49,8 @@ from app.services.audit import logger as audit
 from app.services.ingestion.dispatcher import detect_format
 from app.services.storage.base import get_storage
 from app.workers.invoice_pipeline import process_invoice_sync
-from app.models.audit import ActorType
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/supplier", tags=["supplier"])
 

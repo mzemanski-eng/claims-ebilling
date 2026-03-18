@@ -246,5 +246,5 @@ def parse_contract(pdf_bytes: bytes, supplier_id: str, db) -> dict:
         logger.warning("Contract parsing failed: %s", exc)
         return _empty_result(
             supplier_id,
-            f"AI extraction encountered an error. Please enter the contract details manually.",
+            "AI extraction encountered an error. Please enter the contract details manually.",
         )
