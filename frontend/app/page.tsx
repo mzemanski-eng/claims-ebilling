@@ -22,7 +22,7 @@ export default function RootPage() {
     } else if (role === "CARRIER_ADMIN" || role === "CARRIER_REVIEWER") {
       router.replace("/carrier/queue");
     } else if (role === "SYSTEM_ADMIN") {
-      router.replace("/admin/invoices");
+      router.replace("/admin");
     } else {
       router.replace("/login");
     }

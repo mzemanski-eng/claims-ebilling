@@ -20,7 +20,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -434,3 +434,70 @@ def get_supplier_comparison(
         )
 
     return records
+
+
+# ── AI Accuracy ────────────────────────────────────────────────────────────────
+
+
+@router.get("/ai-accuracy")
+def get_ai_accuracy(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    AI recommendation accuracy stats.
+
+    For every exception where the exception_resolver made a recommendation,
+    returns overall acceptance rate and a per-action breakdown showing which
+    actions the AI gets right most often.
+
+    Only counts exceptions that have been resolved (ai_recommendation_accepted
+    IS NOT NULL) for the rate calculation — unresolved exceptions are counted
+    in the "pending" total but excluded from rates so the metric stays honest.
+    """
+    rows = (
+        db.query(
+            ExceptionRecord.ai_recommendation,
+            func.count(ExceptionRecord.id).label("total"),
+            func.sum(
+                case((ExceptionRecord.ai_recommendation_accepted.isnot(None), 1), else_=0)
+            ).label("resolved"),
+            func.sum(
+                case((ExceptionRecord.ai_recommendation_accepted == True, 1), else_=0)  # noqa: E712
+            ).label("accepted"),
+        )
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .filter(
+            Invoice.carrier_id == current_user.carrier_id,
+            ExceptionRecord.ai_recommendation.isnot(None),
+        )
+        .group_by(ExceptionRecord.ai_recommendation)
+        .order_by(func.count(ExceptionRecord.id).desc())
+        .all()
+    )
+
+    # Aggregate totals across all actions
+    total_with_rec = sum(r.total for r in rows)
+    total_resolved = sum(r.resolved for r in rows)
+    total_accepted = sum(r.accepted for r in rows)
+    overall_rate = round(total_accepted / total_resolved, 4) if total_resolved else None
+
+    by_action = [
+        {
+            "action": r.ai_recommendation,
+            "recommended": r.total,
+            "resolved": r.resolved,
+            "accepted": r.accepted,
+            "acceptance_rate": round(r.accepted / r.resolved, 4) if r.resolved else None,
+        }
+        for r in rows
+    ]
+
+    return {
+        "total_with_recommendation": total_with_rec,
+        "total_resolved": total_resolved,
+        "total_accepted": total_accepted,
+        "acceptance_rate": overall_rate,
+        "by_recommended_action": by_action,
+    }

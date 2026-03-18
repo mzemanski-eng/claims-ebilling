@@ -13,6 +13,7 @@ import type {
   AdminContract,
   AdminInvoiceDetail,
   AdminSupplier,
+  AiAccuracyStats,
   AnalyticsSummary,
   BulkApprovalResult,
   ContractCreate,
@@ -529,6 +530,10 @@ export function getRateGaps(): Promise<RateGap[]> {
 
 export function getSupplierComparison(): Promise<SupplierComparisonRow[]> {
   return apiFetch<SupplierComparisonRow[]>("/admin/analytics/supplier-comparison");
+}
+
+export function getAiAccuracy(): Promise<AiAccuracyStats> {
+  return apiFetch<AiAccuracyStats>("/admin/analytics/ai-accuracy");
 }
 
 /** Run an AI audit on a supplier — returns findings and risk rating. No DB writes. */

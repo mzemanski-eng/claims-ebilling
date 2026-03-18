@@ -24,10 +24,11 @@ import {
   getSpendByTaxonomy,
   getExceptionBreakdown,
   getRateGaps,
+  getAiAccuracy,
   getSupplierComparisonCsv,
   downloadBlob,
 } from "@/lib/api";
-import type { RateGap, SpendByTaxonomy } from "@/lib/types";
+import type { AiAccuracyByAction, RateGap, SpendByTaxonomy } from "@/lib/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -182,6 +183,11 @@ export default function AdminAnalyticsPage() {
   const { data: exBreakdown, isLoading: loadingEx } = useQuery({
     queryKey: ["analytics-exceptions"],
     queryFn: getExceptionBreakdown,
+  });
+
+  const { data: aiAccuracy } = useQuery({
+    queryKey: ["analytics-ai-accuracy"],
+    queryFn: getAiAccuracy,
   });
 
   const isLoading =
@@ -782,6 +788,122 @@ export default function AdminAnalyticsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+          {/* ── Section 6: AI Performance ────────────────────────────── */}
+          <div className="rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  ✦ AI Recommendation Performance
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  How often carriers follow AI exception resolution recommendations
+                </p>
+              </div>
+              {aiAccuracy && aiAccuracy.total_resolved > 0 && (
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                  (aiAccuracy.acceptance_rate ?? 0) >= 0.75
+                    ? "bg-green-100 text-green-800"
+                    : (aiAccuracy.acceptance_rate ?? 0) >= 0.5
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-red-100 text-red-800"
+                }`}>
+                  {Math.round((aiAccuracy.acceptance_rate ?? 0) * 100)}% acceptance
+                </span>
+              )}
+            </div>
+
+            {!aiAccuracy || aiAccuracy.total_with_recommendation === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-gray-500 font-medium">No AI recommendation data yet</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  Acceptance rates will appear once exceptions with AI recommendations are resolved.
+                </p>
+              </div>
+            ) : (
+              <div className="p-5 space-y-5">
+                {/* KPI strip */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="rounded-lg border bg-gray-50 px-4 py-3 text-center">
+                    <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                      {aiAccuracy.total_with_recommendation}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">Recommendations made</p>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 px-4 py-3 text-center">
+                    <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                      {aiAccuracy.total_resolved}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">Resolved with data</p>
+                  </div>
+                  <div className={`rounded-lg border px-4 py-3 text-center ${
+                    aiAccuracy.total_resolved === 0
+                      ? "bg-gray-50"
+                      : (aiAccuracy.acceptance_rate ?? 0) >= 0.75
+                      ? "bg-green-50 border-green-200"
+                      : (aiAccuracy.acceptance_rate ?? 0) >= 0.5
+                      ? "bg-amber-50 border-amber-200"
+                      : "bg-red-50 border-red-200"
+                  }`}>
+                    <p className={`text-2xl font-bold tabular-nums ${
+                      aiAccuracy.total_resolved === 0
+                        ? "text-gray-400"
+                        : (aiAccuracy.acceptance_rate ?? 0) >= 0.75
+                        ? "text-green-700"
+                        : (aiAccuracy.acceptance_rate ?? 0) >= 0.5
+                        ? "text-amber-700"
+                        : "text-red-700"
+                    }`}>
+                      {aiAccuracy.total_resolved === 0
+                        ? "—"
+                        : `${Math.round((aiAccuracy.acceptance_rate ?? 0) * 100)}%`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">Acceptance rate</p>
+                  </div>
+                </div>
+
+                {/* Per-action breakdown table */}
+                {aiAccuracy.by_recommended_action.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                      By Recommended Action
+                    </p>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-semibold text-gray-500">Action</th>
+                          <th className="pb-2 text-right font-semibold text-gray-500">Recommended</th>
+                          <th className="pb-2 text-right font-semibold text-gray-500">Resolved</th>
+                          <th className="pb-2 text-right font-semibold text-gray-500">Followed</th>
+                          <th className="pb-2 text-right font-semibold text-gray-500">Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {aiAccuracy.by_recommended_action.map((row: AiAccuracyByAction) => {
+                          const rate = row.acceptance_rate;
+                          const rateColor =
+                            rate === null ? "text-gray-400" :
+                            rate >= 0.75 ? "text-green-700 font-semibold" :
+                            rate >= 0.5  ? "text-amber-700 font-semibold" :
+                                           "text-red-700 font-semibold";
+                          return (
+                            <tr key={row.action} className="hover:bg-gray-50">
+                              <td className="py-2 font-mono text-gray-700">{row.action}</td>
+                              <td className="py-2 text-right tabular-nums text-gray-600">{row.recommended}</td>
+                              <td className="py-2 text-right tabular-nums text-gray-600">{row.resolved}</td>
+                              <td className="py-2 text-right tabular-nums text-gray-600">{row.accepted}</td>
+                              <td className={`py-2 text-right tabular-nums ${rateColor}`}>
+                                {rate !== null ? `${Math.round(rate * 100)}%` : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

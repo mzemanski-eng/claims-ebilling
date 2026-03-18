@@ -359,6 +359,31 @@ export interface SupplierComparisonRow {
   exception_rate: string;
 }
 
+export interface AiAccuracyByAction {
+  action: string;
+  /** Total exceptions where AI recommended this action */
+  recommended: number;
+  /** Subset that have been resolved (accepted or overridden) */
+  resolved: number;
+  /** Subset where carrier followed the AI recommendation */
+  accepted: number;
+  /** accepted / resolved, null if no resolved data yet */
+  acceptance_rate: number | null;
+}
+
+export interface AiAccuracyStats {
+  /** Total exceptions that received an AI recommendation */
+  total_with_recommendation: number;
+  /** Subset that have been resolved (carrier made a decision) */
+  total_resolved: number;
+  /** Subset where the carrier followed the AI recommendation */
+  total_accepted: number;
+  /** total_accepted / total_resolved — null if no resolved data yet */
+  acceptance_rate: number | null;
+  /** Per-action breakdown, ordered by recommendation frequency */
+  by_recommended_action: AiAccuracyByAction[];
+}
+
 export interface SupplierAuditFinding {
   title: string;
   detail: string;
