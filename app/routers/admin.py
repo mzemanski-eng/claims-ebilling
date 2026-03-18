@@ -12,6 +12,7 @@ Workflow:
   POST /admin/exceptions/{id}/resolve           → carrier resolves an exception
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
   GET  /admin/suppliers                         → list all suppliers
+  POST /admin/suppliers                         → create a new supplier
   POST /admin/suppliers/{id}/audit              → AI audit report (on-demand, no DB write)
   GET  /admin/contracts                         → list all contracts
   GET  /admin/contracts/{id}                    → contract detail with rate cards + guidelines
@@ -625,6 +626,48 @@ def list_suppliers(
         }
         for s in suppliers
     ]
+
+
+@router.post("/suppliers", status_code=201)
+def create_supplier(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("CARRIER_ADMIN", "SYSTEM_ADMIN")),
+) -> dict:
+    """
+    Create a new supplier.
+
+    Body: { "name": str (required), "tax_id": str (optional) }
+    Returns the created supplier with basic stats.
+    """
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Supplier name is required.")
+
+    existing = db.query(Supplier).filter(Supplier.name == name).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A supplier named '{name}' already exists.",
+        )
+
+    supplier = Supplier(
+        name=name,
+        tax_id=(payload.get("tax_id") or "").strip() or None,
+        is_active=True,
+    )
+    db.add(supplier)
+    db.commit()
+    db.refresh(supplier)
+
+    return {
+        "id": str(supplier.id),
+        "name": supplier.name,
+        "tax_id": supplier.tax_id,
+        "is_active": supplier.is_active,
+        "contract_count": 0,
+        "invoice_count": 0,
+    }
 
 
 # ── Supplier Audit (AI) ───────────────────────────────────────────────────────

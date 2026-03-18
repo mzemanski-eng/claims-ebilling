@@ -308,6 +308,17 @@ export function listAdminSuppliers(): Promise<AdminSupplier[]> {
   return apiFetch<AdminSupplier[]>("/admin/suppliers");
 }
 
+export function createAdminSupplier(payload: {
+  name: string;
+  tax_id?: string;
+}): Promise<AdminSupplier> {
+  return apiFetch<AdminSupplier>("/admin/suppliers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listAdminContracts(supplierId?: string): Promise<AdminContract[]> {
   const qs = supplierId ? `?supplier_id=${supplierId}` : "";
   return apiFetch<AdminContract[]>(`/admin/contracts${qs}`);

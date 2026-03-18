@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { listAdminSuppliers, runSupplierAudit } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  listAdminSuppliers,
+  runSupplierAudit,
+  createAdminSupplier,
+} from "@/lib/api";
 import type { SupplierAuditResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // ── Risk rating colours (mirrors triage colours) ──────────────────────────────
 const RISK_COLORS: Record<string, { border: string; bg: string; badge: string; text: string }> = {
@@ -96,6 +101,102 @@ function AuditResultPanel({
   );
 }
 
+// ── New Supplier Modal ────────────────────────────────────────────────────────
+
+function NewSupplierModal({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [taxId, setTaxId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      createAdminSupplier({ name: name.trim(), tax_id: taxId.trim() || undefined }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-suppliers"] });
+      onClose();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  return (
+    /* Backdrop */
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-md rounded-xl border bg-white shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-base font-semibold text-gray-900">New Supplier</h2>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError(null);
+            mutation.mutate();
+          }}
+          className="space-y-4 px-6 py-5"
+        >
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <Input
+            id="supplier-name"
+            label="Supplier Name"
+            placeholder="Acme Engineering Inc."
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <Input
+            id="supplier-tax-id"
+            label="Tax ID (optional)"
+            placeholder="XX-0000000"
+            value={taxId}
+            onChange={(e) => setTaxId(e.target.value)}
+          />
+
+          <p className="text-xs text-gray-400">
+            After creating the supplier, go to{" "}
+            <Link href="/admin/contracts/new" className="text-blue-600 hover:underline">
+              Contracts → New Contract
+            </Link>{" "}
+            to add a rate card and enable invoice processing.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-1">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={mutation.isPending}
+              disabled={!name.trim() || mutation.isPending}
+            >
+              Create Supplier
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function AdminSuppliersPage() {
   const { data: suppliers, isLoading } = useQuery({
     queryKey: ["admin-suppliers"],
@@ -107,6 +208,7 @@ export default function AdminSuppliersPage() {
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
   const [loadingAuditId, setLoadingAuditId] = useState<string | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [showNewSupplier, setShowNewSupplier] = useState(false);
 
   const auditMutation = useMutation({
     mutationFn: (supplierId: string) => runSupplierAudit(supplierId),
@@ -119,7 +221,7 @@ export default function AdminSuppliersPage() {
       setExpandedAudit(supplierId);
       setLoadingAuditId(null);
     },
-    onError: (err: Error, supplierId) => {
+    onError: (err: Error) => {
       setAuditError(`Audit failed for supplier: ${err.message}`);
       setLoadingAuditId(null);
     },
@@ -136,19 +238,28 @@ export default function AdminSuppliersPage() {
 
   return (
     <div className="space-y-6">
+      {showNewSupplier && (
+        <NewSupplierModal onClose={() => setShowNewSupplier(false)} />
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {suppliers?.length ?? 0} suppliers on record
+            {suppliers?.length ?? 0} supplier{suppliers?.length !== 1 ? "s" : ""} on record
           </p>
         </div>
-        <Link
-          href="/admin/invoices"
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
-        >
-          ← Invoice Queue
-        </Link>
+        <div className="flex items-center gap-3">
+          <Button onClick={() => setShowNewSupplier(true)}>
+            + New Supplier
+          </Button>
+          <Link
+            href="/admin/invoices"
+            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+          >
+            ← Invoice Queue
+          </Link>
+        </div>
       </div>
 
       {auditError && (
@@ -163,8 +274,15 @@ export default function AdminSuppliersPage() {
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           </div>
         ) : suppliers?.length === 0 ? (
-          <div className="py-16 text-center text-sm text-gray-400">
-            No suppliers found. Run the seed script to add demo data.
+          <div className="py-16 text-center">
+            <p className="text-sm text-gray-400">No suppliers found.</p>
+            <Button
+              variant="secondary"
+              className="mt-4"
+              onClick={() => setShowNewSupplier(true)}
+            >
+              + Add your first supplier
+            </Button>
           </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-100">
@@ -213,7 +331,22 @@ export default function AdminSuppliersPage() {
                       {s.tax_id ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-center text-sm text-gray-700">
-                      {s.contract_count}
+                      {s.contract_count > 0 ? (
+                        <Link
+                          href={`/admin/contracts?supplier_id=${s.id}`}
+                          className="font-medium text-blue-600 hover:text-blue-800"
+                        >
+                          {s.contract_count}
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/admin/contracts/new?supplier_id=${s.id}`}
+                          className="text-amber-600 hover:text-amber-800 text-xs font-medium"
+                          title="No contract — click to add one"
+                        >
+                          + Add
+                        </Link>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center text-sm text-gray-700">
                       {s.invoice_count}
