@@ -109,4 +109,4 @@ export const TAXONOMY_OPTIONS: TaxonomyOption[] = [
 ];
 
 /** Unique domain list in display order. */
-export const TAXONOMY_DOMAINS = [...new Set(TAXONOMY_OPTIONS.map((t) => t.domain))];
+export const TAXONOMY_DOMAINS = Array.from(new Set(TAXONOMY_OPTIONS.map((t) => t.domain)));
