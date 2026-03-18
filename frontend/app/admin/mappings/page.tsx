@@ -140,13 +140,38 @@ export default function AdminMappingsPage() {
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   // Pre-fill values from an accepted AI suggestion, keyed by line_item_id
   const [preFill, setPreFill] = useState<Record<string, PreFill>>({});
+  // Track which items are mid-flight for the one-click Accept & Save
+  const [savingItems, setSavingItems] = useState<Set<string>>(new Set());
+
+  const qc = useQueryClient();
 
   const { data: items, isLoading } = useQuery({
     queryKey: ["mapping-queue"],
     queryFn: getMappingReviewQueue,
   });
 
-  /** Called when ops clicks "Accept Suggestion" on an AI SUGGESTED card. */
+  /** One-click save for HIGH confidence suggestions — no form required. */
+  async function handleAcceptAndSave(
+    itemId: string,
+    code: string,
+    billingComponent: string,
+  ) {
+    setSavingItems((prev) => new Set(prev).add(itemId));
+    try {
+      await overrideMapping(itemId, code, billingComponent, "this_supplier");
+      qc.invalidateQueries({ queryKey: ["mapping-queue"] });
+    } catch (err) {
+      console.error("Accept & Save failed:", err);
+    } finally {
+      setSavingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  }
+
+  /** Called when ops clicks "Review first…" on an AI SUGGESTED card. */
   function handleAcceptSuggestion(
     itemId: string,
     code: string,
@@ -243,12 +268,12 @@ export default function AdminMappingsPage() {
                   <AiClassificationSuggestion
                     suggestion={item.ai_classification_suggestion}
                     onAccept={(code, billingComponent) =>
-                      handleAcceptSuggestion(
-                        item.line_item_id,
-                        code,
-                        billingComponent,
-                      )
+                      handleAcceptSuggestion(item.line_item_id, code, billingComponent)
                     }
+                    onAcceptAndSave={(code, billingComponent) =>
+                      handleAcceptAndSave(item.line_item_id, code, billingComponent)
+                    }
+                    isSaving={savingItems.has(item.line_item_id)}
                   />
                 </div>
                 <Button
