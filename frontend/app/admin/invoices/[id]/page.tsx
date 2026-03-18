@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getAdminInvoice,
@@ -374,13 +374,31 @@ function ExceptionRow({
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
+function formatDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatInvoiceDate(iso: string) {
+  // ISO date strings like "2025-01-15" — parse as local date to avoid TZ shift
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function AdminInvoiceDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
   const { id } = params;
-  const router = useRouter();
   const qc = useQueryClient();
 
   const [expandedLines, setExpandedLines] = useState<Set<string>>(new Set());
@@ -500,30 +518,33 @@ export default function AdminInvoiceDetailPage({
       </Dialog>
 
       {/* Sticky action bar */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            ← Back
-          </button>
-          <h1 className="text-xl font-bold text-gray-900 font-mono">
-            {invoice.invoice_number}
-          </h1>
-          <StatusBadge status={invoice.status} />
-        </div>
-        <div className="flex items-center gap-3">
-          {canApprove && (
-            <Button onClick={() => setShowApproveConfirm(true)}>
-              ✓ Approve
-            </Button>
-          )}
-          {canExport && (
-            <Button variant="secondary" onClick={handleExport}>
-              ↓ Export CSV
-            </Button>
-          )}
+      <div className="sticky top-0 z-10 -mx-4 mb-6 border-b bg-white px-4 py-3 shadow-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/admin/invoices"
+              className="shrink-0 text-sm text-gray-500 hover:text-gray-700"
+            >
+              ← Queue
+            </Link>
+            <span className="text-gray-300">/</span>
+            <h1 className="truncate text-xl font-bold font-mono text-gray-900">
+              {invoice.invoice_number}
+            </h1>
+            <StatusBadge status={invoice.status} />
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            {canApprove && (
+              <Button onClick={() => setShowApproveConfirm(true)}>
+                ✓ Approve
+              </Button>
+            )}
+            {canExport && (
+              <Button variant="secondary" onClick={handleExport}>
+                ↓ Export CSV
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -555,16 +576,14 @@ export default function AdminInvoiceDetailPage({
           <p className="text-xs font-medium uppercase text-gray-400">
             Invoice date
           </p>
-          <p className="mt-1 text-sm text-gray-700">{invoice.invoice_date}</p>
+          <p className="mt-1 text-sm text-gray-700">{formatInvoiceDate(invoice.invoice_date)}</p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase text-gray-400">
             Submitted
           </p>
           <p className="mt-1 text-sm text-gray-700">
-            {invoice.submitted_at
-              ? new Date(invoice.submitted_at).toLocaleDateString()
-              : "—"}
+            {formatDate(invoice.submitted_at)}
           </p>
         </div>
       </div>

@@ -170,6 +170,11 @@ export default function CarrierInvoiceReviewPage({
                 </Button>
               </>
             )}
+            {!canApprove && !canExport && invoice.status !== "APPROVED" && (
+              <span className="rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
+                View only — Carrier Admin required to approve
+              </span>
+            )}
           </div>
         </div>
       </div>

@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listCarrierInvoices } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
+
+// ── Risk dot — shown for HIGH / CRITICAL triage only ─────────────────────────
+const RISK_DOT: Record<string, string> = {
+  HIGH:     "bg-red-500",
+  CRITICAL: "bg-red-600",
+};
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -20,11 +27,31 @@ function formatMoney(val: string | null) {
 }
 
 export default function CarrierQueuePage() {
-  const { data: invoices, isLoading } = useQuery({
-    queryKey: ["carrier-queue"],
+  // Fetch both PENDING_CARRIER_REVIEW and CARRIER_REVIEWING — invoices stay
+  // visible while a reviewer is actively working on them.
+  const { data: pendingInvoices, isLoading: loadingPending } = useQuery({
+    queryKey: ["carrier-queue", "PENDING_CARRIER_REVIEW"],
     queryFn: () => listCarrierInvoices("PENDING_CARRIER_REVIEW"),
-    refetchInterval: 30_000, // Poll every 30 s
+    refetchInterval: 30_000,
   });
+
+  const { data: reviewingInvoices, isLoading: loadingReviewing } = useQuery({
+    queryKey: ["carrier-queue", "CARRIER_REVIEWING"],
+    queryFn: () => listCarrierInvoices("CARRIER_REVIEWING"),
+    refetchInterval: 30_000,
+  });
+
+  const isLoading = loadingPending || loadingReviewing;
+
+  // Merge and sort: oldest submitted first (soonest deadline)
+  const invoices = useMemo(() => {
+    const all = [...(pendingInvoices ?? []), ...(reviewingInvoices ?? [])];
+    return all.sort((a, b) => {
+      const aDate = a.submitted_at ? new Date(a.submitted_at).getTime() : 0;
+      const bDate = b.submitted_at ? new Date(b.submitted_at).getTime() : 0;
+      return aDate - bDate;
+    });
+  }, [pendingInvoices, reviewingInvoices]);
 
   return (
     <div>
@@ -32,7 +59,7 @@ export default function CarrierQueuePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Review Queue</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Invoices awaiting carrier review · oldest first
+          Invoices awaiting or currently under carrier review · oldest first
         </p>
       </div>
 
@@ -42,7 +69,7 @@ export default function CarrierQueuePage() {
         </div>
       )}
 
-      {invoices && invoices.length === 0 && (
+      {!isLoading && invoices.length === 0 && (
         <div className="rounded-xl border-2 border-dashed border-gray-200 py-20 text-center">
           <p className="text-4xl">🎉</p>
           <p className="mt-3 font-medium text-gray-700">Queue is empty!</p>
@@ -52,13 +79,16 @@ export default function CarrierQueuePage() {
         </div>
       )}
 
-      {invoices && invoices.length > 0 && (
+      {!isLoading && invoices.length > 0 && (
         <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">
                   Invoice #
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">
+                  Supplier
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">
                   Invoice Date
@@ -70,7 +100,7 @@ export default function CarrierQueuePage() {
                   Total Billed
                 </th>
                 <th className="px-4 py-3 text-center font-semibold text-gray-600">
-                  Open Exceptions
+                  Exceptions
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">
                   Submitted
@@ -84,11 +114,22 @@ export default function CarrierQueuePage() {
                   <td className="px-4 py-3 font-medium text-gray-900">
                     {inv.invoice_number}
                   </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {inv.supplier_name ?? "—"}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {formatDate(inv.invoice_date)}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={inv.status} />
+                    <div className="flex items-center gap-1.5">
+                      {inv.triage_risk_level && RISK_DOT[inv.triage_risk_level] && (
+                        <span
+                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${RISK_DOT[inv.triage_risk_level]}`}
+                          title={`AI triage: ${inv.triage_risk_level} risk`}
+                        />
+                      )}
+                      <StatusBadge status={inv.status} />
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-gray-700">
                     {formatMoney(inv.total_billed)}

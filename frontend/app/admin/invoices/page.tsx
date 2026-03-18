@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bulkApproveInvoices, listAdminInvoices, listAdminSuppliers } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
@@ -32,13 +33,27 @@ const APPROVABLE_STATUSES = new Set(["PENDING_CARRIER_REVIEW", "CARRIER_REVIEWIN
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+function formatInvoiceDate(iso: string | null) {
+  if (!iso) return "—";
+  // ISO date strings like "2025-01-15" — parse as local date to avoid TZ shift
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function AdminInvoicesPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
 
   // ── Filter state — initialise from URL search params ──────────────────────
-  const [activeTab,  setActiveTab]  = useState<StatusTab>("PENDING_CARRIER_REVIEW");
+  const [activeTab,  setActiveTab]  = useState<StatusTab>(
+    (searchParams.get("status") as StatusTab) ?? undefined,
+  );
   const [search,     setSearch]     = useState("");
-  const [supplierId, setSupplierId] = useState("");
+  const [supplierId, setSupplierId] = useState(searchParams.get("supplier") ?? "");
   const [dateFrom,   setDateFrom]   = useState("");
   const [dateTo,     setDateTo]     = useState("");
 
@@ -136,30 +151,14 @@ export default function AdminInvoicesPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Invoice Queue</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {invoices?.length ?? 0} invoice{invoices?.length === 1 ? "" : "s"}
-            {hasActiveFilters && (
-              <span className="ml-1 text-gray-400">(filtered)</span>
-            )}
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link
-            href="/admin/suppliers"
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-          >
-            Suppliers
-          </Link>
-          <Link
-            href="/admin/mappings"
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-          >
-            Mapping Queue
-          </Link>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Invoice Queue</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          {invoices?.length ?? 0} invoice{invoices?.length === 1 ? "" : "s"}
+          {hasActiveFilters && (
+            <span className="ml-1 text-gray-400">(filtered)</span>
+          )}
+        </p>
       </div>
 
       {/* Bulk result banner */}
@@ -418,7 +417,7 @@ export default function AdminInvoicesPage() {
                       {inv.supplier_name ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      {inv.invoice_date}
+                      {formatInvoiceDate(inv.invoice_date)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
