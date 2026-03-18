@@ -32,7 +32,16 @@ import io
 import uuid
 from datetime import date as date_type, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -343,7 +352,7 @@ def resolve_exception(
     # Record whether the carrier accepted the AI recommendation.
     # NULL means no AI recommendation existed at resolution time.
     if exc.ai_recommendation is not None:
-        exc.ai_recommendation_accepted = (resolution_action == exc.ai_recommendation)
+        exc.ai_recommendation_accepted = resolution_action == exc.ai_recommendation
 
     db.flush()
 
@@ -353,7 +362,8 @@ def resolve_exception(
     line_item = exc.line_item
     if resolution_action in _ACCEPTING:
         other_open_on_line = [
-            e for e in line_item.exceptions
+            e
+            for e in line_item.exceptions
             if e.id != exc.id and e.status in _ACTIVE_STATUSES
         ]
         if not other_open_on_line:
@@ -373,8 +383,7 @@ def resolve_exception(
             # If any lines are still EXCEPTION (DENIED), require manual approve.
             # Otherwise auto-approve if configured.
             exception_lines = [
-                li for li in invoice.line_items
-                if li.status == LineItemStatus.EXCEPTION
+                li for li in invoice.line_items if li.status == LineItemStatus.EXCEPTION
             ]
             if settings.auto_approve_clean_invoices and not exception_lines:
                 invoice.status = SubmissionStatus.APPROVED
@@ -728,11 +737,15 @@ def create_supplier_user(
     if not email:
         raise HTTPException(status_code=422, detail="Email is required.")
     if len(password) < 8:
-        raise HTTPException(status_code=422, detail="Password must be at least 8 characters.")
+        raise HTTPException(
+            status_code=422, detail="Password must be at least 8 characters."
+        )
 
     existing = db.query(User).filter(User.email == email).first()
     if existing:
-        raise HTTPException(status_code=409, detail=f"An account for '{email}' already exists.")
+        raise HTTPException(
+            status_code=409, detail=f"An account for '{email}' already exists."
+        )
 
     user = User(
         email=email,
@@ -785,12 +798,12 @@ def run_supplier_audit(
         .all()
     )
     invoice_summary = [
-        {"status": row.status, "count": row.count}
-        for row in invoice_summary_rows
+        {"status": row.status, "count": row.count} for row in invoice_summary_rows
     ]
 
     # ── Exception patterns by taxonomy_code + required_action ─────────────────
     from app.models.validation import ExceptionRecord, ValidationResult as VR
+
     exception_summary_rows = (
         db.query(
             LineItem.taxonomy_code,
@@ -909,7 +922,9 @@ def get_contract_detail(
 # ── Contract Create ────────────────────────────────────────────────────────────
 
 
-@router.post("/contracts", response_model=ContractDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/contracts", response_model=ContractDetail, status_code=status.HTTP_201_CREATED
+)
 def create_contract(
     payload: ContractCreate,
     db: Session = Depends(get_db),
@@ -985,7 +1000,10 @@ def add_rate_card(
     return _to_rate_card_detail(rc, db)
 
 
-@router.delete("/contracts/{contract_id}/rate-cards/{rate_card_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/contracts/{contract_id}/rate-cards/{rate_card_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 def delete_rate_card(
     contract_id: uuid.UUID,
     rate_card_id: uuid.UUID,
@@ -1033,7 +1051,9 @@ def add_guideline(
     return _to_guideline_detail(g)
 
 
-@router.put("/contracts/{contract_id}/guidelines/{guideline_id}", response_model=GuidelineDetail)
+@router.put(
+    "/contracts/{contract_id}/guidelines/{guideline_id}", response_model=GuidelineDetail
+)
 def update_guideline(
     contract_id: uuid.UUID,
     guideline_id: uuid.UUID,
@@ -1052,7 +1072,10 @@ def update_guideline(
     return _to_guideline_detail(g)
 
 
-@router.delete("/contracts/{contract_id}/guidelines/{guideline_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/contracts/{contract_id}/guidelines/{guideline_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 def delete_guideline(
     contract_id: uuid.UUID,
     guideline_id: uuid.UUID,

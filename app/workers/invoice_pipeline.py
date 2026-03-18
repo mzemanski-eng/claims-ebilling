@@ -231,22 +231,25 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     today = date.today()
     if not contract.is_active:
         return _fail_invoice(
-            db, invoice,
+            db,
+            invoice,
             f"Contract '{contract.name}' is inactive. "
-            "An executed, active contract is required to process invoices."
+            "An executed, active contract is required to process invoices.",
         )
     if contract.effective_from > today:
         return _fail_invoice(
-            db, invoice,
+            db,
+            invoice,
             f"Contract '{contract.name}' is not yet effective "
             f"(effective from {contract.effective_from}). "
-            "Invoice cannot be processed until the contract effective date."
+            "Invoice cannot be processed until the contract effective date.",
         )
     if contract.effective_to is not None and contract.effective_to < today:
         return _fail_invoice(
-            db, invoice,
+            db,
+            invoice,
             f"Contract '{contract.name}' expired on {contract.effective_to}. "
-            "A current, executed contract is required to process invoices."
+            "A current, executed contract is required to process invoices.",
         )
 
     guidelines = [g for g in contract.guidelines if g.is_active]
@@ -662,6 +665,7 @@ def _prior_review_required_count(db, supplier_id) -> int:
     """Count REVIEW_REQUIRED invoices for this supplier in the past 90 days."""
     from datetime import timedelta
     from app.models.invoice import Invoice as _Invoice, SubmissionStatus as _SS
+
     cutoff = date.today() - timedelta(days=90)
     return (
         db.query(_Invoice)
@@ -681,6 +685,7 @@ def _prior_exception_count(db, supplier_id, taxonomy_code) -> int:
     from datetime import timedelta
     from app.models.invoice import Invoice as _Invoice, LineItem as _LI
     from app.models.validation import ExceptionRecord as _ER
+
     cutoff = date.today() - timedelta(days=90)
     return (
         db.query(_ER)
@@ -695,7 +700,9 @@ def _prior_exception_count(db, supplier_id, taxonomy_code) -> int:
     )
 
 
-def _attach_ai_recommendation(db, exc_record, val_result, line_item, invoice, contract) -> None:
+def _attach_ai_recommendation(
+    db, exc_record, val_result, line_item, invoice, contract
+) -> None:
     """
     Call the exception resolver and attach ai_recommendation + ai_reasoning
     to the exception record. Non-blocking — silently skips on any failure.

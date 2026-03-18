@@ -53,7 +53,12 @@ def _build_message(
     return msg
 
 
-def _send(to_addresses: list[str], subject: str, body_text: str, body_html: Optional[str] = None) -> None:
+def _send(
+    to_addresses: list[str],
+    subject: str,
+    body_text: str,
+    body_html: Optional[str] = None,
+) -> None:
     """
     Send a single email. Silently no-ops if SMTP_HOST is not configured.
     Logs errors but never raises — callers must never fail because of email.
@@ -82,6 +87,7 @@ def _send(to_addresses: list[str], subject: str, body_text: str, body_html: Opti
 def _supplier_emails(db, supplier_id: str) -> list[str]:
     """Return email addresses for all active users linked to this supplier."""
     from app.models.supplier import User
+
     users = (
         db.query(User.email)
         .filter(User.supplier_id == supplier_id, User.is_active.is_(True))
@@ -231,7 +237,9 @@ This is an automated notification from the eBilling platform.
     _send(recipients, subject, body_text, body_html)
 
 
-def notify_exception_resolved(db, invoice, line_item, exception, resolution_action: str) -> None:
+def notify_exception_resolved(
+    db, invoice, line_item, exception, resolution_action: str
+) -> None:
     """
     Notify supplier users that a specific exception on their invoice has been resolved.
     Fires when a carrier resolves an exception (any resolution action).
@@ -244,29 +252,27 @@ def notify_exception_resolved(db, invoice, line_item, exception, resolution_acti
     code = line_item.taxonomy_code or "N/A"
 
     _RESOLUTION_LABELS = {
-        "WAIVED":             "Waived — billed amount accepted",
+        "WAIVED": "Waived — billed amount accepted",
         "ACCEPTED_REDUCTION": "Accepted — amount adjusted to contracted rate",
         "HELD_CONTRACT_RATE": "Contract rate enforced — payment capped at contracted amount",
-        "RECLASSIFIED":       "Line reclassified — billing accepted under corrected code",
-        "DENIED":             "Denied — line item rejected",
+        "RECLASSIFIED": "Line reclassified — billing accepted under corrected code",
+        "DENIED": "Denied — line item rejected",
     }
     resolution_label = _RESOLUTION_LABELS.get(resolution_action, resolution_action)
     is_denied = resolution_action == "DENIED"
 
-    subject = (
-        f"Invoice {invoice_ref} — Exception {'Denied' if is_denied else 'Resolved'} ({code})"
-    )
+    subject = f"Invoice {invoice_ref} — Exception {'Denied' if is_denied else 'Resolved'} ({code})"
 
     body_text = f"""\
 Hi,
 
-An exception on Invoice {invoice_ref} has been {'denied' if is_denied else 'resolved'} by the carrier.
+An exception on Invoice {invoice_ref} has been {"denied" if is_denied else "resolved"} by the carrier.
 
 Invoice:    {invoice_ref}
 Line Item:  {code}
 Resolution: {resolution_label}
 
-{'Please log in to the billing portal to review this decision and resubmit if required.' if is_denied else 'No further action is required for this line item.'}
+{"Please log in to the billing portal to review this decision and resubmit if required." if is_denied else "No further action is required for this line item."}
 
 This is an automated notification from the eBilling platform.
 """
@@ -275,10 +281,10 @@ This is an automated notification from the eBilling platform.
     body_html = f"""\
 <html><body style="font-family:Arial,sans-serif;color:#111;max-width:600px">
   <h2 style="color:{status_color}">
-    Invoice {invoice_ref} — Exception {'Denied' if is_denied else 'Resolved'}
+    Invoice {invoice_ref} — Exception {"Denied" if is_denied else "Resolved"}
   </h2>
   <p>An exception on Invoice <strong>{invoice_ref}</strong> has been
-  {'denied' if is_denied else 'resolved'} by the carrier.</p>
+  {"denied" if is_denied else "resolved"} by the carrier.</p>
   <table style="border-collapse:collapse;width:100%;margin:16px 0">
     <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Invoice</td>
         <td style="padding:8px">{invoice_ref}</td></tr>
@@ -287,7 +293,7 @@ This is an automated notification from the eBilling platform.
     <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Resolution</td>
         <td style="padding:8px;color:{status_color}">{resolution_label}</td></tr>
   </table>
-  {'<p><strong>Please log in to the billing portal</strong> to review this decision and resubmit if required.</p>' if is_denied else '<p>No further action is required for this line item.</p>'}
+  {"<p><strong>Please log in to the billing portal</strong> to review this decision and resubmit if required.</p>" if is_denied else "<p>No further action is required for this line item.</p>"}
   <p style="color:#6B7280;font-size:12px">This is an automated notification from the eBilling platform.</p>
 </body></html>
 """

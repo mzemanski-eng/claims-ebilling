@@ -350,7 +350,8 @@ class GuidelineValidator:
         output: list[tuple[LineItem, GuidelineValidationResult]] = []
 
         excl_guidelines = [
-            g for g in guidelines
+            g
+            for g in guidelines
             if g.rule_type == "invoice_codes_exclusive" and g.is_active
         ]
         if not excl_guidelines or not all_lines:
@@ -462,8 +463,7 @@ class GuidelineValidator:
         output: list[tuple[LineItem, GuidelineValidationResult]] = []
 
         pct_guidelines = [
-            g for g in guidelines
-            if g.rule_type == "max_pct_of_invoice" and g.is_active
+            g for g in guidelines if g.rule_type == "max_pct_of_invoice" and g.is_active
         ]
         if not pct_guidelines or not all_lines:
             return output
@@ -515,7 +515,8 @@ class GuidelineValidator:
         domain = params.get("applies_to_domain")
         if suffix and domain:
             return [
-                li for li in lines
+                li
+                for li in lines
                 if li.taxonomy_code
                 and li.taxonomy_code.startswith(f"{domain}.")
                 and li.taxonomy_code.endswith(suffix)
@@ -536,7 +537,8 @@ class GuidelineValidator:
         domain = params.get("denominator_domain")
         if domain:
             return [
-                li for li in lines
+                li
+                for li in lines
                 if li.taxonomy_code and li.taxonomy_code.startswith(f"{domain}.")
             ]
         return list(lines)

@@ -114,7 +114,9 @@ def assess_description_alignment(
     if client is None:
         return None
 
-    desc = taxonomy_description or taxonomy_label  # fall back to label if no description
+    desc = (
+        taxonomy_description or taxonomy_label
+    )  # fall back to label if no description
 
     user_content = _USER_TEMPLATE.format(
         taxonomy_label=taxonomy_label,

@@ -34,13 +34,17 @@ def _get_client():
         return _client
     try:
         from app.settings import settings
+
         if not settings.anthropic_api_key:
             return None
         import anthropic
+
         _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         return _client
     except ImportError:
-        logger.warning("anthropic package not installed — supplier response assessor disabled")
+        logger.warning(
+            "anthropic package not installed — supplier response assessor disabled"
+        )
         return None
     except Exception as exc:
         logger.warning("Could not initialise Anthropic client: %s", exc)

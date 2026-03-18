@@ -79,8 +79,12 @@ class InvoiceListItem(BaseSchema):
     submitted_at: Optional[datetime]
     total_billed: Optional[Decimal] = None
     exception_count: int = 0
-    supplier_name: Optional[str] = None  # populated by admin endpoints; null for supplier views
-    triage_risk_level: Optional[str] = None  # set by AI triage agent; null until processed
+    supplier_name: Optional[str] = (
+        None  # populated by admin endpoints; null for supplier views
+    )
+    triage_risk_level: Optional[str] = (
+        None  # set by AI triage agent; null until processed
+    )
 
 
 # ── LineItem schemas ──────────────────────────────────────────────────────────
@@ -119,7 +123,7 @@ class ExceptionSupplierView(BaseSchema):
 
     # ── AI response assessment (set when supplier responds) ────────────────────
     ai_response_assessment: Optional[str] = None  # SUFFICIENT | INSUFFICIENT | PARTIAL
-    ai_response_reasoning: Optional[str] = None   # Explanation for the carrier
+    ai_response_reasoning: Optional[str] = None  # Explanation for the carrier
 
     # ── AI accuracy tracking (set when carrier resolves) ───────────────────────
     ai_recommendation_accepted: Optional[bool] = None  # True if AI rec followed

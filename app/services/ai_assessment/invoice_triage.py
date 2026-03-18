@@ -39,9 +39,11 @@ def _get_client():
         return _client
     try:
         from app.settings import settings
+
         if not settings.anthropic_api_key:
             return None
         import anthropic
+
         _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         return _client
     except ImportError:
@@ -158,9 +160,9 @@ def triage_invoice(
             )
             risk_level = "MEDIUM"  # conservative default
 
-        risk_factors = [
-            str(f)[:200] for f in data.get("risk_factors", [])
-        ][:6]  # cap at 6 factors
+        risk_factors = [str(f)[:200] for f in data.get("risk_factors", [])][
+            :6
+        ]  # cap at 6 factors
 
         return {
             "risk_level": risk_level,
@@ -168,7 +170,9 @@ def triage_invoice(
         }
 
     except json.JSONDecodeError as exc:
-        logger.warning("Invoice triage returned non-JSON for %r: %s", invoice_number, exc)
+        logger.warning(
+            "Invoice triage returned non-JSON for %r: %s", invoice_number, exc
+        )
         return None
     except Exception as exc:
         logger.warning("Invoice triage failed for %r: %s", invoice_number, exc)

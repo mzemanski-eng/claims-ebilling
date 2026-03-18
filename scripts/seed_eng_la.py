@@ -60,36 +60,48 @@ ENG_RATE_CARDS = [
     ("ENG.FOC.L2", Decimal("225.00"), None, False, "Senior Engineer — per hour"),
     ("ENG.FOC.L3", Decimal("175.00"), None, False, "Staff Engineer — per hour"),
     # ── Damage Assessment (DA) ─────────────────────────────────────────────
-    ("ENG.DA.L1",  Decimal("275.00"), None, False, "Principal Engineer — per hour"),
-    ("ENG.DA.L2",  Decimal("225.00"), None, False, "Senior Engineer — per hour"),
-    ("ENG.DA.L3",  Decimal("175.00"), None, False, "Staff Engineer — per hour"),
-    ("ENG.DA.L4",  Decimal("135.00"), None, False, "Associate Engineer — per hour"),
+    ("ENG.DA.L1", Decimal("275.00"), None, False, "Principal Engineer — per hour"),
+    ("ENG.DA.L2", Decimal("225.00"), None, False, "Senior Engineer — per hour"),
+    ("ENG.DA.L3", Decimal("175.00"), None, False, "Staff Engineer — per hour"),
+    ("ENG.DA.L4", Decimal("135.00"), None, False, "Associate Engineer — per hour"),
     # ── Engineering Cause and Origin (CAO) ────────────────────────────────
     ("ENG.CAO.L1", Decimal("275.00"), None, False, "Principal Engineer — per hour"),
     ("ENG.CAO.L2", Decimal("225.00"), None, False, "Senior Engineer — per hour"),
     ("ENG.CAO.L3", Decimal("175.00"), None, False, "Staff Engineer — per hour"),
     # ── Engineering Analysis (EA) ─────────────────────────────────────────
-    ("ENG.EA.L1",  Decimal("275.00"), None, False, "Principal Engineer — per hour"),
-    ("ENG.EA.L2",  Decimal("225.00"), None, False, "Senior Engineer — per hour"),
-    ("ENG.EA.L3",  Decimal("175.00"), None, False, "Staff Engineer — per hour"),
+    ("ENG.EA.L1", Decimal("275.00"), None, False, "Principal Engineer — per hour"),
+    ("ENG.EA.L2", Decimal("225.00"), None, False, "Senior Engineer — per hour"),
+    ("ENG.EA.L3", Decimal("175.00"), None, False, "Staff Engineer — per hour"),
     # ── Expert Witness / Deposition (EWD) ─────────────────────────────────
-    ("ENG.EWD.L1", Decimal("275.00"), Decimal("8"),  False, "Principal Engineer — 8hr max per claim"),
-    ("ENG.EWD.L2", Decimal("225.00"), Decimal("8"),  False, "Senior Engineer — 8hr max per claim"),
+    (
+        "ENG.EWD.L1",
+        Decimal("275.00"),
+        Decimal("8"),
+        False,
+        "Principal Engineer — 8hr max per claim",
+    ),
+    (
+        "ENG.EWD.L2",
+        Decimal("225.00"),
+        Decimal("8"),
+        False,
+        "Senior Engineer — 8hr max per claim",
+    ),
     # ── Peer Review (PR) ──────────────────────────────────────────────────
-    ("ENG.PR.L1",  Decimal("275.00"), None, False, "Principal Engineer — per hour"),
-    ("ENG.PR.L2",  Decimal("225.00"), None, False, "Senior Engineer — per hour"),
-    ("ENG.PR.L3",  Decimal("175.00"), None, False, "Staff Engineer — per hour"),
+    ("ENG.PR.L1", Decimal("275.00"), None, False, "Principal Engineer — per hour"),
+    ("ENG.PR.L2", Decimal("225.00"), None, False, "Senior Engineer — per hour"),
+    ("ENG.PR.L3", Decimal("175.00"), None, False, "Staff Engineer — per hour"),
     # ── Reporting (RPT) ───────────────────────────────────────────────────
     ("ENG.RPT.L2", Decimal("225.00"), None, False, "Senior Engineer — per hour"),
     ("ENG.RPT.L3", Decimal("175.00"), None, False, "Staff Engineer — per hour"),
     ("ENG.RPT.L4", Decimal("135.00"), None, False, "Associate Engineer — per hour"),
     # ── Project Management (PM) ───────────────────────────────────────────
-    ("ENG.PM.L2",  Decimal("225.00"), None, False, "Senior Engineer — per hour"),
-    ("ENG.PM.L3",  Decimal("175.00"), None, False, "Staff Engineer — per hour"),
-    ("ENG.PM.L4",  Decimal("135.00"), None, False, "Associate Engineer — per hour"),
+    ("ENG.PM.L2", Decimal("225.00"), None, False, "Senior Engineer — per hour"),
+    ("ENG.PM.L3", Decimal("175.00"), None, False, "Staff Engineer — per hour"),
+    ("ENG.PM.L4", Decimal("135.00"), None, False, "Associate Engineer — per hour"),
     # ── Admin and Office Support (AOS) ────────────────────────────────────
-    ("ENG.AOS.L5", Decimal("95.00"),  None, False, "Junior Technician — per hour"),
-    ("ENG.AOS.L6", Decimal("65.00"),  None, False, "Admin/Support Staff — per hour"),
+    ("ENG.AOS.L5", Decimal("95.00"), None, False, "Junior Technician — per hour"),
+    ("ENG.AOS.L6", Decimal("65.00"), None, False, "Admin/Support Staff — per hour"),
 ]
 
 # (rule_type, taxonomy_code, narrative, rule_params)
@@ -123,12 +135,48 @@ LA_SUPPLIER_TAX_ID = "XX-LA00001"  # masked placeholder
 LA_CONTRACT_NAME = "Summit Ladder Assist Services Agreement 2025"
 
 LA_RATE_CARDS = [
-    ("LA.LADDER_ACCESS.FLAT_FEE",      Decimal("125.00"), Decimal("1"), False, "Per-occurrence ladder placement"),
-    ("LA.ROOF_INSPECT.FLAT_FEE",       Decimal("175.00"), Decimal("1"), False, "Per-occurrence standard roof inspection"),
-    ("LA.ROOF_INSPECT_HARNESS.FLAT_FEE", Decimal("225.00"), Decimal("1"), False, "Per-occurrence harness-required inspection"),
-    ("LA.TARP_COVER.FLAT_FEE",         Decimal("350.00"), Decimal("1"), False, "Per-occurrence emergency tarp application"),
-    ("LA.CANCEL.CANCEL_FEE",           Decimal("75.00"),  Decimal("1"), False, "< 24hr cancellation notice"),
-    ("LA.TRIP_CHARGE.TRIP_FEE",        Decimal("65.00"),  Decimal("1"), False, "Site arrival, unable to complete service"),
+    (
+        "LA.LADDER_ACCESS.FLAT_FEE",
+        Decimal("125.00"),
+        Decimal("1"),
+        False,
+        "Per-occurrence ladder placement",
+    ),
+    (
+        "LA.ROOF_INSPECT.FLAT_FEE",
+        Decimal("175.00"),
+        Decimal("1"),
+        False,
+        "Per-occurrence standard roof inspection",
+    ),
+    (
+        "LA.ROOF_INSPECT_HARNESS.FLAT_FEE",
+        Decimal("225.00"),
+        Decimal("1"),
+        False,
+        "Per-occurrence harness-required inspection",
+    ),
+    (
+        "LA.TARP_COVER.FLAT_FEE",
+        Decimal("350.00"),
+        Decimal("1"),
+        False,
+        "Per-occurrence emergency tarp application",
+    ),
+    (
+        "LA.CANCEL.CANCEL_FEE",
+        Decimal("75.00"),
+        Decimal("1"),
+        False,
+        "< 24hr cancellation notice",
+    ),
+    (
+        "LA.TRIP_CHARGE.TRIP_FEE",
+        Decimal("65.00"),
+        Decimal("1"),
+        False,
+        "Site arrival, unable to complete service",
+    ),
 ]
 
 LA_GUIDELINES = [
@@ -155,8 +203,10 @@ LA_GUIDELINES = [
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _seed_supplier(db, carrier, supplier_name, tax_id, contract_name,
-                   rate_cards, guidelines, notes):
+
+def _seed_supplier(
+    db, carrier, supplier_name, tax_id, contract_name, rate_cards, guidelines, notes
+):
     """Create (or skip) one supplier + contract + rate cards + guidelines."""
     supplier = db.query(Supplier).filter(Supplier.name == supplier_name).first()
     if supplier:
@@ -240,8 +290,12 @@ def _prompt_user(db, supplier, role, default_email, role_label):
         print("ERROR: passwords do not match.")
         sys.exit(1)
 
-    kwargs = {"email": email, "hashed_password": hash_password(password),
-              "role": role, "is_active": True}
+    kwargs = {
+        "email": email,
+        "hashed_password": hash_password(password),
+        "role": role,
+        "is_active": True,
+    }
     if role == UserRole.SUPPLIER:
         kwargs["supplier_id"] = supplier.id
     user = User(**kwargs)
@@ -250,6 +304,7 @@ def _prompt_user(db, supplier, role, default_email, role_label):
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     print("\n=== Claims eBilling — ENG & LA Seed ===\n")
@@ -265,31 +320,45 @@ def main() -> None:
         # ── ENG supplier ───────────────────────────────────────────────────────
         print("── Engineering supplier ──────────────────────────────────────────")
         eng_supplier = _seed_supplier(
-            db, carrier,
-            ENG_SUPPLIER_NAME, ENG_SUPPLIER_TAX_ID,
+            db,
+            carrier,
+            ENG_SUPPLIER_NAME,
+            ENG_SUPPLIER_TAX_ID,
             ENG_CONTRACT_NAME,
-            ENG_RATE_CARDS, ENG_GUIDELINES,
+            ENG_RATE_CARDS,
+            ENG_GUIDELINES,
             "Demo contract — Engineering & Forensic services, national scope.",
         )
 
         # ── LA supplier ────────────────────────────────────────────────────────
         print("\n── Ladder Assist supplier ────────────────────────────────────────")
         la_supplier = _seed_supplier(
-            db, carrier,
-            LA_SUPPLIER_NAME, LA_SUPPLIER_TAX_ID,
+            db,
+            carrier,
+            LA_SUPPLIER_NAME,
+            LA_SUPPLIER_TAX_ID,
             LA_CONTRACT_NAME,
-            LA_RATE_CARDS, LA_GUIDELINES,
+            LA_RATE_CARDS,
+            LA_GUIDELINES,
             "Demo contract — Ladder Assist & Roof Access services, national scope.",
         )
 
         # ── User accounts (optional) ───────────────────────────────────────────
         if not SKIP_USERS:
-            _prompt_user(db, eng_supplier, UserRole.SUPPLIER,
-                         "supplier@pacificcoasteng.com",
-                         "ENG supplier user (Pacific Coast Engineering Group)")
-            _prompt_user(db, la_supplier, UserRole.SUPPLIER,
-                         "supplier@summitladderassist.com",
-                         "LA supplier user (Summit Ladder Assist Inc.)")
+            _prompt_user(
+                db,
+                eng_supplier,
+                UserRole.SUPPLIER,
+                "supplier@pacificcoasteng.com",
+                "ENG supplier user (Pacific Coast Engineering Group)",
+            )
+            _prompt_user(
+                db,
+                la_supplier,
+                UserRole.SUPPLIER,
+                "supplier@summitladderassist.com",
+                "LA supplier user (Summit Ladder Assist Inc.)",
+            )
         else:
             print("\n── Skipping user creation (--skip-users flag set) ────────────")
 
@@ -306,6 +375,7 @@ def main() -> None:
         db.rollback()
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
     finally:

@@ -278,7 +278,9 @@ class LineItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Set during pipeline after classification. NULL if no API key or call fails.
     # Shape: {"score": "ALIGNED|PARTIAL|MISALIGNED", "rationale": "...", "model": "..."}
     ai_description_assessment: Mapped[Optional[dict]] = mapped_column(
-        JSONB, nullable=True, comment="AI alignment score for raw_description vs taxonomy"
+        JSONB,
+        nullable=True,
+        comment="AI alignment score for raw_description vs taxonomy",
     )
 
     # ── AI classification suggestion ──────────────────────────────────────────

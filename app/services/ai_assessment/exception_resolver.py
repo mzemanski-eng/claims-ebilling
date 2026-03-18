@@ -39,9 +39,11 @@ def _get_client():
         return _client
     try:
         from app.settings import settings
+
         if not settings.anthropic_api_key:
             return None
         import anthropic
+
         _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         return _client
     except ImportError:

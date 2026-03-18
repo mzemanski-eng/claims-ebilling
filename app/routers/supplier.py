@@ -43,7 +43,9 @@ from app.schemas.invoice import (
     ExceptionSupplierView,
     ExceptionResponsePayload,
 )
-from app.services.ai_assessment.supplier_response_assessor import assess_supplier_response
+from app.services.ai_assessment.supplier_response_assessor import (
+    assess_supplier_response,
+)
 from app.services.audit import logger as audit
 from app.services.ingestion.dispatcher import detect_format
 from app.services.storage.base import get_storage

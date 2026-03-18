@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""        # Defaults to smtp_user if blank
+    smtp_from: str = ""  # Defaults to smtp_user if blank
     smtp_use_tls: bool = True  # STARTTLS — set false for port 465 / SSL wrappers
 
     # ── Invoice Processing ──────────────────────────────────────────────────

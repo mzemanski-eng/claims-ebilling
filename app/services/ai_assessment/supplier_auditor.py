@@ -40,9 +40,11 @@ def _get_client():
         return _client
     try:
         from app.settings import settings
+
         if not settings.anthropic_api_key:
             return None
         import anthropic
+
         _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         return _client
     except ImportError:
@@ -154,13 +156,19 @@ def audit_supplier(
         return None
 
     # Build status counts
-    counts_by_status = {row.get("status", ""): row.get("count", 0) for row in invoice_summary}
+    counts_by_status = {
+        row.get("status", ""): row.get("count", 0) for row in invoice_summary
+    }
     total_invoices = sum(counts_by_status.values())
     approved = counts_by_status.get("APPROVED", 0) + counts_by_status.get("EXPORTED", 0)
     review_required = counts_by_status.get("REVIEW_REQUIRED", 0)
     pending = counts_by_status.get("PENDING_CARRIER_REVIEW", 0)
-    total_with_exceptions = review_required + counts_by_status.get("SUPPLIER_RESPONDED", 0)
-    exception_rate = round(total_with_exceptions / total_invoices * 100, 1) if total_invoices else 0
+    total_with_exceptions = review_required + counts_by_status.get(
+        "SUPPLIER_RESPONDED", 0
+    )
+    exception_rate = (
+        round(total_with_exceptions / total_invoices * 100, 1) if total_invoices else 0
+    )
 
     user_content = _USER_TEMPLATE.format(
         supplier_name=supplier_name,
@@ -199,15 +207,17 @@ def audit_supplier(
             severity = str(f.get("severity", "INFO")).upper()
             if severity not in _VALID_SEVERITIES:
                 severity = "INFO"
-            findings.append({
-                "title": str(f.get("title", ""))[:100],
-                "detail": str(f.get("detail", ""))[:400],
-                "severity": severity,
-            })
+            findings.append(
+                {
+                    "title": str(f.get("title", ""))[:100],
+                    "detail": str(f.get("detail", ""))[:400],
+                    "severity": severity,
+                }
+            )
 
-        recommendations = [
-            str(r)[:300] for r in data.get("recommendations", [])
-        ][:6]  # cap at 6
+        recommendations = [str(r)[:300] for r in data.get("recommendations", [])][
+            :6
+        ]  # cap at 6
 
         return {
             "risk_rating": risk_rating,
@@ -216,7 +226,9 @@ def audit_supplier(
         }
 
     except json.JSONDecodeError as exc:
-        logger.warning("Supplier auditor returned non-JSON for %r: %s", supplier_name, exc)
+        logger.warning(
+            "Supplier auditor returned non-JSON for %r: %s", supplier_name, exc
+        )
         return None
     except Exception as exc:
         logger.warning("Supplier auditor failed for %r: %s", supplier_name, exc)

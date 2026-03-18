@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createInvoice, uploadInvoiceFile, listSupplierContracts } from "@/lib/api";
+import { createInvoice, listSupplierContracts, uploadInvoiceFile } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -21,14 +21,23 @@ export default function NewInvoicePage() {
   // Step 2: file upload
   const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
-
   const [stepError, setStepError] = useState<string | null>(null);
 
-  // Load supplier's contracts via the supplier-scoped endpoint
-  const { data: contracts } = useQuery({
+  // Load supplier's active contracts
+  const { data: contracts, isLoading: contractsLoading } = useQuery({
     queryKey: ["supplier-contracts"],
     queryFn: listSupplierContracts,
   });
+
+  // Auto-select when only one active contract exists
+  useEffect(() => {
+    if (contracts?.length === 1 && !contractId) {
+      setContractId(contracts[0].id);
+    }
+  }, [contracts, contractId]);
+
+  const selectedContract = contracts?.find((c) => c.id === contractId);
+  const singleContract = contracts?.length === 1;
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -65,6 +74,7 @@ export default function NewInvoicePage() {
       </div>
 
       <div className="rounded-xl border bg-white px-8 py-8 shadow-sm">
+        {/* ── Step 1: Details ─────────────────────────────────────────────── */}
         {step === 1 && (
           <form
             onSubmit={(e) => {
@@ -73,15 +83,66 @@ export default function NewInvoicePage() {
             }}
             className="space-y-5"
           >
-            <h2 className="text-lg font-semibold text-gray-900">
-              Invoice details
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900">Invoice details</h2>
 
             {stepError && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3">
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3">
                 <p className="text-sm text-red-700">{stepError}</p>
               </div>
             )}
+
+            {/* Contract — auto-selected pill (single) or dropdown (multiple) */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">
+                Contract
+              </label>
+
+              {contractsLoading ? (
+                <div className="h-9 animate-pulse rounded-md bg-gray-100" />
+              ) : contracts?.length === 0 ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  No active contracts found. Contact your carrier to set up a contract before submitting invoices.
+                </div>
+              ) : singleContract ? (
+                /* Single contract — show as a read-only info card, no selection needed */
+                <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
+                  <div className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-900">
+                      {selectedContract?.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Effective {selectedContract?.effective_from}
+                      {selectedContract?.effective_to
+                        ? ` → ${selectedContract.effective_to}`
+                        : " · No expiry"}
+                    </p>
+                  </div>
+                  <span className="ml-auto shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                    Active
+                  </span>
+                </div>
+              ) : (
+                /* Multiple contracts — dropdown */
+                <select
+                  id="contract"
+                  required
+                  value={contractId}
+                  onChange={(e) => setContractId(e.target.value)}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">Select a contract…</option>
+                  {contracts?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.effective_to
+                        ? ` (${c.effective_from} – ${c.effective_to})`
+                        : ` (eff. ${c.effective_from})`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
 
             <Input
               id="invoice-number"
@@ -101,29 +162,6 @@ export default function NewInvoicePage() {
               onChange={(e) => setInvoiceDate(e.target.value)}
             />
 
-            <div className="flex flex-col gap-1">
-              <label
-                htmlFor="contract"
-                className="text-sm font-medium text-gray-700"
-              >
-                Contract
-              </label>
-              <select
-                id="contract"
-                required
-                value={contractId}
-                onChange={(e) => setContractId(e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Select a contract…</option>
-                {contracts?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (eff. {c.effective_from})
-                  </option>
-                ))}
-              </select>
-            </div>
-
             <Input
               id="notes"
               label="Notes (optional)"
@@ -133,17 +171,19 @@ export default function NewInvoicePage() {
             />
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => router.back()}
-              >
+              <Button type="button" variant="ghost" onClick={() => router.back()}>
                 Cancel
               </Button>
               <Button
                 type="submit"
                 loading={createMutation.isPending}
-                disabled={!invoiceNumber || !invoiceDate || !contractId}
+                disabled={
+                  !invoiceNumber ||
+                  !invoiceDate ||
+                  !contractId ||
+                  contracts?.length === 0 ||
+                  createMutation.isPending
+                }
               >
                 Continue →
               </Button>
@@ -151,18 +191,19 @@ export default function NewInvoicePage() {
           </form>
         )}
 
+        {/* ── Step 2: Upload ───────────────────────────────────────────────── */}
         {step === 2 && (
           <div className="space-y-5">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Upload invoice file
-            </h2>
-            <p className="text-sm text-gray-500">
-              Accepted formats: CSV. The pipeline will process your file
-              automatically.
-            </p>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Upload invoice file</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Upload your CSV. The system will classify each line, validate
+                rates against your contract, and flag any exceptions for review.
+              </p>
+            </div>
 
             {stepError && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3">
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3">
                 <p className="text-sm text-red-700">{stepError}</p>
               </div>
             )}
@@ -170,10 +211,14 @@ export default function NewInvoicePage() {
             {/* Drop zone */}
             <label
               htmlFor="file-upload"
-              className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-12 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 transition-colors ${
+                file
+                  ? "border-blue-400 bg-blue-50"
+                  : "border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50"
+              }`}
             >
               <svg
-                className="mb-3 h-10 w-10 text-gray-400"
+                className={`mb-3 h-10 w-10 ${file ? "text-blue-500" : "text-gray-400"}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -185,10 +230,21 @@ export default function NewInvoicePage() {
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <span className="text-sm font-medium text-gray-700">
-                {file ? file.name : "Choose a file or drag & drop"}
-              </span>
-              <span className="mt-1 text-xs text-gray-400">.csv up to 10 MB</span>
+              {file ? (
+                <div className="text-center">
+                  <p className="text-sm font-medium text-blue-700">{file.name}</p>
+                  <p className="mt-0.5 text-xs text-blue-500">
+                    {(file.size / 1024).toFixed(1)} KB · Click to change
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-700">
+                    Choose a file or drag &amp; drop
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-400">.csv up to 10 MB</p>
+                </div>
+              )}
               <input
                 id="file-upload"
                 type="file"
@@ -214,7 +270,7 @@ export default function NewInvoicePage() {
                 disabled={!file || uploadMutation.isPending}
                 onClick={() => uploadMutation.mutate()}
               >
-                Upload & Process
+                Upload &amp; Process
               </Button>
             </div>
           </div>
@@ -248,9 +304,7 @@ function Step({
       >
         {done ? "✓" : num}
       </div>
-      <span
-        className={`text-sm font-medium ${active ? "text-gray-900" : "text-gray-400"}`}
-      >
+      <span className={`text-sm font-medium ${active ? "text-gray-900" : "text-gray-400"}`}>
         {label}
       </span>
     </div>

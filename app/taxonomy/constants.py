@@ -27,18 +27,18 @@ ENG level convention:
 # ── ENG level-based entry generator ──────────────────────────────────────────
 
 _ENG_SERVICES: list[tuple[str, str]] = [
-    ("AAR",  "Auto Accident Reconstruction"),
-    ("CT",   "Component Testing"),
-    ("DA",   "Damage Assessment"),
-    ("CAO",  "Engineering Cause and Origin"),
-    ("EA",   "Engineering Analysis"),
-    ("FA",   "Failure Analysis"),
-    ("FOC",  "Fire Origin and Cause"),
-    ("PR",   "Peer Review"),
-    ("RPT",  "Reporting"),
-    ("EWD",  "Expert Witness / Deposition"),
-    ("AOS",  "Admin and Office Support"),
-    ("PM",   "Project Management"),
+    ("AAR", "Auto Accident Reconstruction"),
+    ("CT", "Component Testing"),
+    ("DA", "Damage Assessment"),
+    ("CAO", "Engineering Cause and Origin"),
+    ("EA", "Engineering Analysis"),
+    ("FA", "Failure Analysis"),
+    ("FOC", "Fire Origin and Cause"),
+    ("PR", "Peer Review"),
+    ("RPT", "Reporting"),
+    ("EWD", "Expert Witness / Deposition"),
+    ("AOS", "Admin and Office Support"),
+    ("PM", "Project Management"),
 ]
 
 _ENG_LEVEL_TITLES: dict[int, str] = {

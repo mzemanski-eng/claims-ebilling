@@ -40,9 +40,7 @@ def _get_client():
         _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         return _client
     except ImportError:
-        logger.warning(
-            "anthropic package not installed — contract parsing disabled"
-        )
+        logger.warning("anthropic package not installed — contract parsing disabled")
         return None
     except Exception as exc:
         logger.warning("Could not initialise Anthropic client: %s", exc)

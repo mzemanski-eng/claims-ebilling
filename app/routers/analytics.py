@@ -27,7 +27,12 @@ from app.database import get_db
 from app.models.invoice import Invoice, LineItem
 from app.models.supplier import Supplier, UserRole
 from app.models.taxonomy import TaxonomyItem
-from app.models.validation import ExceptionRecord, ExceptionStatus, RequiredAction, ValidationResult
+from app.models.validation import (
+    ExceptionRecord,
+    ExceptionStatus,
+    RequiredAction,
+    ValidationResult,
+)
 from app.routers.auth import require_role
 
 router = APIRouter(prefix="/admin/analytics", tags=["analytics"])
@@ -53,45 +58,29 @@ def get_analytics_summary(
     """
 
     # Total billed: sum raw_amount across all non-draft/non-processing invoices
-    total_billed = (
-        db.query(func.sum(LineItem.raw_amount))
-        .join(Invoice)
-        .filter(Invoice.status.notin_(["DRAFT", "PROCESSING"]))
-        .scalar()
-        or Decimal(0)
-    )
+    total_billed = db.query(func.sum(LineItem.raw_amount)).join(Invoice).filter(
+        Invoice.status.notin_(["DRAFT", "PROCESSING"])
+    ).scalar() or Decimal(0)
 
     # Total approved: expected_amount on finalized invoices, excluding denied lines
-    total_approved = (
-        db.query(func.sum(LineItem.expected_amount))
-        .join(Invoice)
-        .filter(
-            Invoice.status.in_(["APPROVED", "EXPORTED"]),
-            LineItem.status != "DENIED",
-            LineItem.expected_amount.isnot(None),
-        )
-        .scalar()
-        or Decimal(0)
-    )
+    total_approved = db.query(func.sum(LineItem.expected_amount)).join(Invoice).filter(
+        Invoice.status.in_(["APPROVED", "EXPORTED"]),
+        LineItem.status != "DENIED",
+        LineItem.expected_amount.isnot(None),
+    ).scalar() or Decimal(0)
 
     # Identified savings: lines where billed exceeded contract rate (approved < billed)
-    total_savings = (
-        db.query(func.sum(LineItem.raw_amount - LineItem.expected_amount))
-        .join(Invoice)
-        .filter(
-            Invoice.status.in_(["APPROVED", "EXPORTED"]),
-            LineItem.expected_amount.isnot(None),
-            LineItem.raw_amount > LineItem.expected_amount,
-        )
-        .scalar()
-        or Decimal(0)
-    )
+    total_savings = db.query(
+        func.sum(LineItem.raw_amount - LineItem.expected_amount)
+    ).join(Invoice).filter(
+        Invoice.status.in_(["APPROVED", "EXPORTED"]),
+        LineItem.expected_amount.isnot(None),
+        LineItem.raw_amount > LineItem.expected_amount,
+    ).scalar() or Decimal(0)
 
     # Invoice counts by status (all statuses — let the frontend filter)
     status_rows = (
-        db.query(Invoice.status, func.count(Invoice.id))
-        .group_by(Invoice.status)
-        .all()
+        db.query(Invoice.status, func.count(Invoice.id)).group_by(Invoice.status).all()
     )
 
     # Open exception count (OPEN only)
@@ -222,9 +211,7 @@ def get_spend_by_taxonomy(
                 "total_approved"
             ),
         )
-        .join(
-            TaxonomyItem, LineItem.taxonomy_code == TaxonomyItem.code, isouter=True
-        )
+        .join(TaxonomyItem, LineItem.taxonomy_code == TaxonomyItem.code, isouter=True)
         .filter(LineItem.taxonomy_code.isnot(None))
         .group_by(LineItem.taxonomy_code, TaxonomyItem.label, TaxonomyItem.domain)
         .order_by(func.sum(LineItem.raw_amount).desc())
@@ -271,8 +258,7 @@ def get_exception_breakdown(
     )
 
     return [
-        {"validation_type": row.validation_type, "count": row.count}
-        for row in rows
+        {"validation_type": row.validation_type, "count": row.count} for row in rows
     ]
 
 
@@ -430,7 +416,9 @@ def get_supplier_comparison(
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=supplier-comparison.csv"},
+            headers={
+                "Content-Disposition": "attachment; filename=supplier-comparison.csv"
+            },
         )
 
     return records
@@ -460,7 +448,9 @@ def get_ai_accuracy(
             ExceptionRecord.ai_recommendation,
             func.count(ExceptionRecord.id).label("total"),
             func.sum(
-                case((ExceptionRecord.ai_recommendation_accepted.isnot(None), 1), else_=0)
+                case(
+                    (ExceptionRecord.ai_recommendation_accepted.isnot(None), 1), else_=0
+                )
             ).label("resolved"),
             func.sum(
                 case((ExceptionRecord.ai_recommendation_accepted == True, 1), else_=0)  # noqa: E712
@@ -489,7 +479,9 @@ def get_ai_accuracy(
             "recommended": r.total,
             "resolved": r.resolved,
             "accepted": r.accepted,
-            "acceptance_rate": round(r.accepted / r.resolved, 4) if r.resolved else None,
+            "acceptance_rate": round(r.accepted / r.resolved, 4)
+            if r.resolved
+            else None,
         }
         for r in rows
     ]

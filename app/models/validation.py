@@ -235,7 +235,7 @@ class ExceptionRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     ai_recommendation_accepted: Mapped[Optional[bool]] = mapped_column(
         nullable=True,
         comment="True if carrier chose the AI recommendation; False if overridden; "
-                "NULL if no AI recommendation existed at resolution time",
+        "NULL if no AI recommendation existed at resolution time",
     )
 
     # Relationships
