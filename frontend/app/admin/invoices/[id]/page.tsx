@@ -175,16 +175,30 @@ function defaultResolutionAction(requiredAction: string): string {
 function ExceptionRow({
   exc,
   invoiceId,
+  lineClassificationSuggestion,
 }: {
   exc: LineItemCarrierView["exceptions"][number];
   invoiceId: string;
+  lineClassificationSuggestion: LineItemCarrierView["ai_classification_suggestion"];
 }) {
   const qc = useQueryClient();
   const toast = useToast();
-  // Pre-select AI recommendation when present; fall back to rule-based default
-  const [action, setAction] = useState<string>(
-    () => exc.ai_recommendation ?? defaultResolutionAction(exc.required_action)
-  );
+  // Pre-select in priority order:
+  //   1. AI exception recommendation (from exception_resolver)
+  //   2. RECLASSIFIED — when the parent line has a HIGH/MEDIUM confidence classification
+  //      suggestion, that's exactly what the carrier should do: reclassify
+  //   3. Rule-based default from required_action
+  const [action, setAction] = useState<string>(() => {
+    if (exc.ai_recommendation) return exc.ai_recommendation;
+    if (
+      lineClassificationSuggestion?.verdict === "SUGGESTED" &&
+      (lineClassificationSuggestion.confidence === "HIGH" ||
+        lineClassificationSuggestion.confidence === "MEDIUM")
+    ) {
+      return "RECLASSIFIED";
+    }
+    return defaultResolutionAction(exc.required_action);
+  });
   const [notes, setNotes] = useState("");
 
   const resolveMut = useMutation({
@@ -722,6 +736,9 @@ export default function AdminInvoiceDetailPage({
                                 key={exc.exception_id}
                                 exc={exc}
                                 invoiceId={id}
+                                lineClassificationSuggestion={
+                                  line.ai_classification_suggestion
+                                }
                               />
                             ))}
                           </div>
