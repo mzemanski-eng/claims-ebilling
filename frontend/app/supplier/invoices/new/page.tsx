@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createInvoice, listSupplierContracts, uploadInvoiceFile } from "@/lib/api";
@@ -21,7 +21,35 @@ export default function NewInvoicePage() {
   // Step 2: file upload
   const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [stepError, setStepError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (!dropped) return;
+    if (!dropped.name.endsWith(".csv") && dropped.type !== "text/csv") {
+      setStepError("Please drop a CSV file.");
+      return;
+    }
+    setStepError(null);
+    setFile(dropped);
+  }
 
   // Load supplier's active contracts
   const { data: contracts, isLoading: contractsLoading } = useQuery({
@@ -209,50 +237,61 @@ export default function NewInvoicePage() {
             )}
 
             {/* Drop zone */}
-            <label
-              htmlFor="file-upload"
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 transition-colors ${
-                file
-                  ? "border-blue-400 bg-blue-50"
-                  : "border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50"
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="sr-only"
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); setStepError(null); }}
+            />
+            <div
+              onClick={() => !uploadMutation.isPending && fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-12 text-center transition-colors ${
+                uploadMutation.isPending
+                  ? "border-blue-300 bg-blue-50 cursor-default"
+                  : file
+                  ? "border-blue-400 bg-blue-50 cursor-pointer"
+                  : isDragOver
+                  ? "border-blue-500 bg-blue-50 cursor-copy"
+                  : "border-gray-300 bg-gray-50 cursor-pointer hover:border-blue-400 hover:bg-blue-50"
               }`}
             >
-              <svg
-                className={`mb-3 h-10 w-10 ${file ? "text-blue-500" : "text-gray-400"}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              {file ? (
-                <div className="text-center">
+              {uploadMutation.isPending ? (
+                <>
+                  <span className="h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                  <p className="text-sm font-medium text-blue-700">Processing invoice…</p>
+                  <p className="text-xs text-blue-400">Classifying lines and validating rates</p>
+                </>
+              ) : file ? (
+                <>
+                  <svg className="h-9 w-9 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                   <p className="text-sm font-medium text-blue-700">{file.name}</p>
-                  <p className="mt-0.5 text-xs text-blue-500">
-                    {(file.size / 1024).toFixed(1)} KB · Click to change
-                  </p>
-                </div>
+                  <p className="text-xs text-blue-500">{(file.size / 1024).toFixed(1)} KB · Click to change</p>
+                </>
+              ) : isDragOver ? (
+                <>
+                  <svg className="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-sm font-medium text-blue-700">Drop to upload</p>
+                </>
               ) : (
-                <div className="text-center">
-                  <p className="text-sm font-medium text-gray-700">
-                    Choose a file or drag &amp; drop
+                <>
+                  <svg className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-sm font-medium text-gray-700">Drop your CSV here</p>
+                  <p className="text-xs text-gray-400">
+                    or <span className="text-blue-600 underline">click to browse</span> · .csv up to 10 MB
                   </p>
-                  <p className="mt-0.5 text-xs text-gray-400">.csv up to 10 MB</p>
-                </div>
+                </>
               )}
-              <input
-                id="file-upload"
-                type="file"
-                accept=".csv"
-                className="sr-only"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
+            </div>
 
             <div className="flex justify-end gap-3 pt-2">
               <Button
