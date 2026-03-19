@@ -18,9 +18,9 @@ export default function RootPage() {
     }
 
     if (role === "SUPPLIER") {
-      router.replace("/supplier/invoices");
+      router.replace("/supplier");
     } else if (role === "CARRIER_ADMIN" || role === "CARRIER_REVIEWER") {
-      router.replace("/carrier/queue");
+      router.replace("/admin");
     } else if (role === "SYSTEM_ADMIN") {
       router.replace("/admin");
     } else {

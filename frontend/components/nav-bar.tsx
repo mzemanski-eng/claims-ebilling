@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearToken, getUserInfo, isAdmin, isCarrierRole, isSupplier } from "@/lib/auth";
+import { clearToken, getUserInfo, isAdmin, isCarrierAdmin, isCarrierRole, isSupplier } from "@/lib/auth";
 
-// ── Admin nav link definitions ─────────────────────────────────────────────────
+// ── Nav link definitions ───────────────────────────────────────────────────────
 // exact: true means only highlight when path matches exactly (not prefix)
 
+/** Full admin nav — CARRIER_ADMIN and SYSTEM_ADMIN */
 const ADMIN_LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/admin",           label: "Dashboard",     exact: true },
   { href: "/admin/invoices",  label: "Invoice Queue" },
@@ -15,6 +16,13 @@ const ADMIN_LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/admin/mappings",  label: "Mappings" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/team",      label: "Team" },
+];
+
+/** Focused auditor nav — CARRIER_REVIEWER only (no management pages) */
+const REVIEWER_LINKS: { href: string; label: string; exact?: boolean }[] = [
+  { href: "/admin",          label: "Dashboard",     exact: true },
+  { href: "/admin/invoices", label: "Invoice Queue" },
+  { href: "/admin/mappings", label: "Mappings" },
 ];
 
 // ── NavLink helper ─────────────────────────────────────────────────────────────
@@ -60,6 +68,11 @@ export function NavBar() {
     return pathname.startsWith(href);
   }
 
+  // Pick which link set to render for carrier/admin roles
+  const adminLinks = isCarrierRole() && !isCarrierAdmin()
+    ? REVIEWER_LINKS   // CARRIER_REVIEWER — focused auditor nav
+    : ADMIN_LINKS;     // CARRIER_ADMIN + SYSTEM_ADMIN — full nav
+
   return (
     <nav className="border-b bg-white shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
@@ -76,9 +89,13 @@ export function NavBar() {
 
         {/* Links */}
         <div className="flex items-center gap-1">
+          {/* Supplier nav */}
           {isSupplier() && (
             <>
-              <NavLink href="/supplier/invoices" active={isActive("/supplier/invoices", true)}>
+              <NavLink href="/supplier" active={isActive("/supplier", true)}>
+                Dashboard
+              </NavLink>
+              <NavLink href="/supplier/invoices" active={isActive("/supplier/invoices")}>
                 My Invoices
               </NavLink>
               <NavLink href="/supplier/invoices/new" active={isActive("/supplier/invoices/new")}>
@@ -87,14 +104,9 @@ export function NavBar() {
             </>
           )}
 
-          {isCarrierRole() && (
-            <NavLink href="/carrier/queue" active={isActive("/carrier/queue")}>
-              Review Queue
-            </NavLink>
-          )}
-
+          {/* Carrier / admin nav (role-appropriate link set) */}
           {isAdmin() &&
-            ADMIN_LINKS.map((link) => (
+            adminLinks.map((link) => (
               <NavLink
                 key={link.href}
                 href={link.href}
@@ -105,6 +117,23 @@ export function NavBar() {
             ))}
 
           <div className="ml-3 flex items-center gap-3 border-l pl-4">
+            {/* Role pill */}
+            {user?.role && (
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                user.role === "CARRIER_REVIEWER"
+                  ? "bg-blue-50 text-blue-600"
+                  : user.role === "CARRIER_ADMIN"
+                  ? "bg-violet-50 text-violet-600"
+                  : user.role === "SYSTEM_ADMIN"
+                  ? "bg-red-50 text-red-600"
+                  : "bg-gray-100 text-gray-500"
+              }`}>
+                {user.role === "CARRIER_REVIEWER" ? "Auditor"
+                  : user.role === "CARRIER_ADMIN" ? "Admin"
+                  : user.role === "SYSTEM_ADMIN" ? "System"
+                  : "Supplier"}
+              </span>
+            )}
             <span className="text-xs text-gray-400">{user?.email}</span>
             <button
               onClick={handleLogout}

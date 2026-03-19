@@ -5,9 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getAnalyticsSummary,
   listAdminInvoices,
+  getMappingReviewQueue,
 } from "@/lib/api";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
+import { getUserInfo, isCarrierAdmin } from "@/lib/auth";
 import type { InvoiceListItem } from "@/lib/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -146,6 +148,9 @@ function QuickAction({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
+  const user = getUserInfo();
+  const isAdmin = isCarrierAdmin() || user?.role === "SYSTEM_ADMIN";
+
   const { data: summary, isLoading: loadingSummary } = useQuery({
     queryKey: ["analytics-summary"],
     queryFn: getAnalyticsSummary,
@@ -159,6 +164,11 @@ export default function AdminDashboard() {
   const { data: pendingInvoices, isLoading: loadingPending } = useQuery({
     queryKey: ["admin-invoices", "PENDING_CARRIER_REVIEW"],
     queryFn: () => listAdminInvoices({ statusFilter: "PENDING_CARRIER_REVIEW" }),
+  });
+
+  const { data: mappingQueue } = useQuery({
+    queryKey: ["mapping-queue"],
+    queryFn: getMappingReviewQueue,
   });
 
   // Approval rate: APPROVED / (APPROVED + REVIEW_REQUIRED + PENDING + EXPORTED)
@@ -177,15 +187,59 @@ export default function AdminDashboard() {
     return `${Math.round((approved / total) * 100)}%`;
   })();
 
+  const flaggedCount  = flaggedInvoices?.length ?? 0;
+  const mappingCount  = mappingQueue?.length ?? 0;
+  const hasAlerts     = flaggedCount > 0 || mappingCount > 0;
+
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {user?.role === "CARRIER_REVIEWER" ? "My Dashboard" : "Dashboard"}
+        </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Invoice processing overview — all active carriers
+          {user?.carrier_name
+            ? `${user.carrier_name} · Invoice processing overview`
+            : "Invoice processing overview"}
         </p>
       </div>
+
+      {/* Alert strip */}
+      {hasAlerts && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          {flaggedCount > 0 && (
+            <Link
+              href="/admin/invoices?status=REVIEW_REQUIRED"
+              className="flex flex-1 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors"
+            >
+              <span className="text-lg">🚨</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-red-800">
+                  {flaggedCount} invoice{flaggedCount !== 1 ? "s" : ""} flagged for review
+                </p>
+                <p className="text-xs text-red-500">Unresolved validation exceptions · click to open queue</p>
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-red-600">View →</span>
+            </Link>
+          )}
+          {mappingCount > 0 && (
+            <Link
+              href="/admin/mappings"
+              className="flex flex-1 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors"
+            >
+              <span className="text-lg">🗂</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-800">
+                  {mappingCount} line{mappingCount !== 1 ? "s" : ""} need mapping review
+                </p>
+                <p className="text-xs text-amber-500">Low-confidence AI classifications · click to review</p>
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-amber-600">Review →</span>
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
