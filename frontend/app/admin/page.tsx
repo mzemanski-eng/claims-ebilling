@@ -153,7 +153,7 @@ export default function AdminDashboard() {
 
   const { data: summary, isLoading: loadingSummary } = useQuery({
     queryKey: ["analytics-summary"],
-    queryFn: getAnalyticsSummary,
+    queryFn: () => getAnalyticsSummary(),
   });
 
   const { data: flaggedInvoices, isLoading: loadingFlagged } = useQuery({
