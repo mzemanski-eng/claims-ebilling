@@ -43,6 +43,8 @@ function NewContractContent() {
 
   // ── AI extraction state ─────────────────────────────────────────────────────
   const [isParsing, setIsParsing] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadedFilename, setUploadedFilename] = useState<string | null>(null);
   const [extractionNotes, setExtractionNotes] = useState("");
   const [rateCards, setRateCards] = useState<RateCardRow[]>([]);
   const [guidelines, setGuidelines] = useState<GuidelineRow[]>([]);
@@ -57,35 +59,66 @@ function NewContractContent() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── PDF Upload handler ───────────────────────────────────────────────────────
-  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // ── PDF Upload handlers ──────────────────────────────────────────────────────
+  async function processPdfFile(file: File) {
     if (!supplierId) {
       setError("Please select a supplier before uploading a PDF.");
       return;
     }
     setError(null);
     setIsParsing(true);
+    setUploadedFilename(file.name);
     try {
       const result = await parseContractPdf(supplierId, file);
       // Pre-fill form fields
       if (result.contract.name) setName(result.contract.name);
       if (result.contract.effective_from) setEffectiveFrom(result.contract.effective_from);
-      if (result.contract.effective_to) setEffectiveTo(result.contract.effective_to);
+      if (result.contract.effective_to) setEffectiveTo(result.contract.effective_to ?? "");
       if (result.contract.geography_scope) setGeographyScope(result.contract.geography_scope);
-      if (result.contract.notes) setNotes(result.contract.notes);
+      if (result.contract.notes) setNotes(result.contract.notes ?? "");
       // Load extracted rate cards and guidelines
       setRateCards(result.rate_cards.map((rc) => ({ ...rc, _key: nextKey() })));
       setGuidelines(result.guidelines.map((g) => ({ ...g, _key: nextKey() })));
       setExtractionNotes(result.extraction_notes);
     } catch (err) {
       setError(err instanceof Error ? err.message : "PDF parsing failed");
+      setUploadedFilename(null);
     } finally {
       setIsParsing(false);
       // Reset file input so same file can be re-uploaded
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processPdfFile(file);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }
+
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      setError("Please drop a PDF file.");
+      return;
+    }
+    await processPdfFile(file);
   }
 
   // ── Submit handler ───────────────────────────────────────────────────────────
@@ -155,36 +188,64 @@ function NewContractContent() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Contract details card */}
         <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">Contract Details</h2>
-            {/* PDF Upload */}
-            <div className="flex items-center gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf"
-                className="hidden"
-                onChange={handlePdfUpload}
-                id="pdf-upload"
-              />
-              <label
-                htmlFor="pdf-upload"
-                className={`cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isParsing
-                    ? "border-blue-300 bg-blue-50 text-blue-500"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {isParsing ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                    Reading contract with AI…
-                  </span>
-                ) : (
-                  "📄 Upload PDF Contract"
-                )}
-              </label>
-            </div>
+          <h2 className="text-base font-semibold text-gray-900">Contract Details</h2>
+
+          {/* Drop zone */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={handlePdfUpload}
+          />
+          <div
+            onClick={() => !isParsing && fileInputRef.current?.click()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-colors ${
+              isParsing
+                ? "border-blue-300 bg-blue-50 cursor-default"
+                : uploadedFilename
+                ? "border-green-300 bg-green-50 cursor-pointer"
+                : isDragOver
+                ? "border-blue-400 bg-blue-50 cursor-copy"
+                : "border-gray-200 bg-gray-50 cursor-pointer hover:border-blue-300 hover:bg-blue-50"
+            }`}
+          >
+            {isParsing ? (
+              <>
+                <span className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                <p className="text-sm font-medium text-blue-700">Reading contract with AI…</p>
+                <p className="text-xs text-blue-400">This may take a moment</p>
+              </>
+            ) : uploadedFilename ? (
+              <>
+                <span className="text-2xl">✅</span>
+                <p className="text-sm font-medium text-green-700">{uploadedFilename}</p>
+                <p className="text-xs text-green-600">Contract extracted — review the fields below</p>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  className="mt-1 text-xs text-gray-400 hover:text-gray-600 underline"
+                >
+                  Upload a different file
+                </button>
+              </>
+            ) : isDragOver ? (
+              <>
+                <span className="text-3xl">📄</span>
+                <p className="text-sm font-medium text-blue-700">Drop to upload</p>
+              </>
+            ) : (
+              <>
+                <span className="text-3xl">📄</span>
+                <p className="text-sm font-medium text-gray-700">Drop your PDF contract here</p>
+                <p className="text-xs text-gray-400">
+                  or <span className="text-blue-600 underline">click to browse</span> · PDF files only
+                </p>
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
