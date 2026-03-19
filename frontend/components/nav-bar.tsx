@@ -1,81 +1,77 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearToken, getUserInfo, isAdmin, isCarrierAdmin, isCarrierRole, isSupplier } from "@/lib/auth";
 
-// ── Nav link definitions ───────────────────────────────────────────────────────
-// exact: true means only highlight when path matches exactly (not prefix)
+// ── Nav structure ──────────────────────────────────────────────────────────────
+
+type NavLink  = { type: "link";  href: string; label: string; exact?: boolean };
+type NavGroup = { type: "group"; label: string; items: { href: string; label: string }[] };
+type NavItem  = NavLink | NavGroup;
 
 /** Full admin nav — CARRIER_ADMIN and SYSTEM_ADMIN */
-const ADMIN_LINKS: { href: string; label: string; exact?: boolean }[] = [
-  { href: "/admin",           label: "Dashboard",     exact: true },
-  { href: "/admin/invoices",  label: "Invoice Queue" },
-  { href: "/admin/suppliers", label: "Suppliers" },
-  { href: "/admin/contracts", label: "Contracts" },
-  { href: "/admin/mappings",  label: "Classification Review" },
-  { href: "/admin/analytics", label: "Analytics" },
-  { href: "/admin/team",      label: "Team" },
+const ADMIN_NAV: NavItem[] = [
+  { type: "link",  href: "/admin",           label: "Dashboard", exact: true },
+  { type: "group", label: "Invoices", items: [
+    { href: "/admin/invoices",  label: "Invoice Queue" },
+    { href: "/admin/mappings",  label: "Classification Review" },
+  ]},
+  { type: "group", label: "Operations", items: [
+    { href: "/admin/suppliers", label: "Suppliers" },
+    { href: "/admin/contracts", label: "Contracts" },
+  ]},
+  { type: "link",  href: "/admin/analytics", label: "Analytics" },
+  { type: "link",  href: "/admin/team",      label: "Team" },
 ];
 
-/** Focused auditor nav — CARRIER_REVIEWER only (no management pages) */
-const REVIEWER_LINKS: { href: string; label: string; exact?: boolean }[] = [
-  { href: "/admin",          label: "Dashboard",     exact: true },
-  { href: "/admin/invoices", label: "Invoice Queue" },
-  { href: "/admin/mappings", label: "Classification Review" },
+/** Focused auditor nav — CARRIER_REVIEWER only */
+const REVIEWER_NAV: NavItem[] = [
+  { type: "link",  href: "/admin",          label: "Dashboard", exact: true },
+  { type: "group", label: "Invoices", items: [
+    { href: "/admin/invoices", label: "Invoice Queue" },
+    { href: "/admin/mappings", label: "Classification Review" },
+  ]},
 ];
 
-// ── NavLink helper ─────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-function NavLink({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`rounded px-3 py-1.5 text-sm transition-colors ${
-        active
-          ? "bg-blue-50 text-blue-700 font-semibold"
-          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-      }`}
-    >
-      {children}
-    </Link>
-  );
-}
+const linkCls = (active: boolean) =>
+  `rounded px-3 py-1.5 text-sm transition-colors ${
+    active
+      ? "bg-blue-50 text-blue-700 font-semibold"
+      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+  }`;
 
 // ── NavBar ─────────────────────────────────────────────────────────────────────
 
 export function NavBar() {
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
-  const user = getUserInfo();
+  const user     = getUserInfo();
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   function handleLogout() {
     clearToken();
     router.push("/login");
   }
 
-  /** True when this link should be highlighted as active. */
   function isActive(href: string, exact?: boolean): boolean {
     if (exact) return pathname === href;
     return pathname.startsWith(href);
   }
 
-  // Pick which link set to render for carrier/admin roles
-  const adminLinks = isCarrierRole() && !isCarrierAdmin()
-    ? REVIEWER_LINKS   // CARRIER_REVIEWER — focused auditor nav
-    : ADMIN_LINKS;     // CARRIER_ADMIN + SYSTEM_ADMIN — full nav
+  function groupIsActive(items: { href: string }[]): boolean {
+    return items.some((i) => pathname.startsWith(i.href));
+  }
+
+  const adminNav = isCarrierRole() && !isCarrierAdmin() ? REVIEWER_NAV : ADMIN_NAV;
 
   return (
     <nav className="border-b bg-white shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+
         {/* Brand */}
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <span className="text-lg font-bold text-blue-700">Claims eBilling</span>
@@ -89,48 +85,92 @@ export function NavBar() {
 
         {/* Links */}
         <div className="flex items-center gap-1">
+
           {/* Supplier nav */}
           {isSupplier() && (
             <>
-              <NavLink href="/supplier" active={isActive("/supplier", true)}>
+              <Link href="/supplier" className={linkCls(isActive("/supplier", true))}>
                 Dashboard
-              </NavLink>
-              <NavLink href="/supplier/invoices" active={isActive("/supplier/invoices")}>
+              </Link>
+              <Link href="/supplier/invoices" className={linkCls(isActive("/supplier/invoices"))}>
                 My Invoices
-              </NavLink>
-              <NavLink href="/supplier/invoices/new" active={isActive("/supplier/invoices/new")}>
+              </Link>
+              <Link href="/supplier/invoices/new" className={linkCls(isActive("/supplier/invoices/new"))}>
                 + New Invoice
-              </NavLink>
+              </Link>
             </>
           )}
 
-          {/* Carrier / admin nav (role-appropriate link set) */}
-          {isAdmin() &&
-            adminLinks.map((link) => (
-              <NavLink
-                key={link.href}
-                href={link.href}
-                active={isActive(link.href, link.exact)}
-              >
-                {link.label}
-              </NavLink>
-            ))}
+          {/* Carrier / admin nav */}
+          {isAdmin() && adminNav.map((item) => {
+            if (item.type === "link") {
+              return (
+                <Link key={item.href} href={item.href} className={linkCls(isActive(item.href, item.exact))}>
+                  {item.label}
+                </Link>
+              );
+            }
 
+            // Dropdown group
+            const active = groupIsActive(item.items);
+            const open   = openGroup === item.label;
+            return (
+              <div
+                key={item.label}
+                className="relative"
+                onMouseEnter={() => setOpenGroup(item.label)}
+                onMouseLeave={() => setOpenGroup(null)}
+              >
+                <button
+                  className={`flex items-center gap-1 rounded px-3 py-1.5 text-sm transition-colors ${
+                    active
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  }`}
+                >
+                  {item.label}
+                  <svg
+                    className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {open && (
+                  <div className="absolute left-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                    {item.items.map((sub) => (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={() => setOpenGroup(null)}
+                        className={`block px-4 py-2 text-sm transition-colors ${
+                          isActive(sub.href)
+                            ? "bg-blue-50 text-blue-700 font-semibold"
+                            : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* User strip */}
           <div className="ml-3 flex items-center gap-3 border-l pl-4">
-            {/* Role pill */}
             {user?.role && (
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                user.role === "CARRIER_REVIEWER"
-                  ? "bg-blue-50 text-blue-600"
-                  : user.role === "CARRIER_ADMIN"
-                  ? "bg-violet-50 text-violet-600"
-                  : user.role === "SYSTEM_ADMIN"
-                  ? "bg-red-50 text-red-600"
-                  : "bg-gray-100 text-gray-500"
+                user.role === "CARRIER_REVIEWER" ? "bg-blue-50 text-blue-600"
+                : user.role === "CARRIER_ADMIN"  ? "bg-violet-50 text-violet-600"
+                : user.role === "SYSTEM_ADMIN"   ? "bg-red-50 text-red-600"
+                : "bg-gray-100 text-gray-500"
               }`}>
                 {user.role === "CARRIER_REVIEWER" ? "Auditor"
                   : user.role === "CARRIER_ADMIN" ? "Admin"
-                  : user.role === "SYSTEM_ADMIN" ? "System"
+                  : user.role === "SYSTEM_ADMIN"  ? "System"
                   : "Supplier"}
               </span>
             )}
@@ -143,6 +183,7 @@ export function NavBar() {
             </button>
           </div>
         </div>
+
       </div>
     </nav>
   );
