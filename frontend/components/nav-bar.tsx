@@ -21,9 +21,9 @@ const ADMIN_NAV: NavItem[] = [
   { type: "group", label: "Operations", items: [
     { href: "/admin/suppliers", label: "Suppliers" },
     { href: "/admin/contracts", label: "Contracts" },
+    { href: "/admin/team",      label: "Team" },
   ]},
   { type: "link",  href: "/admin/analytics", label: "Analytics" },
-  { type: "link",  href: "/admin/team",      label: "Team" },
 ];
 
 /** Focused auditor nav — CARRIER_REVIEWER only */
