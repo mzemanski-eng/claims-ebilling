@@ -15,6 +15,8 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  Area,
+  AreaChart,
 } from "recharts";
 import { MetricCard } from "@/components/metric-card";
 import Link from "next/link";
@@ -26,12 +28,24 @@ import {
   getExceptionBreakdown,
   getRateGaps,
   getAiAccuracy,
+  getSupplierComparison,
   getSupplierComparisonCsv,
   getSpendByState,
   getSpendByZip,
+  getSpendTrend,
+  getContractHealth,
   downloadBlob,
 } from "@/lib/api";
-import type { AiAccuracyByAction, RateGap, SpendByState, SpendByTaxonomy, SpendByZip } from "@/lib/types";
+import type {
+  AiAccuracyByAction,
+  ContractHealth,
+  RateGap,
+  SpendByState,
+  SpendByTaxonomy,
+  SpendByZip,
+  SpendTrend,
+  SupplierComparisonRow,
+} from "@/lib/types";
 
 // ── Dynamic map import (avoids SSR issues with react-simple-maps) ─────────────
 const USSpendMap = dynamic(() => import("@/components/us-spend-map"), {
@@ -151,7 +165,7 @@ function SupplierTooltip({ active, payload, label }: any) {
 
 // ── Sort types ────────────────────────────────────────────────────────────────
 
-type SortKey = "taxonomy_code" | "label" | "line_count" | "total_billed" | "total_approved" | "variance";
+type SortKey = "taxonomy_code" | "label" | "line_count" | "total_billed" | "total_approved" | "variance" | "total_quantity" | "avg_billed_rate";
 type SortDir = "asc" | "desc";
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -214,6 +228,24 @@ export default function AdminAnalyticsPage() {
     queryKey: ["analytics-by-zip", selectedState],
     queryFn: () => getSpendByZip(selectedState ?? undefined),
   });
+
+  const { data: supplierComparison } = useQuery({
+    queryKey: ["analytics-supplier-comparison"],
+    queryFn: getSupplierComparison,
+  });
+
+  const { data: spendTrend } = useQuery({
+    queryKey: ["analytics-spend-trend"],
+    queryFn: () => getSpendTrend("month"),
+  });
+
+  const { data: contractHealth } = useQuery({
+    queryKey: ["analytics-contract-health"],
+    queryFn: getContractHealth,
+  });
+
+  const [compSortKey, setCompSortKey] = useState<"total_billed" | "total_savings" | "exception_rate">("total_billed");
+  const [compSortDir, setCompSortDir] = useState<"asc" | "desc">("desc");
 
   const isLoading =
     loadingSummary || loadingDomain || loadingSupplier || loadingTaxonomy || loadingEx;
@@ -294,6 +326,14 @@ export default function AdminAnalyticsPage() {
         case "variance":
           va = parseFloat(a.total_billed) - parseFloat(a.total_approved);
           vb = parseFloat(b.total_billed) - parseFloat(b.total_approved);
+          break;
+        case "total_quantity":
+          va = parseFloat(a.total_quantity ?? "0");
+          vb = parseFloat(b.total_quantity ?? "0");
+          break;
+        case "avg_billed_rate":
+          va = parseFloat(a.avg_billed_rate ?? "0");
+          vb = parseFloat(b.avg_billed_rate ?? "0");
           break;
       }
       if (va < vb) return sort.dir === "asc" ? -1 : 1;
@@ -638,6 +678,20 @@ export default function AdminAnalyticsPage() {
                       </th>
                       <th
                         className="cursor-pointer px-4 py-3 font-semibold text-gray-600 text-right hover:text-blue-600"
+                        onClick={() => toggleSort("total_quantity")}
+                        title="Total units / hours billed across all lines"
+                      >
+                        Units <SortIcon col="total_quantity" />
+                      </th>
+                      <th
+                        className="cursor-pointer px-4 py-3 font-semibold text-gray-600 text-right hover:text-blue-600"
+                        onClick={() => toggleSort("avg_billed_rate")}
+                        title="Average billed amount per unit"
+                      >
+                        Avg Rate <SortIcon col="avg_billed_rate" />
+                      </th>
+                      <th
+                        className="cursor-pointer px-4 py-3 font-semibold text-gray-600 text-right hover:text-blue-600"
                         onClick={() => toggleSort("total_billed")}
                       >
                         Billed <SortIcon col="total_billed" />
@@ -666,7 +720,7 @@ export default function AdminAnalyticsPage() {
                             className="bg-gray-50"
                           >
                             <td
-                              colSpan={6}
+                              colSpan={8}
                               className="px-4 py-2 font-semibold text-gray-500"
                               style={{
                                 borderLeft: `3px solid ${DOMAIN_COLORS[domain] ?? "#9CA3AF"}`,
@@ -679,6 +733,8 @@ export default function AdminAnalyticsPage() {
                             const billed = parseFloat(row.total_billed);
                             const approved = parseFloat(row.total_approved);
                             const variance = billed - approved;
+                            const qty = parseFloat(row.total_quantity ?? "0");
+                            const avgRate = row.avg_billed_rate ? parseFloat(row.avg_billed_rate) : null;
                             return (
                               <tr
                                 key={row.taxonomy_code}
@@ -692,6 +748,12 @@ export default function AdminAnalyticsPage() {
                                 </td>
                                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
                                   {row.line_count}
+                                </td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600" title="Total units / hours across all lines">
+                                  {qty > 0 ? qty.toLocaleString("en-US", { maximumFractionDigits: 1 }) : "—"}
+                                </td>
+                                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600" title="Average billed rate per unit">
+                                  {avgRate != null ? formatCurrency(avgRate) : "—"}
                                 </td>
                                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-900 font-medium">
                                   {formatCurrency(row.total_billed)}
@@ -932,7 +994,325 @@ export default function AdminAnalyticsPage() {
               </div>
             )}
           </div>
-          {/* ── Section 7: Geographic Spend ──────────────────────────── */}
+          {/* ── Section 7: Spend Trend ───────────────────────────────── */}
+          <div className="rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  📈 Spend Trend
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Monthly billed vs. approved — last 18 months
+                </p>
+              </div>
+            </div>
+            {!spendTrend || spendTrend.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <p className="text-sm text-gray-400">No trend data yet — submit invoices with invoice dates to populate this chart.</p>
+              </div>
+            ) : (
+              <div className="p-5">
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart
+                    data={spendTrend.map((r: SpendTrend) => ({
+                      period: r.period,
+                      billed: parseFloat(r.total_billed),
+                      approved: parseFloat(r.total_approved),
+                      invoices: r.invoice_count,
+                    }))}
+                    margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                  >
+                    <defs>
+                      <linearGradient id="billedGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#93C5FD" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#93C5FD" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="approvedGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1D4ED8" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#1D4ED8" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="period"
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(v: string) => v.slice(5)} // show MM only
+                    />
+                    <YAxis
+                      tickFormatter={formatCurrencyShort}
+                      tick={{ fontSize: 10 }}
+                      width={64}
+                    />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        formatCurrency(value),
+                        name === "billed" ? "Billed" : "Approved",
+                      ]}
+                      labelFormatter={(label: string) => `Month: ${label}`}
+                    />
+                    <Legend
+                      formatter={(v: string) => (
+                        <span className="text-xs text-gray-700">
+                          {v === "billed" ? "Billed" : "Approved"}
+                        </span>
+                      )}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="billed"
+                      stroke="#93C5FD"
+                      strokeWidth={2}
+                      fill="url(#billedGrad)"
+                      dot={false}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="approved"
+                      stroke="#1D4ED8"
+                      strokeWidth={2}
+                      fill="url(#approvedGrad)"
+                      dot={false}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+                {/* Small summary strip */}
+                <div className="mt-3 flex items-center justify-end gap-6 text-xs text-gray-400">
+                  <span>
+                    {spendTrend.length} month{spendTrend.length !== 1 ? "s" : ""} of data
+                  </span>
+                  <span>
+                    Peak:{" "}
+                    <span className="font-medium text-gray-700">
+                      {formatCurrencyShort(
+                        Math.max(...spendTrend.map((r: SpendTrend) => parseFloat(r.total_billed)))
+                      )}
+                    </span>{" "}
+                    billed
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 8: Supplier Comparison Table ─────────────────── */}
+          <div className="rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Supplier × Service Comparison
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Side-by-side billed vs. expected per supplier and taxonomy code
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400">{supplierComparison?.length ?? 0} rows</span>
+                <button
+                  onClick={handleCsvExport}
+                  disabled={csvDownloading}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-blue-200 hover:text-blue-700 transition-all disabled:opacity-50"
+                >
+                  {csvDownloading ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-400 border-t-gray-700 inline-block" />
+                  ) : "⬇"} CSV
+                </button>
+              </div>
+            </div>
+            {!supplierComparison || supplierComparison.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-gray-400">No comparison data yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                {(() => {
+                  // Sort comparison rows
+                  const sorted = [...supplierComparison].sort((a: SupplierComparisonRow, b: SupplierComparisonRow) => {
+                    const va = compSortKey === "exception_rate"
+                      ? parseFloat(a.exception_rate)
+                      : parseFloat(a[compSortKey]);
+                    const vb = compSortKey === "exception_rate"
+                      ? parseFloat(b.exception_rate)
+                      : parseFloat(b[compSortKey]);
+                    return compSortDir === "desc" ? vb - va : va - vb;
+                  });
+
+                  // Group by supplier
+                  const bySupplierMap: Record<string, SupplierComparisonRow[]> = {};
+                  sorted.forEach((r) => {
+                    if (!bySupplierMap[r.supplier_name]) bySupplierMap[r.supplier_name] = [];
+                    bySupplierMap[r.supplier_name].push(r);
+                  });
+
+                  function CompSortBtn({ col, label }: { col: typeof compSortKey; label: string }) {
+                    const active = compSortKey === col;
+                    return (
+                      <button
+                        className={`cursor-pointer font-semibold hover:text-blue-600 ${active ? "text-blue-600" : "text-gray-600"}`}
+                        onClick={() => {
+                          if (active) setCompSortDir(d => d === "desc" ? "asc" : "desc");
+                          else { setCompSortKey(col); setCompSortDir("desc"); }
+                        }}
+                      >
+                        {label} {active ? (compSortDir === "desc" ? "↓" : "↑") : <span className="text-gray-300">↕</span>}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-gray-50 text-left">
+                          <th className="px-4 py-3 font-semibold text-gray-600">Supplier</th>
+                          <th className="px-4 py-3 font-semibold text-gray-600">Code</th>
+                          <th className="px-4 py-3 font-semibold text-gray-600">Service</th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-600">Lines</th>
+                          <th className="px-4 py-3 text-right">
+                            <CompSortBtn col="total_billed" label="Billed" />
+                          </th>
+                          <th className="px-4 py-3 text-right font-semibold text-gray-600">Expected</th>
+                          <th className="px-4 py-3 text-right">
+                            <CompSortBtn col="total_savings" label="Savings" />
+                          </th>
+                          <th className="px-4 py-3 text-right">
+                            <CompSortBtn col="exception_rate" label="Exc. Rate" />
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {Object.entries(bySupplierMap).map(([supplierName, supplierRows]) => (
+                          <>
+                            <tr key={`sup-${supplierName}`} className="bg-gray-50">
+                              <td colSpan={8} className="px-4 py-2 font-semibold text-gray-700 border-l-2 border-blue-300">
+                                {supplierName}
+                              </td>
+                            </tr>
+                            {supplierRows.map((r: SupplierComparisonRow) => {
+                              const savings = parseFloat(r.total_savings);
+                              const excRate = parseFloat(r.exception_rate);
+                              return (
+                                <tr key={`${r.supplier_id}-${r.taxonomy_code}`} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2.5" />
+                                  <td className="px-4 py-2.5 font-mono text-gray-600">{r.taxonomy_code}</td>
+                                  <td className="px-4 py-2.5 text-gray-600 max-w-[200px] truncate">{r.taxonomy_label ?? "—"}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{r.invoice_count}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900">{formatCurrency(r.total_billed)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{formatCurrency(r.total_expected)}</td>
+                                  <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${savings > 0 ? "text-green-700" : "text-gray-400"}`}>
+                                    {savings > 0 ? formatCurrency(savings) : "—"}
+                                  </td>
+                                  <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${excRate > 50 ? "text-red-600" : excRate > 20 ? "text-amber-600" : "text-gray-500"}`}>
+                                    {excRate > 0 ? `${excRate}%` : "—"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 9: Contract Health ────────────────────────────── */}
+          <div className="rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  📋 Contract Health
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Rate card coverage, expiry alerts, and per-contract exception rates
+                </p>
+              </div>
+              {contractHealth && contractHealth.length > 0 && (
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  contractHealth.some(c => c.expiry_status === "EXPIRED")
+                    ? "bg-red-100 text-red-800"
+                    : contractHealth.some(c => c.expiry_status === "EXPIRING_SOON")
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-green-100 text-green-700"
+                }`}>
+                  {contractHealth.filter(c => c.expiry_status !== "ACTIVE").length > 0
+                    ? `${contractHealth.filter(c => c.expiry_status !== "ACTIVE").length} need attention`
+                    : "✓ All healthy"}
+                </span>
+              )}
+            </div>
+            {!contractHealth || contractHealth.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-gray-400">No contracts on record yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-gray-50 text-left">
+                      <th className="px-4 py-3 font-semibold text-gray-600">Contract</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600">Supplier</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-600">Rate Cards</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-600">Invoices</th>
+                      <th className="px-4 py-3 text-right font-semibold text-gray-600">Exc. Rate</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600">Expires</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600">Status</th>
+                      <th className="w-16" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {contractHealth.map((c: ContractHealth) => {
+                      const excRatePct = (c.exception_rate * 100).toFixed(1);
+                      const expiryBadge = c.expiry_status === "EXPIRED"
+                        ? { bg: "bg-red-100 text-red-800", label: "Expired" }
+                        : c.expiry_status === "EXPIRING_SOON"
+                        ? { bg: "bg-amber-100 text-amber-800", label: c.days_to_expiry != null ? `${c.days_to_expiry}d left` : "Expiring soon" }
+                        : { bg: "bg-green-100 text-green-700", label: "Active" };
+                      return (
+                        <tr key={c.contract_id} className={`hover:bg-gray-50 ${c.expiry_status !== "ACTIVE" ? "bg-amber-50/30" : ""}`}>
+                          <td className="px-4 py-2.5 font-medium text-gray-900">{c.contract_name}</td>
+                          <td className="px-4 py-2.5 text-gray-600">{c.supplier_name}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            {c.rate_card_count > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-gray-700">
+                                <span className="font-semibold">{c.rate_card_count}</span>
+                                <span className="text-gray-400">rates</span>
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 font-semibold">⚠ 0</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{c.invoice_count}</td>
+                          <td className={`px-4 py-2.5 text-right tabular-nums font-medium ${
+                            parseFloat(excRatePct) > 50 ? "text-red-600" :
+                            parseFloat(excRatePct) > 20 ? "text-amber-600" : "text-gray-500"
+                          }`}>
+                            {c.invoice_count > 0 ? `${excRatePct}%` : "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-600">{c.effective_to ?? "Open-ended"}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${expiryBadge.bg}`}>
+                              {expiryBadge.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <Link
+                              href={`/admin/contracts/${c.contract_id}`}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                            >
+                              Edit →
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 10: Geographic Spend ──────────────────────────── */}
           <div className="rounded-xl border bg-white shadow-sm">
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>

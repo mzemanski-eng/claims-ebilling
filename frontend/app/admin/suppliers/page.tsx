@@ -475,6 +475,13 @@ export default function AdminSuppliersPage() {
                             : "Run Audit"}
                         </Button>
                         <Link
+                          href={`/admin/suppliers/${s.id}`}
+                          className="text-sm font-medium text-gray-600 hover:text-gray-900"
+                          title="View supplier scorecard"
+                        >
+                          Scorecard
+                        </Link>
+                        <Link
                           href={`/admin/invoices?supplier=${s.id}`}
                           className="text-sm font-medium text-blue-600 hover:text-blue-800"
                         >

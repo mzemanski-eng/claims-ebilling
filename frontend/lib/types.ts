@@ -330,6 +330,10 @@ export interface SpendByTaxonomy {
   line_count: number;
   total_billed: string;
   total_approved: string;
+  /** Sum of raw_quantity across all lines for this code */
+  total_quantity: string;
+  /** Average billed amount per unit (total_billed / total_quantity); null if no quantity data */
+  avg_billed_rate: string | null;
 }
 
 export interface ExceptionBreakdown {
@@ -384,6 +388,55 @@ export interface SpendByZip {
   state: string | null;
   line_count: number;
   total_billed: string;
+}
+
+export interface SpendTrend {
+  /** ISO month string, e.g. "2025-03" */
+  period: string;
+  invoice_count: number;
+  total_billed: string;
+  total_approved: string;
+}
+
+export interface ContractHealth {
+  contract_id: string;
+  contract_name: string;
+  supplier_name: string;
+  effective_from: string;
+  effective_to: string | null;
+  is_active: boolean;
+  rate_card_count: number;
+  invoice_count: number;
+  exception_count: number;
+  /** exception_count / invoice_count; 0 if no invoices */
+  exception_rate: number;
+  /** ACTIVE | EXPIRING_SOON | EXPIRED */
+  expiry_status: string;
+  /** Days until expiry (positive) or past expiry (negative); null = open-ended */
+  days_to_expiry: number | null;
+}
+
+export interface SupplierScorecard {
+  supplier_id: string;
+  supplier_name: string;
+  total_invoices: number;
+  invoice_status_counts: Record<string, number>;
+  total_billed: string;
+  total_expected: string;
+  total_savings: string;
+  total_exceptions: number;
+  exception_rate: number;
+  auto_approval_rate: number;
+  top_taxonomy_codes: {
+    taxonomy_code: string;
+    label: string | null;
+    total_billed: string;
+    line_count: number;
+  }[];
+  top_exception_types: {
+    validation_type: string;
+    count: number;
+  }[];
 }
 
 export interface AiAccuracyStats {

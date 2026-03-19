@@ -4,28 +4,32 @@ Analytics API routes for carrier admins.
 Provides aggregated spend and billing operations metrics — all-time by default,
 which is the correct baseline for RFP benchmarking and contract negotiation.
 
-  GET /admin/analytics/summary               → KPI scalars (billed, approved, savings, exceptions)
-  GET /admin/analytics/spend-by-domain       → spend grouped by service domain (IME, ENG, etc.)
-  GET /admin/analytics/spend-by-supplier     → spend grouped by supplier
-  GET /admin/analytics/spend-by-taxonomy     → spend grouped by taxonomy code
-  GET /admin/analytics/exception-breakdown   → exception counts by validation type
-  GET /admin/analytics/rate-gaps             → services billed with no contracted rate card
-  GET /admin/analytics/supplier-comparison   → side-by-side spend per supplier × taxonomy code
-                                               ?format=csv returns a downloadable CSV file
+  GET /admin/analytics/summary                        → KPI scalars (billed, approved, savings, exceptions)
+  GET /admin/analytics/spend-by-domain                → spend grouped by service domain (IME, ENG, etc.)
+  GET /admin/analytics/spend-by-supplier              → spend grouped by supplier
+  GET /admin/analytics/spend-by-taxonomy              → spend grouped by taxonomy code (+ units, avg rate)
+  GET /admin/analytics/exception-breakdown            → exception counts by validation type
+  GET /admin/analytics/rate-gaps                      → services billed with no contracted rate card
+  GET /admin/analytics/supplier-comparison            → side-by-side spend per supplier × taxonomy code
+                                                         ?format=csv returns a downloadable CSV file
+  GET /admin/analytics/spend-trend                    → monthly spend trend (last 18 months)
+  GET /admin/analytics/contract-health                → per-contract rate card coverage + expiry alerts
+  GET /admin/analytics/supplier-scorecard/{id}        → per-supplier performance KPIs
 """
 
 import csv
 import io
+from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import case, func
+from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.invoice import Invoice, LineItem
-from app.models.supplier import Contract, Supplier, User, UserRole
+from app.models.supplier import Contract, RateCard, Supplier, User, UserRole
 from app.models.taxonomy import TaxonomyItem
 from app.models.validation import (
     ExceptionRecord,
@@ -248,6 +252,7 @@ def get_spend_by_taxonomy(
     """
     Full taxonomy code breakdown — the data foundation for the spend intelligence table.
     Joins to TaxonomyItem for label and domain; left-join to handle any orphaned codes.
+    Includes total_quantity (sum of raw_quantity) and avg_billed_rate for sourcing intel.
     """
     rows = (
         db.query(
@@ -259,6 +264,7 @@ def get_spend_by_taxonomy(
             func.coalesce(func.sum(LineItem.expected_amount), 0).label(
                 "total_approved"
             ),
+            func.sum(LineItem.raw_quantity).label("total_quantity"),
         )
         .join(TaxonomyItem, LineItem.taxonomy_code == TaxonomyItem.code, isouter=True)
         .join(Invoice, Invoice.id == LineItem.invoice_id)
@@ -272,6 +278,13 @@ def get_spend_by_taxonomy(
         .all()
     )
 
+    def _avg_rate(total_billed, total_quantity) -> str | None:
+        billed = Decimal(str(total_billed or 0))
+        qty = Decimal(str(total_quantity or 0))
+        if qty == 0:
+            return None
+        return str(round(billed / qty, 2))
+
     return [
         {
             "taxonomy_code": row.taxonomy_code,
@@ -280,6 +293,8 @@ def get_spend_by_taxonomy(
             "line_count": row.line_count,
             "total_billed": str(row.total_billed),
             "total_approved": str(row.total_approved),
+            "total_quantity": str(row.total_quantity or 0),
+            "avg_billed_rate": _avg_rate(row.total_billed, row.total_quantity),
         }
         for row in rows
     ]
@@ -643,3 +658,325 @@ def get_spend_by_zip(
         }
         for row in rows
     ]
+
+
+# ── Spend Trend ────────────────────────────────────────────────────────────────
+
+
+@router.get("/spend-trend")
+def get_spend_trend(
+    period: str = Query(default="month", pattern="^(month|week)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    Monthly (or weekly) spend trend — last 18 months.
+
+    Groups all non-draft invoices by the truncated invoice_date period, returns
+    total_billed, total_approved (on approved/exported invoices), and invoice count.
+    Ordered oldest → newest for charting left-to-right.
+    """
+    trunc_expr = func.date_trunc(period, Invoice.invoice_date).label("period")
+
+    rows = (
+        db.query(
+            trunc_expr,
+            func.count(Invoice.id.distinct()).label("invoice_count"),
+            func.sum(LineItem.raw_amount).label("total_billed"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            Invoice.status.in_(["APPROVED", "EXPORTED"]),
+                            LineItem.expected_amount,
+                        ),
+                        else_=None,
+                    )
+                ),
+                0,
+            ).label("total_approved"),
+        )
+        .join(LineItem, LineItem.invoice_id == Invoice.id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            Invoice.status.notin_(["DRAFT", "PROCESSING"]),
+            Invoice.invoice_date >= func.date_trunc(
+                period,
+                func.cast(
+                    func.now() - text("INTERVAL '18 months'"), Invoice.invoice_date.type
+                ),
+            ),
+        )
+        .group_by(trunc_expr)
+        .order_by(trunc_expr)
+        .all()
+    )
+
+    return [
+        {
+            "period": row.period.strftime("%Y-%m") if hasattr(row.period, "strftime") else str(row.period)[:7],
+            "invoice_count": row.invoice_count,
+            "total_billed": str(row.total_billed or 0),
+            "total_approved": str(row.total_approved or 0),
+        }
+        for row in rows
+    ]
+
+
+# ── Contract Health ────────────────────────────────────────────────────────────
+
+
+@router.get("/contract-health")
+def get_contract_health(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    Per-contract health summary for the contract renewal dashboard.
+
+    For each active contract, returns:
+      - rate_card_count  — number of rate cards on file
+      - invoice_count    — total invoices processed under the contract
+      - exception_count  — total exceptions raised
+      - exception_rate   — exception_count / invoice_count (0 if no invoices)
+      - expiry_status    — ACTIVE | EXPIRING_SOON (≤60 days) | EXPIRED
+      - days_to_expiry   — positive = days remaining; negative = days past expiry; null = no end date
+    """
+    today = date.today()
+
+    # One row per contract with invoice and exception counts
+    rows = (
+        db.query(
+            Contract.id,
+            Contract.name,
+            Contract.effective_from,
+            Contract.effective_to,
+            Contract.is_active,
+            Supplier.name.label("supplier_name"),
+            func.count(func.distinct(Invoice.id)).label("invoice_count"),
+            func.count(func.distinct(ExceptionRecord.id)).label("exception_count"),
+        )
+        .join(Supplier, Supplier.id == Contract.supplier_id)
+        .outerjoin(Invoice, Invoice.contract_id == Contract.id)
+        .outerjoin(LineItem, LineItem.invoice_id == Invoice.id)
+        .outerjoin(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+        .filter(Contract.carrier_id == current_user.carrier_id)
+        .group_by(Contract.id, Contract.name, Contract.effective_from,
+                  Contract.effective_to, Contract.is_active, Supplier.name)
+        .order_by(Contract.effective_to.asc().nullslast(), Contract.name)
+        .all()
+    )
+
+    # Rate card counts per contract (separate query — avoids fan-out)
+    rc_counts = dict(
+        db.query(RateCard.contract_id, func.count(RateCard.id))
+        .filter(
+            RateCard.contract_id.in_([r.id for r in rows])
+        )
+        .group_by(RateCard.contract_id)
+        .all()
+    )
+
+    def _expiry(effective_to):
+        if effective_to is None:
+            return "ACTIVE", None
+        delta = (effective_to - today).days
+        if delta < 0:
+            return "EXPIRED", delta
+        if delta <= 60:
+            return "EXPIRING_SOON", delta
+        return "ACTIVE", delta
+
+    result = []
+    for row in rows:
+        status, days = _expiry(row.effective_to)
+        inv_count = row.invoice_count or 0
+        exc_count = row.exception_count or 0
+        exc_rate = round(exc_count / inv_count, 4) if inv_count else 0.0
+        result.append({
+            "contract_id": str(row.id),
+            "contract_name": row.name,
+            "supplier_name": row.supplier_name,
+            "effective_from": str(row.effective_from),
+            "effective_to": str(row.effective_to) if row.effective_to else None,
+            "is_active": row.is_active,
+            "rate_card_count": rc_counts.get(row.id, 0),
+            "invoice_count": inv_count,
+            "exception_count": exc_count,
+            "exception_rate": exc_rate,
+            "expiry_status": status,
+            "days_to_expiry": days,
+        })
+    return result
+
+
+# ── Supplier Scorecard ─────────────────────────────────────────────────────────
+
+
+@router.get("/supplier-scorecard/{supplier_id}")
+def get_supplier_scorecard(
+    supplier_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    Per-supplier performance scorecard for QBR and vendor management.
+
+    Returns:
+      - Invoice counts by status
+      - Exception rate (exceptions / invoices)
+      - Auto-approval rate (APPROVED invoices without any exceptions)
+      - Total billed and identified savings
+      - Top 5 taxonomy codes by billed amount
+      - Top 3 exception types by count
+    """
+    # Verify supplier belongs to this carrier (via at least one contract)
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    # Check carrier scope
+    contract_exists = (
+        db.query(Contract.id)
+        .filter(
+            Contract.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+        )
+        .first()
+    )
+    if not contract_exists and current_user.role != UserRole.SYSTEM_ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorised for this supplier")
+
+    # Invoice status counts
+    status_rows = (
+        db.query(Invoice.status, func.count(Invoice.id))
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Invoice.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+        )
+        .group_by(Invoice.status)
+        .all()
+    )
+    invoice_status_counts = {row[0]: row[1] for row in status_rows}
+    total_invoices = sum(invoice_status_counts.values())
+
+    # Total billed + savings
+    financials = (
+        db.query(
+            func.sum(LineItem.raw_amount).label("total_billed"),
+            func.coalesce(func.sum(LineItem.expected_amount), 0).label("total_expected"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Invoice.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+            Invoice.status.notin_(["DRAFT", "PROCESSING"]),
+        )
+        .first()
+    )
+    total_billed = Decimal(str(financials.total_billed or 0))
+    total_expected = Decimal(str(financials.total_expected or 0))
+    total_savings = max(total_billed - total_expected, Decimal(0))
+
+    # Exception count
+    total_exceptions = (
+        db.query(func.count(ExceptionRecord.id))
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Invoice.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+        )
+        .scalar()
+        or 0
+    )
+    exception_rate = round(total_exceptions / total_invoices, 4) if total_invoices else 0.0
+
+    # Auto-approval rate: invoices with status APPROVED and zero exceptions
+    invoices_with_exceptions = (
+        db.query(func.count(func.distinct(Invoice.id)))
+        .join(LineItem, LineItem.invoice_id == Invoice.id)
+        .join(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Invoice.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+        )
+        .scalar()
+        or 0
+    )
+    approved_count = invoice_status_counts.get("APPROVED", 0) + invoice_status_counts.get("EXPORTED", 0)
+    clean_approved = max(approved_count - invoices_with_exceptions, 0)
+    auto_approval_rate = round(clean_approved / total_invoices, 4) if total_invoices else 0.0
+
+    # Top 5 taxonomy codes by billed amount
+    top_codes = (
+        db.query(
+            LineItem.taxonomy_code,
+            TaxonomyItem.label,
+            func.sum(LineItem.raw_amount).label("total_billed"),
+            func.count(LineItem.id).label("line_count"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .outerjoin(TaxonomyItem, TaxonomyItem.code == LineItem.taxonomy_code)
+        .filter(
+            Invoice.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+            LineItem.taxonomy_code.isnot(None),
+        )
+        .group_by(LineItem.taxonomy_code, TaxonomyItem.label)
+        .order_by(func.sum(LineItem.raw_amount).desc())
+        .limit(5)
+        .all()
+    )
+
+    # Top exception types
+    top_exceptions = (
+        db.query(
+            ValidationResult.validation_type,
+            func.count(ExceptionRecord.id).label("count"),
+        )
+        .join(ExceptionRecord, ExceptionRecord.validation_result_id == ValidationResult.id)
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Invoice.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+        )
+        .group_by(ValidationResult.validation_type)
+        .order_by(func.count(ExceptionRecord.id).desc())
+        .limit(3)
+        .all()
+    )
+
+    return {
+        "supplier_id": str(supplier.id),
+        "supplier_name": supplier.name,
+        "total_invoices": total_invoices,
+        "invoice_status_counts": invoice_status_counts,
+        "total_billed": str(total_billed),
+        "total_expected": str(total_expected),
+        "total_savings": str(total_savings),
+        "total_exceptions": total_exceptions,
+        "exception_rate": exception_rate,
+        "auto_approval_rate": auto_approval_rate,
+        "top_taxonomy_codes": [
+            {
+                "taxonomy_code": r.taxonomy_code,
+                "label": r.label,
+                "total_billed": str(r.total_billed or 0),
+                "line_count": r.line_count,
+            }
+            for r in top_codes
+        ],
+        "top_exception_types": [
+            {"validation_type": r.validation_type, "count": r.count}
+            for r in top_exceptions
+        ],
+    }

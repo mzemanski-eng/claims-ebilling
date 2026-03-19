@@ -21,6 +21,7 @@ import type {
   BulkApprovalResult,
   ContractCreate,
   ContractDetail,
+  ContractHealth,
   ExceptionBreakdown,
   ExceptionView,
   GuidelineCreate,
@@ -42,8 +43,10 @@ import type {
   SpendBySupplier,
   SpendByTaxonomy,
   SpendByZip,
+  SpendTrend,
   SupplierAuditResult,
   SupplierComparisonRow,
+  SupplierScorecard,
   TokenResponse,
   UserInfo,
 } from "./types";
@@ -591,6 +594,18 @@ export function getSpendByState(): Promise<SpendByState[]> {
 export function getSpendByZip(state?: string): Promise<SpendByZip[]> {
   const qs = state ? `?state=${encodeURIComponent(state)}` : "";
   return apiFetch<SpendByZip[]>(`/admin/analytics/spend-by-zip${qs}`);
+}
+
+export function getSpendTrend(period: "month" | "week" = "month"): Promise<SpendTrend[]> {
+  return apiFetch<SpendTrend[]>(`/admin/analytics/spend-trend?period=${period}`);
+}
+
+export function getContractHealth(): Promise<ContractHealth[]> {
+  return apiFetch<ContractHealth[]>("/admin/analytics/contract-health");
+}
+
+export function getSupplierScorecard(supplierId: string): Promise<SupplierScorecard> {
+  return apiFetch<SupplierScorecard>(`/admin/analytics/supplier-scorecard/${supplierId}`);
 }
 
 // ── Admin — Carrier Team ──────────────────────────────────────────────────────
