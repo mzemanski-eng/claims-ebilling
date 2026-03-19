@@ -49,6 +49,11 @@ import type {
   SupplierScorecard,
   TokenResponse,
   UserInfo,
+  AnalyticsFilters,
+  SavingsRealization,
+  UtilizationRow,
+  ClaimStackingRow,
+  RateBenchmarkRow,
 } from "./types";
 
 const BASE_URL =
@@ -397,8 +402,8 @@ export function deleteGuideline(contractId: string, gId: string): Promise<void> 
   });
 }
 
-export function getRateGaps(): Promise<RateGap[]> {
-  return apiFetch<RateGap[]>("/admin/analytics/rate-gaps");
+export function getRateGaps(filters?: AnalyticsFilters): Promise<RateGap[]> {
+  return apiFetch<RateGap[]>(`/admin/analytics/rate-gaps${_analyticsQs(filters)}`);
 }
 
 export async function parseContractPdf(
@@ -540,28 +545,40 @@ export function getExceptionDetails(
 
 // ── Admin — analytics ─────────────────────────────────────────────────────────
 
-export function getAnalyticsSummary(): Promise<AnalyticsSummary> {
-  return apiFetch<AnalyticsSummary>("/admin/analytics/summary");
+/** Build a query-string from an AnalyticsFilters object. Returns "" if no filters. */
+function _analyticsQs(filters?: AnalyticsFilters, extra?: Record<string, string>): string {
+  const p = new URLSearchParams();
+  if (filters?.date_from) p.set("date_from", filters.date_from);
+  if (filters?.date_to) p.set("date_to", filters.date_to);
+  if (filters?.supplier_id) p.set("supplier_id", filters.supplier_id);
+  if (filters?.domain) p.set("domain", filters.domain);
+  if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v));
+  const s = p.toString();
+  return s ? `?${s}` : "";
 }
 
-export function getSpendByDomain(): Promise<SpendByDomain[]> {
-  return apiFetch<SpendByDomain[]>("/admin/analytics/spend-by-domain");
+export function getAnalyticsSummary(filters?: AnalyticsFilters): Promise<AnalyticsSummary> {
+  return apiFetch<AnalyticsSummary>(`/admin/analytics/summary${_analyticsQs(filters)}`);
 }
 
-export function getSpendBySupplier(): Promise<SpendBySupplier[]> {
-  return apiFetch<SpendBySupplier[]>("/admin/analytics/spend-by-supplier");
+export function getSpendByDomain(filters?: AnalyticsFilters): Promise<SpendByDomain[]> {
+  return apiFetch<SpendByDomain[]>(`/admin/analytics/spend-by-domain${_analyticsQs(filters)}`);
 }
 
-export function getSpendByTaxonomy(): Promise<SpendByTaxonomy[]> {
-  return apiFetch<SpendByTaxonomy[]>("/admin/analytics/spend-by-taxonomy");
+export function getSpendBySupplier(filters?: AnalyticsFilters): Promise<SpendBySupplier[]> {
+  return apiFetch<SpendBySupplier[]>(`/admin/analytics/spend-by-supplier${_analyticsQs(filters)}`);
 }
 
-export function getExceptionBreakdown(): Promise<ExceptionBreakdown[]> {
-  return apiFetch<ExceptionBreakdown[]>("/admin/analytics/exception-breakdown");
+export function getSpendByTaxonomy(filters?: AnalyticsFilters): Promise<SpendByTaxonomy[]> {
+  return apiFetch<SpendByTaxonomy[]>(`/admin/analytics/spend-by-taxonomy${_analyticsQs(filters)}`);
 }
 
-export function getSupplierComparison(): Promise<SupplierComparisonRow[]> {
-  return apiFetch<SupplierComparisonRow[]>("/admin/analytics/supplier-comparison");
+export function getExceptionBreakdown(filters?: AnalyticsFilters): Promise<ExceptionBreakdown[]> {
+  return apiFetch<ExceptionBreakdown[]>(`/admin/analytics/exception-breakdown${_analyticsQs(filters)}`);
+}
+
+export function getSupplierComparison(filters?: AnalyticsFilters): Promise<SupplierComparisonRow[]> {
+  return apiFetch<SupplierComparisonRow[]>(`/admin/analytics/supplier-comparison${_analyticsQs(filters)}`);
 }
 
 export function getAiAccuracy(): Promise<AiAccuracyStats> {
@@ -576,28 +593,30 @@ export function runSupplierAudit(supplierId: string): Promise<SupplierAuditResul
 }
 
 /** Fetch the supplier comparison as a CSV blob for download. */
-export async function getSupplierComparisonCsv(): Promise<Blob> {
+export async function getSupplierComparisonCsv(filters?: AnalyticsFilters): Promise<Blob> {
   const token = getToken();
   const headers: Record<string, string> = { Accept: "text/csv" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${BASE_URL}/admin/analytics/supplier-comparison?format=csv`, { headers });
+  const qs = _analyticsQs(filters, { format: "csv" });
+  const res = await fetch(`${BASE_URL}/admin/analytics/supplier-comparison${qs}`, { headers });
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   return res.blob();
 }
 
 // ── Admin — Geographic analytics ─────────────────────────────────────────────
 
-export function getSpendByState(): Promise<SpendByState[]> {
-  return apiFetch<SpendByState[]>("/admin/analytics/spend-by-state");
+export function getSpendByState(filters?: AnalyticsFilters): Promise<SpendByState[]> {
+  return apiFetch<SpendByState[]>(`/admin/analytics/spend-by-state${_analyticsQs(filters)}`);
 }
 
-export function getSpendByZip(state?: string): Promise<SpendByZip[]> {
-  const qs = state ? `?state=${encodeURIComponent(state)}` : "";
-  return apiFetch<SpendByZip[]>(`/admin/analytics/spend-by-zip${qs}`);
+export function getSpendByZip(state?: string, filters?: AnalyticsFilters): Promise<SpendByZip[]> {
+  const extra: Record<string, string> = {};
+  if (state) extra["state"] = state;
+  return apiFetch<SpendByZip[]>(`/admin/analytics/spend-by-zip${_analyticsQs(filters, extra)}`);
 }
 
-export function getSpendTrend(period: "month" | "week" = "month"): Promise<SpendTrend[]> {
-  return apiFetch<SpendTrend[]>(`/admin/analytics/spend-trend?period=${period}`);
+export function getSpendTrend(period: "month" | "week" = "month", filters?: AnalyticsFilters): Promise<SpendTrend[]> {
+  return apiFetch<SpendTrend[]>(`/admin/analytics/spend-trend${_analyticsQs(filters, { period })}`);
 }
 
 export function getContractHealth(): Promise<ContractHealth[]> {
@@ -606,6 +625,24 @@ export function getContractHealth(): Promise<ContractHealth[]> {
 
 export function getSupplierScorecard(supplierId: string): Promise<SupplierScorecard> {
   return apiFetch<SupplierScorecard>(`/admin/analytics/supplier-scorecard/${supplierId}`);
+}
+
+// ── New demand / spend intelligence endpoints ──────────────────────────────────
+
+export function getSavingsRealization(filters?: AnalyticsFilters): Promise<SavingsRealization> {
+  return apiFetch<SavingsRealization>(`/admin/analytics/savings-realization${_analyticsQs(filters)}`);
+}
+
+export function getUtilization(filters?: AnalyticsFilters): Promise<UtilizationRow[]> {
+  return apiFetch<UtilizationRow[]>(`/admin/analytics/utilization${_analyticsQs(filters)}`);
+}
+
+export function getClaimStacking(filters?: AnalyticsFilters): Promise<ClaimStackingRow[]> {
+  return apiFetch<ClaimStackingRow[]>(`/admin/analytics/claim-stacking${_analyticsQs(filters)}`);
+}
+
+export function getRateBenchmarks(filters?: AnalyticsFilters): Promise<RateBenchmarkRow[]> {
+  return apiFetch<RateBenchmarkRow[]>(`/admin/analytics/rate-benchmarks${_analyticsQs(filters)}`);
 }
 
 // ── Admin — Carrier Team ──────────────────────────────────────────────────────

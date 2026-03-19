@@ -452,6 +452,80 @@ export interface AiAccuracyStats {
   by_recommended_action: AiAccuracyByAction[];
 }
 
+// ── New analytics interfaces ───────────────────────────────────────────────────
+
+/** Global filter params passed to all filterable analytics endpoints. */
+export interface AnalyticsFilters {
+  date_from?: string;  // YYYY-MM-DD
+  date_to?: string;    // YYYY-MM-DD
+  supplier_id?: string;
+  domain?: string;
+}
+
+/** One row from GET /admin/analytics/savings-realization */
+export interface SavingsRealization {
+  /** Total savings identified on line items with exceptions (regardless of invoice status) */
+  identified_savings: string;
+  /** Savings applied on APPROVED/EXPORTED invoices — what was actually recovered */
+  recovered_savings: string;
+  /** identified_savings minus recovered_savings */
+  pending_savings: string;
+  /** recovered / identified; 0.0 if nothing identified */
+  recovery_rate: number;
+  invoices_with_recovery: number;
+  total_invoices_with_exceptions: number;
+}
+
+/** One row from GET /admin/analytics/utilization */
+export interface UtilizationRow {
+  taxonomy_code: string;
+  taxonomy_label: string | null;
+  domain: string | null;
+  supplier_id: string;
+  supplier_name: string;
+  total_invoices: number;
+  total_units: string;
+  avg_units_per_invoice: string;
+  max_single_invoice: string;
+  /** RateCard.max_units for this code + supplier; null if no cap defined */
+  max_units_cap: string | null;
+  /** avg_units_per_invoice / max_units_cap × 100; null if no cap */
+  cap_utilization_pct: string | null;
+}
+
+/** One row from GET /admin/analytics/claim-stacking */
+export interface ClaimStackingRow {
+  claim_number: string;
+  taxonomy_code: string;
+  taxonomy_label: string | null;
+  domain: string | null;
+  /** Number of distinct suppliers billing this code on this claim */
+  supplier_count: number;
+  /** Total occurrences of this code on this claim across all invoices */
+  line_item_count: number;
+  total_billed: string;
+  supplier_names: string[];
+}
+
+/** One row from GET /admin/analytics/rate-benchmarks */
+export interface RateBenchmarkRow {
+  taxonomy_code: string;
+  taxonomy_label: string | null;
+  domain: string | null;
+  /** Panel average effective rate across all suppliers for this code */
+  panel_avg_rate: string;
+  supplier_count: number;
+  supplier_rates: {
+    supplier_id: string;
+    supplier_name: string;
+    /** Average effective billed rate (raw_amount / raw_quantity) */
+    avg_rate: string;
+    line_count: number;
+    /** Percent above (+) or below (–) panel average */
+    pct_vs_panel: string;
+  }[];
+}
+
 export interface SupplierAuditFinding {
   title: string;
   detail: string;
