@@ -479,6 +479,8 @@ def _process_line(
         raw_unit=raw_item.raw_unit,
         claim_number=raw_item.claim_number,
         service_date=raw_item.service_date,
+        service_state=raw_item.service_state,
+        service_zip=raw_item.service_zip,
     )
     db.add(line_item)
     db.flush()

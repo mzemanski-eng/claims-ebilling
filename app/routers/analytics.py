@@ -554,3 +554,92 @@ def get_ai_accuracy(
         "acceptance_rate": overall_rate,
         "by_recommended_action": by_action,
     }
+
+
+# ── Geographic spend ───────────────────────────────────────────────────────────
+
+
+@router.get("/spend-by-state")
+def get_spend_by_state(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    Spend aggregated by US state (service_state on LineItem).
+    Only lines that have a service_state value are included.
+    Used to drive the geographic choropleth map.
+    """
+    rows = (
+        db.query(
+            LineItem.service_state,
+            func.count(LineItem.id).label("line_count"),
+            func.sum(LineItem.raw_amount).label("total_billed"),
+            func.sum(
+                func.coalesce(LineItem.expected_amount, LineItem.raw_amount)
+            ).label("total_approved"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            LineItem.service_state.isnot(None),
+            LineItem.service_state != "",
+        )
+        .group_by(LineItem.service_state)
+        .order_by(func.sum(LineItem.raw_amount).desc())
+        .all()
+    )
+    return [
+        {
+            "state": row.service_state.upper(),
+            "line_count": row.line_count,
+            "total_billed": str(row.total_billed or 0),
+            "total_approved": str(row.total_approved or 0),
+        }
+        for row in rows
+    ]
+
+
+@router.get("/spend-by-zip")
+def get_spend_by_zip(
+    state: str | None = Query(default=None, description="Filter to a single state code, e.g. CA"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    Spend aggregated by ZIP code (top 50 by billed amount).
+    Optionally filtered to a single state for drill-down.
+    """
+    q = (
+        db.query(
+            LineItem.service_zip,
+            LineItem.service_state,
+            func.count(LineItem.id).label("line_count"),
+            func.sum(LineItem.raw_amount).label("total_billed"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            LineItem.service_zip.isnot(None),
+            LineItem.service_zip != "",
+        )
+    )
+    if state:
+        q = q.filter(LineItem.service_state == state.upper())
+
+    rows = (
+        q.group_by(LineItem.service_zip, LineItem.service_state)
+        .order_by(func.sum(LineItem.raw_amount).desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "zip": row.service_zip,
+            "state": row.service_state,
+            "line_count": row.line_count,
+            "total_billed": str(row.total_billed or 0),
+        }
+        for row in rows
+    ]

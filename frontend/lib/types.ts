@@ -372,6 +372,20 @@ export interface AiAccuracyByAction {
   acceptance_rate: number | null;
 }
 
+export interface SpendByState {
+  state: string;           // 2-char code, e.g. "CA"
+  line_count: number;
+  total_billed: string;
+  total_approved: string;
+}
+
+export interface SpendByZip {
+  zip: string;
+  state: string | null;
+  line_count: number;
+  total_billed: string;
+}
+
 export interface AiAccuracyStats {
   /** Total exceptions that received an AI recommendation */
   total_with_recommendation: number;

@@ -7,7 +7,8 @@ Column mapping strategy:
   If a column cannot be found, it logs a warning and uses a safe default.
 
 Expected (but flexible) columns:
-  claim_number, service_date, description, code, quantity, unit, amount
+  claim_number, service_date, description, code, quantity, unit, amount,
+  service_state (optional), service_zip (optional)
 
 The alias map below covers the most common variations we expect to see
 from IME schedulers, IA networks, and engineering firms.
@@ -114,6 +115,29 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "transaction date",
         "invoice date",
     ],
+    "service_state": [
+        "service_state",
+        "service state",
+        "state",
+        "loss state",
+        "loss_state",
+        "site state",
+        "location state",
+        "state code",
+    ],
+    "service_zip": [
+        "service_zip",
+        "service zip",
+        "zip",
+        "zip code",
+        "zip_code",
+        "postal code",
+        "postal_code",
+        "loss zip",
+        "loss_zip",
+        "site zip",
+        "location zip",
+    ],
 }
 
 
@@ -175,6 +199,13 @@ class CSVParser(BaseParser):
                     or f"(no description - row {row_number})"
                 )
 
+                # Normalise service_state to uppercase 2-char; keep zip as-is
+                raw_state = self._get_str(row, col_map, "service_state")
+                service_state = raw_state.upper()[:2] if raw_state else None
+
+                raw_zip = self._get_str(row, col_map, "service_zip")
+                service_zip = raw_zip[:10] if raw_zip else None
+
                 item = RawLineItem(
                     line_number=row_number
                     - 1,  # 1-based line number (excluding header)
@@ -187,6 +218,8 @@ class CSVParser(BaseParser):
                     raw_code=self._get_str(row, col_map, "code"),
                     claim_number=self._get_str(row, col_map, "claim_number"),
                     service_date=self._get_date(row, col_map, "service_date"),
+                    service_state=service_state,
+                    service_zip=service_zip,
                     extraction_notes=row_warnings,
                 )
                 line_items.append(item)

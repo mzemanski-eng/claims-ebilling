@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import {
   PieChart,
@@ -26,9 +27,21 @@ import {
   getRateGaps,
   getAiAccuracy,
   getSupplierComparisonCsv,
+  getSpendByState,
+  getSpendByZip,
   downloadBlob,
 } from "@/lib/api";
-import type { AiAccuracyByAction, RateGap, SpendByTaxonomy } from "@/lib/types";
+import type { AiAccuracyByAction, RateGap, SpendByState, SpendByTaxonomy, SpendByZip } from "@/lib/types";
+
+// ── Dynamic map import (avoids SSR issues with react-simple-maps) ─────────────
+const USSpendMap = dynamic(() => import("@/components/us-spend-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-64 items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+    </div>
+  ),
+});
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -188,6 +201,18 @@ export default function AdminAnalyticsPage() {
   const { data: aiAccuracy } = useQuery({
     queryKey: ["analytics-ai-accuracy"],
     queryFn: getAiAccuracy,
+  });
+
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+
+  const { data: byState } = useQuery({
+    queryKey: ["analytics-by-state"],
+    queryFn: getSpendByState,
+  });
+
+  const { data: byZip } = useQuery({
+    queryKey: ["analytics-by-zip", selectedState],
+    queryFn: () => getSpendByZip(selectedState ?? undefined),
   });
 
   const isLoading =
@@ -904,6 +929,161 @@ export default function AdminAnalyticsPage() {
                     </table>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+          {/* ── Section 7: Geographic Spend ──────────────────────────── */}
+          <div className="rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  🗺 Geographic Spend Distribution
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Where services are being performed — based on supplier-reported state and ZIP
+                </p>
+              </div>
+              {byState && byState.length === 0 && (
+                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500">
+                  No location data yet
+                </span>
+              )}
+              {selectedState && (
+                <button
+                  onClick={() => setSelectedState(null)}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                >
+                  ← All states
+                </button>
+              )}
+            </div>
+
+            {!byState || byState.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <p className="text-2xl">🗺</p>
+                <p className="mt-2 text-sm font-medium text-gray-600">No geographic data yet</p>
+                <p className="mt-1 text-xs text-gray-400 max-w-sm mx-auto">
+                  Ask suppliers to include <code className="bg-gray-100 px-1 rounded">service_state</code> and{" "}
+                  <code className="bg-gray-100 px-1 rounded">service_zip</code> columns in their invoice CSVs.
+                </p>
+              </div>
+            ) : (
+              <div className="p-5 space-y-6">
+                {/* Map */}
+                <USSpendMap
+                  data={byState}
+                  selectedState={selectedState}
+                  onStateClick={(state) =>
+                    setSelectedState(prev => prev === state ? null : state)
+                  }
+                />
+
+                {/* State table + ZIP table side by side */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {/* State breakdown */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                      Spend by State {selectedState ? `— filtered to ${selectedState}` : ""}
+                    </p>
+                    <div className="overflow-hidden rounded-lg border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-left">
+                            <th className="px-3 py-2 font-semibold text-gray-600">State</th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-600">Lines</th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-600">Billed</th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-600">% of Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(() => {
+                            const totalBilled = byState.reduce(
+                              (s, r) => s + parseFloat(r.total_billed), 0
+                            );
+                            const rows = selectedState
+                              ? byState.filter(r => r.state === selectedState)
+                              : byState.slice(0, 10);
+                            return rows.map((row: SpendByState) => {
+                              const billed = parseFloat(row.total_billed);
+                              const pct = totalBilled > 0
+                                ? ((billed / totalBilled) * 100).toFixed(1)
+                                : "0.0";
+                              return (
+                                <tr
+                                  key={row.state}
+                                  className={`cursor-pointer transition-colors ${
+                                    selectedState === row.state
+                                      ? "bg-blue-50"
+                                      : "hover:bg-gray-50"
+                                  }`}
+                                  onClick={() =>
+                                    setSelectedState(prev =>
+                                      prev === row.state ? null : row.state
+                                    )
+                                  }
+                                >
+                                  <td className="px-3 py-2 font-semibold text-gray-900">
+                                    {row.state}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums text-gray-600">
+                                    {row.line_count}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900">
+                                    {formatCurrency(row.total_billed)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">
+                                    {pct}%
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* ZIP breakdown */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                      Top ZIP Codes {selectedState ? `in ${selectedState}` : "(all states)"}
+                    </p>
+                    {!byZip || byZip.length === 0 ? (
+                      <div className="flex items-center justify-center rounded-lg border bg-gray-50 py-10">
+                        <p className="text-xs text-gray-400">No ZIP data available</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-lg border">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-gray-50 text-left">
+                              <th className="px-3 py-2 font-semibold text-gray-600">ZIP</th>
+                              <th className="px-3 py-2 font-semibold text-gray-600">State</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-600">Lines</th>
+                              <th className="px-3 py-2 text-right font-semibold text-gray-600">Billed</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {byZip.slice(0, 10).map((row: SpendByZip) => (
+                              <tr key={row.zip} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 font-mono font-semibold text-gray-900">
+                                  {row.zip}
+                                </td>
+                                <td className="px-3 py-2 text-gray-500">{row.state ?? "—"}</td>
+                                <td className="px-3 py-2 text-right tabular-nums text-gray-600">
+                                  {row.line_count}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900">
+                                  {formatCurrency(row.total_billed)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>

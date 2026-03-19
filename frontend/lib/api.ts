@@ -38,8 +38,10 @@ import type {
   RateCardDetail,
   RateGap,
   SpendByDomain,
+  SpendByState,
   SpendBySupplier,
   SpendByTaxonomy,
+  SpendByZip,
   SupplierAuditResult,
   SupplierComparisonRow,
   TokenResponse,
@@ -578,6 +580,17 @@ export async function getSupplierComparisonCsv(): Promise<Blob> {
   const res = await fetch(`${BASE_URL}/admin/analytics/supplier-comparison?format=csv`, { headers });
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   return res.blob();
+}
+
+// ── Admin — Geographic analytics ─────────────────────────────────────────────
+
+export function getSpendByState(): Promise<SpendByState[]> {
+  return apiFetch<SpendByState[]>("/admin/analytics/spend-by-state");
+}
+
+export function getSpendByZip(state?: string): Promise<SpendByZip[]> {
+  const qs = state ? `?state=${encodeURIComponent(state)}` : "";
+  return apiFetch<SpendByZip[]>(`/admin/analytics/spend-by-zip${qs}`);
 }
 
 // ── Admin — Carrier Team ──────────────────────────────────────────────────────

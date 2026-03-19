@@ -1,18 +1,18 @@
-claim_number,service_date,description,code,quantity,unit,amount
-CLM-ENG-001,2025-03-03,Fire origin and cause investigation - Principal Engineer on-site,FOC-L1,6,hour,1650.00
-CLM-ENG-001,2025-03-03,Fire origin and cause - Senior Engineer field support,FOC-L2,8,hour,1800.00
-CLM-ENG-001,2025-03-04,Engineering report preparation - Senior Engineer,RPT-L2,4,hour,900.00
-CLM-ENG-001,2025-03-04,Administrative file documentation and coordination,AOS-L6,3,hour,195.00
-CLM-ENG-002,2025-03-06,Structural damage assessment - Senior Engineer site inspection,DA-L2,5,hour,1125.00
-CLM-ENG-002,2025-03-06,Structural damage assessment - Staff Engineer support,DA-L3,4,hour,700.00
-CLM-ENG-002,2025-03-07,Structural assessment report writing - Staff Engineer,RPT-L3,3,hour,525.00
-CLM-ENG-002,2025-03-07,Project management and client coordination,PM-L4,2,hour,270.00
-CLM-ENG-003,2025-03-10,Expert witness deposition testimony - Principal Engineer,EWD-L1,4,hour,1100.00
-CLM-ENG-003,2025-03-10,Deposition preparation review and documentation - Principal Engineer,EWD-L1,5,hour,1375.00
-CLM-ENG-004,2025-03-12,Engineering cause and origin analysis - Principal Engineer,CAO-L1,8,hour,2200.00
-CLM-ENG-004,2025-03-12,Cause and origin field investigation - Senior Engineer,CAO-L2,12,hour,2700.00
-CLM-ENG-004,2025-03-13,Engineering analysis report - Senior Engineer,EA-L2,4,hour,900.00
-CLM-ENG-004,2025-03-13,Administrative support and project coordination,AOS-L6,2,hour,130.00
-CLM-ENG-005,2025-03-17,Engineering peer review of opposing expert report - Senior Engineer,PR-L2,4,hour,900.00
-CLM-ENG-005,2025-03-17,Peer review supplemental report - Staff Engineer,RPT-L3,2,hour,350.00
-CLM-ENG-005,2025-03-18,Pass-through - court filing fee for expert witness notice,XDOMAIN-PT,1,flat,45.00
+claim_number,service_date,description,code,quantity,unit,amount,service_state,service_zip
+CLM-ENG-001,2025-03-03,Fire origin and cause investigation - Principal Engineer on-site,FOC-L1,6,hour,1650.00,CA,90001
+CLM-ENG-001,2025-03-03,Fire origin and cause - Senior Engineer field support,FOC-L2,8,hour,1800.00,CA,90001
+CLM-ENG-001,2025-03-04,Engineering report preparation - Senior Engineer,RPT-L2,4,hour,900.00,CA,90001
+CLM-ENG-001,2025-03-04,Administrative file documentation and coordination,AOS-L6,3,hour,195.00,CA,90001
+CLM-ENG-002,2025-03-06,Structural damage assessment - Senior Engineer site inspection,DA-L2,5,hour,1125.00,TX,75201
+CLM-ENG-002,2025-03-06,Structural damage assessment - Staff Engineer support,DA-L3,4,hour,700.00,TX,75201
+CLM-ENG-002,2025-03-07,Structural assessment report writing - Staff Engineer,RPT-L3,3,hour,525.00,TX,75201
+CLM-ENG-002,2025-03-07,Project management and client coordination,PM-L4,2,hour,270.00,TX,75201
+CLM-ENG-003,2025-03-10,Expert witness deposition testimony - Principal Engineer,EWD-L1,4,hour,1100.00,NY,10007
+CLM-ENG-003,2025-03-10,Deposition preparation review and documentation - Principal Engineer,EWD-L1,5,hour,1375.00,NY,10007
+CLM-ENG-004,2025-03-12,Engineering cause and origin analysis - Principal Engineer,CAO-L1,8,hour,2200.00,FL,33132
+CLM-ENG-004,2025-03-12,Cause and origin field investigation - Senior Engineer,CAO-L2,12,hour,2700.00,FL,33132
+CLM-ENG-004,2025-03-13,Engineering analysis report - Senior Engineer,EA-L2,4,hour,900.00,FL,33132
+CLM-ENG-004,2025-03-13,Administrative support and project coordination,AOS-L6,2,hour,130.00,FL,33132
+CLM-ENG-005,2025-03-17,Engineering peer review of opposing expert report - Senior Engineer,PR-L2,4,hour,900.00,CA,94105
+CLM-ENG-005,2025-03-17,Peer review supplemental report - Staff Engineer,RPT-L3,2,hour,350.00,CA,94105
+CLM-ENG-005,2025-03-18,Pass-through - court filing fee for expert witness notice,XDOMAIN-PT,1,flat,45.00,CA,94105

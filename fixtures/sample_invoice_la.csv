@@ -1,12 +1,12 @@
-claim_number,service_date,description,code,quantity,unit,amount
-CLM-LA-001,2025-03-04,Ladder placement and stabilization for adjuster roof access,LA-001,1,occurrence,135.00
-CLM-LA-001,2025-03-04,On-roof inspection of storm damage,LA-002,1,occurrence,195.00
-CLM-LA-002,2025-03-05,Ladder access for steep pitch roof,LA-001,1,occurrence,135.00
-CLM-LA-002,2025-03-05,Roof inspection with fall-protection harness equipment (steep pitch),LA-003,1,occurrence,245.00
-CLM-LA-003,2025-03-07,Ladder access service for emergency tarping,LA-001,1,occurrence,135.00
-CLM-LA-003,2025-03-07,Emergency tarp application to storm-damaged roof section,LA-004,1,occurrence,375.00
-CLM-LA-004,2025-03-10,Appointment cancellation fee - less than 24 hour notice,LA-CANCEL,1,flat,85.00
-CLM-LA-005,2025-03-11,Trip charge - technician dispatched but property access denied by occupant,LA-TRIP,1,flat,75.00
-CLM-LA-006,2025-03-14,Ladder placement for adjuster roof access,LA-001,1,occurrence,135.00
-CLM-LA-006,2025-03-14,On-roof inspection requiring harness - high pitch residential,LA-003,1,occurrence,245.00
-CLM-LA-006,2025-03-14,Emergency tarp cover application following inspection finding,LA-004,1,occurrence,375.00
+claim_number,service_date,description,code,quantity,unit,amount,service_state,service_zip
+CLM-LA-001,2025-03-04,Ladder placement and stabilization for adjuster roof access,LA-001,1,occurrence,135.00,TX,77002
+CLM-LA-001,2025-03-04,On-roof inspection of storm damage,LA-002,1,occurrence,195.00,TX,77002
+CLM-LA-002,2025-03-05,Ladder access for steep pitch roof,LA-001,1,occurrence,135.00,TX,77003
+CLM-LA-002,2025-03-05,Roof inspection with fall-protection harness equipment (steep pitch),LA-003,1,occurrence,245.00,TX,77003
+CLM-LA-003,2025-03-07,Ladder access service for emergency tarping,LA-001,1,occurrence,135.00,FL,33139
+CLM-LA-003,2025-03-07,Emergency tarp application to storm-damaged roof section,LA-004,1,occurrence,375.00,FL,33139
+CLM-LA-004,2025-03-10,Appointment cancellation fee - less than 24 hour notice,LA-CANCEL,1,flat,85.00,FL,33140
+CLM-LA-005,2025-03-11,Trip charge - technician dispatched but property access denied by occupant,LA-TRIP,1,flat,75.00,GA,30301
+CLM-LA-006,2025-03-14,Ladder placement for adjuster roof access,LA-001,1,occurrence,135.00,GA,30302
+CLM-LA-006,2025-03-14,On-roof inspection requiring harness - high pitch residential,LA-003,1,occurrence,245.00,GA,30302
+CLM-LA-006,2025-03-14,Emergency tarp cover application following inspection finding,LA-004,1,occurrence,375.00,GA,30302
