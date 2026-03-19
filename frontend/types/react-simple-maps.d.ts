@@ -51,9 +51,10 @@ declare module "react-simple-maps" {
       hover?: React.CSSProperties;
       pressed?: React.CSSProperties;
     };
-    onClick?: (geo: Geography) => void;
-    onMouseEnter?: (geo: Geography) => void;
-    onMouseLeave?: (geo: Geography) => void;
+    onClick?: (event: React.MouseEvent<SVGPathElement>) => void;
+    onMouseEnter?: (event: React.MouseEvent<SVGPathElement>) => void;
+    onMouseMove?: (event: React.MouseEvent<SVGPathElement>) => void;
+    onMouseLeave?: (event: React.MouseEvent<SVGPathElement>) => void;
     className?: string;
     tabable?: boolean;
   }
