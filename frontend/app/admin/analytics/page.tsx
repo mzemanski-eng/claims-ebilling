@@ -424,7 +424,7 @@ export default function AdminAnalyticsPage() {
 
   // ── Filter bar derived options ────────────────────────────────────────────
   const domainOpts = useMemo(
-    () => [...new Set((byDomain ?? []).map((d) => d.domain))].sort(),
+    () => Array.from(new Set((byDomain ?? []).map((d) => d.domain))).sort(),
     [byDomain]
   );
 
