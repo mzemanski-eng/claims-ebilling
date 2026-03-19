@@ -332,9 +332,9 @@ export default function SupplierDashboard() {
                   {c.effective_to ? ` – ${formatDate(c.effective_to)}` : " · No expiry"}
                 </p>
                 <div className="mt-3 flex gap-3 text-xs text-gray-500">
-                  <span>{c.rate_cards?.length ?? 0} rate cards</span>
+                  <span>{c.rate_card_count} rate cards</span>
                   <span>·</span>
-                  <span>{c.guidelines?.length ?? 0} guidelines</span>
+                  <span>{c.guideline_count} guidelines</span>
                 </div>
               </div>
             ))}
