@@ -696,20 +696,36 @@ export default function AdminInvoiceDetailPage({
                         ${Number(line.raw_amount).toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
-                        {line.expected_amount ? (
-                          <span
-                            className={
-                              Number(line.raw_amount) >
-                              Number(line.expected_amount)
-                                ? "text-red-600"
-                                : "text-gray-700"
-                            }
-                          >
-                            ${Number(line.expected_amount).toFixed(2)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
+                        {(() => {
+                          const noRateActions = ["REQUEST_RECLASSIFICATION", "ESTABLISH_CONTRACT_RATE"];
+                          const hasNoRate = line.exceptions.some(
+                            (ex) => noRateActions.includes(ex.required_action)
+                          );
+                          if (hasNoRate) {
+                            return (
+                              <span
+                                className="text-xs font-medium text-amber-600"
+                                title="No contracted rate found for this service code"
+                              >
+                                No rate
+                              </span>
+                            );
+                          }
+                          if (!line.expected_amount) {
+                            return <span className="text-gray-300">—</span>;
+                          }
+                          return (
+                            <span
+                              className={
+                                Number(line.raw_amount) > Number(line.expected_amount)
+                                  ? "text-red-600"
+                                  : "text-gray-700"
+                              }
+                            >
+                              ${Number(line.expected_amount).toFixed(2)}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
