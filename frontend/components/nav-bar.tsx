@@ -13,7 +13,7 @@ const ADMIN_LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/admin/invoices",  label: "Invoice Queue" },
   { href: "/admin/suppliers", label: "Suppliers" },
   { href: "/admin/contracts", label: "Contracts" },
-  { href: "/admin/mappings",  label: "Mappings" },
+  { href: "/admin/mappings",  label: "Classification Review" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/team",      label: "Team" },
 ];
@@ -22,7 +22,7 @@ const ADMIN_LINKS: { href: string; label: string; exact?: boolean }[] = [
 const REVIEWER_LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/admin",          label: "Dashboard",     exact: true },
   { href: "/admin/invoices", label: "Invoice Queue" },
-  { href: "/admin/mappings", label: "Mappings" },
+  { href: "/admin/mappings", label: "Classification Review" },
 ];
 
 // ── NavLink helper ─────────────────────────────────────────────────────────────

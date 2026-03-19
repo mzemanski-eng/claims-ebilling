@@ -208,9 +208,12 @@ export default function AdminMappingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mapping Queue</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Classification Review</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {totalCount} line{totalCount !== 1 ? "s" : ""} requiring review
+            Review AI spend-bucket assignments for unrecognized or uncertain service codes.
+          </p>
+          <p className="mt-0.5 text-sm text-gray-500">
+            {totalCount} line{totalCount !== 1 ? "s" : ""} awaiting classification
             {totalCount > 0 && (
               <span className="ml-2 text-gray-400">
                 ({unrecognizedCount} unrecognized · {lowConfCount} low/medium

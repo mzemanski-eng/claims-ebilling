@@ -617,29 +617,39 @@ export default function AdminInvoiceDetailPage({
         ) : (
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500 w-10">
+              {/* Group label row */}
+              <tr className="border-b border-gray-200">
+                <th rowSpan={2} className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500 w-10">
                   #
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">
+                <th rowSpan={2} className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Description
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">
+                <th colSpan={2} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-blue-700 bg-blue-50 border-b border-blue-100">
+                  Spend Classification
+                </th>
+                <th colSpan={3} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-b border-gray-200">
+                  Contract Audit
+                </th>
+                <th rowSpan={2} className="w-8" />
+              </tr>
+              {/* Column name row */}
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Taxonomy
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Conf.
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">
+                <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-gray-500">
                   Billed
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">
+                <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-gray-500">
                   Expected
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Status
                 </th>
-                <th className="w-8" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -743,40 +753,85 @@ export default function AdminInvoiceDetailPage({
                     </tr>
                     {isExpanded && (
                       <tr key={`${line.id}-expanded`}>
-                        <td colSpan={8} className="bg-amber-50 px-8 py-4">
-                          <div className="space-y-3">
-                            {line.needs_review &&
-                              line.exceptions.length === 0 && (
-                                <div className="rounded bg-yellow-100 px-3 py-2 text-xs text-yellow-800">
-                                  ⚠ Low mapping confidence — consider overriding
-                                  via{" "}
-                                  <a
-                                    href="/admin/mappings"
-                                    className="underline"
-                                  >
-                                    Mapping Queue
-                                  </a>
-                                  .
-                                </div>
-                              )}
-                            {/* AI classification suggestion for UNRECOGNIZED lines */}
-                            {!line.taxonomy_code &&
-                              line.ai_classification_suggestion && (
-                                <AiClassificationSuggestion
-                                  suggestion={line.ai_classification_suggestion}
-                                />
-                              )}
-                            {line.exceptions.map((exc) => (
-                              <ExceptionRow
-                                key={exc.exception_id}
-                                exc={exc}
-                                invoiceId={id}
-                                lineClassificationSuggestion={
-                                  line.ai_classification_suggestion
-                                }
-                              />
-                            ))}
-                          </div>
+                        <td colSpan={8} className="px-6 py-4 bg-gray-50 border-t border-gray-100">
+                          {(() => {
+                            const classificationExcs = line.exceptions.filter(
+                              (e) => e.required_action === "REQUEST_RECLASSIFICATION"
+                            );
+                            const auditExcs = line.exceptions.filter(
+                              (e) => e.required_action !== "REQUEST_RECLASSIFICATION"
+                            );
+                            const needsClassification =
+                              line.needs_review ||
+                              !line.taxonomy_code ||
+                              classificationExcs.length > 0;
+
+                            return (
+                              <div className="space-y-3">
+                                {/* ── Spend Classification panel ─────────────── */}
+                                {needsClassification && (
+                                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 mb-2">
+                                      🏷 Spend Classification — Action Needed
+                                    </p>
+                                    <p className="text-sm text-blue-800 mb-3">
+                                      This service line{" "}
+                                      {!line.taxonomy_code
+                                        ? "has not been assigned to a spend bucket"
+                                        : "has a low-confidence spend bucket assignment"}
+                                      . Review and confirm or correct the classification
+                                      before finalizing audit decisions.
+                                    </p>
+                                    <a
+                                      href="/admin/mappings"
+                                      className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                                    >
+                                      → Go to Classification Review
+                                    </a>
+                                    {/* AI suggestion shown informational only */}
+                                    {line.ai_classification_suggestion && (
+                                      <div className="mt-3">
+                                        <AiClassificationSuggestion
+                                          suggestion={line.ai_classification_suggestion}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* ── Contract Audit panel ───────────────────── */}
+                                {auditExcs.length > 0 && (
+                                  <div className={needsClassification ? "opacity-60 pointer-events-none" : ""}>
+                                    {needsClassification && (
+                                      <p className="mb-2 text-xs italic text-gray-400">
+                                        Contract audit exceptions are shown below — resolve the spend
+                                        classification above before taking audit actions.
+                                      </p>
+                                    )}
+                                    <div className="space-y-3">
+                                      {auditExcs.map((exc) => (
+                                        <ExceptionRow
+                                          key={exc.exception_id}
+                                          exc={exc}
+                                          invoiceId={id}
+                                          lineClassificationSuggestion={
+                                            line.ai_classification_suggestion
+                                          }
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Lines flagged for review with no exceptions yet */}
+                                {needsClassification && auditExcs.length === 0 && classificationExcs.length === 0 && line.exceptions.length === 0 && (
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    No contract audit exceptions on this line yet.
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     )}

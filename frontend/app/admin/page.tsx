@@ -231,9 +231,9 @@ export default function AdminDashboard() {
               <span className="text-lg">🗂</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-amber-800">
-                  {mappingCount} line{mappingCount !== 1 ? "s" : ""} need mapping review
+                  {mappingCount} line{mappingCount !== 1 ? "s" : ""} awaiting classification
                 </p>
-                <p className="text-xs text-amber-500">Low-confidence AI classifications · click to review</p>
+                <p className="text-xs text-amber-500">Service lines without an assigned spend bucket · click to review</p>
               </div>
               <span className="shrink-0 text-xs font-semibold text-amber-600">Review →</span>
             </Link>
