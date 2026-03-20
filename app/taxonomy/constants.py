@@ -12,6 +12,7 @@ Domains:
   IA      Independent Adjusting
   INV     Investigation & Surveillance
   LA      Ladder Assist & Roof Access
+  INSP    Property Inspections (standalone inspection vendors)
   REC     Record Retrieval & Management
   XDOMAIN Cross-domain (pass-through, misc admin)
 
@@ -499,6 +500,130 @@ TAXONOMY: list[dict] = [
         "description": (
             "Fee charged when the technician is dispatched and arrives on site "
             "but is unable to complete the service (e.g., access denied, unsafe conditions)."
+        ),
+    },
+    # ══════════════════════════════════════════════════════════════════════════
+    # INSP — Property Inspections
+    # Standalone inspection vendors (distinct from IA independent adjusters).
+    # ══════════════════════════════════════════════════════════════════════════
+    {
+        "code": "INSP.BASIC.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "BASIC",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Basic Property Inspection",
+        "description": (
+            "Standard interior and exterior property inspection to document "
+            "condition, damage, or compliance for a claim."
+        ),
+    },
+    {
+        "code": "INSP.REINSPECT.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "REINSPECT",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Re-Inspection",
+        "description": (
+            "Follow-up inspection of a previously inspected property to verify "
+            "repairs, changes in condition, or additional damage."
+        ),
+    },
+    {
+        "code": "INSP.EXTERIOR.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "EXTERIOR",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Exterior / Drive-By Inspection",
+        "description": (
+            "Exterior-only or drive-by property inspection where interior access "
+            "is not required or available."
+        ),
+    },
+    {
+        "code": "INSP.INTERIOR.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "INTERIOR",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Interior Inspection",
+        "description": (
+            "Interior property inspection documenting structural elements, "
+            "finishes, fixtures, and interior damage."
+        ),
+    },
+    {
+        "code": "INSP.DAMAGE_ASSESS.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "DAMAGE_ASSESS",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Damage Assessment Report",
+        "description": (
+            "Detailed written report assessing the nature, scope, and cause of "
+            "property damage following an inspection."
+        ),
+    },
+    {
+        "code": "INSP.SUPPLEMENT_REVIEW.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "SUPPLEMENT_REVIEW",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Supplement Review",
+        "description": (
+            "Review and field verification of a contractor supplement estimate "
+            "to confirm accuracy of additional damage items."
+        ),
+    },
+    {
+        "code": "INSP.PHOTO_DOC.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "PHOTO_DOC",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Photo Documentation Report",
+        "description": (
+            "Photographic documentation of property condition or damage, "
+            "delivered as an organized photo report."
+        ),
+    },
+    {
+        "code": "INSP.DISPUTE_REINSPECT.FLAT_FEE",
+        "domain": "INSP",
+        "service_item": "DISPUTE_REINSPECT",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Re-Inspection (Disputed Estimate)",
+        "description": (
+            "Re-inspection conducted specifically to resolve a disputed repair "
+            "estimate or appraisal discrepancy."
+        ),
+    },
+    {
+        "code": "INSP.CANCEL.CANCEL_FEE",
+        "domain": "INSP",
+        "service_item": "CANCEL",
+        "billing_component": "CANCEL_FEE",
+        "unit_model": "flat_fee",
+        "label": "Cancellation Fee",
+        "description": (
+            "Fee charged when a scheduled inspection appointment is cancelled "
+            "within the contract-specified notice window."
+        ),
+    },
+    {
+        "code": "INSP.TRIP_CHARGE.TRIP_FEE",
+        "domain": "INSP",
+        "service_item": "TRIP_CHARGE",
+        "billing_component": "TRIP_FEE",
+        "unit_model": "flat_fee",
+        "label": "Trip Charge / No Access",
+        "description": (
+            "Fee charged when the inspector is dispatched and arrives on site "
+            "but is unable to complete the inspection (e.g., access denied, property vacant)."
         ),
     },
     # ══════════════════════════════════════════════════════════════════════════

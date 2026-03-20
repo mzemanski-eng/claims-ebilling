@@ -54,6 +54,7 @@ import type {
   UtilizationRow,
   ClaimStackingRow,
 } from "@/lib/types";
+import { DOMAIN_LABELS } from "@/lib/taxonomy";
 
 // ── Dynamic map import (avoids SSR issues with react-simple-maps) ─────────────
 const USSpendMap = dynamic(() => import("@/components/us-spend-map"), {
@@ -67,15 +68,6 @@ const USSpendMap = dynamic(() => import("@/components/us-spend-map"), {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DOMAIN_LABELS: Record<string, string> = {
-  IME:     "Independent Medical Exam",
-  ENG:     "Engineering & Forensic",
-  IA:      "Independent Adjusting",
-  INV:     "Investigation & Surveillance",
-  LA:      "Ladder Assist & Roof Access",
-  REC:     "Record Retrieval",
-  XDOMAIN: "Cross-Domain / Admin",
-};
 
 const DOMAIN_COLORS: Record<string, string> = {
   IME:     "#3B82F6",
@@ -83,11 +75,12 @@ const DOMAIN_COLORS: Record<string, string> = {
   IA:      "#8B5CF6",
   INV:     "#EF4444",
   LA:      "#14B8A6",
+  INSP:    "#F97316",
   REC:     "#10B981",
   XDOMAIN: "#6B7280",
 };
 
-const DOMAIN_ORDER = ["IME", "ENG", "IA", "INV", "LA", "REC", "XDOMAIN"];
+const DOMAIN_ORDER = ["IME", "ENG", "IA", "INV", "LA", "INSP", "REC", "XDOMAIN"];
 
 const STATUS_ORDER = [
   "REVIEW_REQUIRED",

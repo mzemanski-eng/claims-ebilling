@@ -12,7 +12,7 @@ import {
   updateGuideline,
 } from "@/lib/api";
 import type { GuidelineCreate, RateCardCreate } from "@/lib/types";
-import { TAXONOMY_DOMAINS, TAXONOMY_OPTIONS } from "@/lib/taxonomy";
+import { DOMAIN_LABELS, TAXONOMY_DOMAINS, TAXONOMY_OPTIONS } from "@/lib/taxonomy";
 
 const RULE_TYPES = [
   { value: "max_units", label: "Max Units" },
@@ -617,7 +617,7 @@ export default function ContractDetailPage() {
                         >
                           <option value="">Select…</option>
                           {TAXONOMY_DOMAINS.map((domain) => (
-                            <optgroup key={domain} label={domain}>
+                            <optgroup key={domain} label={DOMAIN_LABELS[domain] ?? domain}>
                               {TAXONOMY_OPTIONS.filter((t) => t.domain === domain).map((t) => (
                                 <option key={t.code} value={t.code}>
                                   {t.code} — {t.label}
@@ -871,7 +871,7 @@ export default function ContractDetailPage() {
                     >
                       <option value="">(none — use domain below)</option>
                       {TAXONOMY_DOMAINS.map((domain) => (
-                        <optgroup key={domain} label={domain}>
+                        <optgroup key={domain} label={DOMAIN_LABELS[domain] ?? domain}>
                           {TAXONOMY_OPTIONS.filter((t) => t.domain === domain).map((t) => (
                             <option key={t.code} value={t.code}>
                               {t.code} — {t.label}

@@ -103,6 +103,18 @@ export const TAXONOMY_OPTIONS: TaxonomyOption[] = [
   { code: "LA.CANCEL.CANCEL_FEE",            label: "Appointment Cancellation Fee",                domain: "LA" },
   { code: "LA.TRIP_CHARGE.TRIP_FEE",         label: "Trip Charge",                                 domain: "LA" },
 
+  // ── INSP — Property Inspections ──────────────────────────────────────────
+  { code: "INSP.BASIC.FLAT_FEE",              label: "Basic Property Inspection",                   domain: "INSP" },
+  { code: "INSP.REINSPECT.FLAT_FEE",          label: "Re-Inspection",                               domain: "INSP" },
+  { code: "INSP.EXTERIOR.FLAT_FEE",           label: "Exterior / Drive-By Inspection",              domain: "INSP" },
+  { code: "INSP.INTERIOR.FLAT_FEE",           label: "Interior Inspection",                         domain: "INSP" },
+  { code: "INSP.DAMAGE_ASSESS.FLAT_FEE",      label: "Damage Assessment Report",                    domain: "INSP" },
+  { code: "INSP.SUPPLEMENT_REVIEW.FLAT_FEE",  label: "Supplement Review",                           domain: "INSP" },
+  { code: "INSP.PHOTO_DOC.FLAT_FEE",          label: "Photo Documentation Report",                  domain: "INSP" },
+  { code: "INSP.DISPUTE_REINSPECT.FLAT_FEE",  label: "Re-Inspection (Disputed Estimate)",           domain: "INSP" },
+  { code: "INSP.CANCEL.CANCEL_FEE",           label: "Cancellation Fee",                            domain: "INSP" },
+  { code: "INSP.TRIP_CHARGE.TRIP_FEE",        label: "Trip Charge / No Access",                     domain: "INSP" },
+
   // ── XDOMAIN — Cross-Domain ────────────────────────────────────────────────
   { code: "XDOMAIN.PASS_THROUGH.THIRD_PARTY_COST", label: "Pass-Through Third-Party Cost",         domain: "XDOMAIN" },
   { code: "XDOMAIN.ADMIN_MISC.ADMIN_FEE",    label: "Miscellaneous Administrative Fee",            domain: "XDOMAIN" },
@@ -110,3 +122,15 @@ export const TAXONOMY_OPTIONS: TaxonomyOption[] = [
 
 /** Unique domain list in display order. */
 export const TAXONOMY_DOMAINS = Array.from(new Set(TAXONOMY_OPTIONS.map((t) => t.domain)));
+
+/** Human-readable display labels for each domain, used in UI optgroup headers. */
+export const DOMAIN_LABELS: Record<string, string> = {
+  IME:     "Medical — Independent Examinations",
+  REC:     "Medical — Record Retrieval",
+  IA:      "Property — Independent Adjusting",
+  LA:      "Property — Ladder Assist",
+  INSP:    "Property — Inspections",
+  ENG:     "Engineering & Forensic",
+  INV:     "Investigation & Surveillance",
+  XDOMAIN: "Cross-Domain / Pass-Through",
+};
