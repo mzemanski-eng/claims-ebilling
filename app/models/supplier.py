@@ -244,8 +244,32 @@ class RateCard(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
 
-    # Contracted rate per unit (DECIMAL for financial precision — never float)
-    contracted_rate: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    # Rate type — controls how contracted_rate / rate_tiers are applied
+    # flat:     contracted_rate × quantity  (default)
+    # tiered:   rate_tiers bands applied to quantity; contracted_rate is NULL
+    # hourly:   contracted_rate × hours
+    # mileage:  contracted_rate × miles
+    # per_diem: contracted_rate × days
+    rate_type: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="flat",
+        server_default="flat",
+        comment="flat | tiered | hourly | mileage | per_diem",
+    )
+
+    # Contracted rate per unit (NULL for tiered rate cards — rate lives in rate_tiers)
+    contracted_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+
+    # Tiered rate bands — used only when rate_type = 'tiered'
+    # Format: [{"from_unit": 1, "to_unit": 20, "rate": "0.85"}, ...]
+    # to_unit: null means unlimited / all remaining units
+    rate_tiers: Mapped[Optional[list]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Band array for tiered rates: [{from_unit, to_unit|null, rate}]",
+    )
+
     # NULL = no per-invoice unit cap; set to cap maximum payable units
     max_units: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4), nullable=True)
 
