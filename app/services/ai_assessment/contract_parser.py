@@ -48,12 +48,16 @@ def _get_client():
 
 
 def _build_taxonomy_block() -> str:
-    """Build a compact string listing all valid taxonomy codes and labels."""
+    """
+    Build a compact string listing all valid taxonomy codes, labels, and unit
+    models. TAXONOMY is a list[dict], not a dict — iterate with for item in TAXONOMY.
+    """
     try:
-        from app.taxonomy.constants import TAXONOMY
+        from app.taxonomy.constants import TAXONOMY  # list of dicts
 
         lines = []
-        for code, item in TAXONOMY.items():
+        for item in TAXONOMY:
+            code = item["code"]
             label = item.get("label", code)
             unit_model = item.get("unit_model", "")
             lines.append(f"  {code} — {label} ({unit_model})")
@@ -89,7 +93,11 @@ Return exactly this JSON structure:
   "rate_cards": [
     {{
       "taxonomy_code": "<exact code from the list above>",
-      "contracted_rate": <number>,
+      "rate_type": "<flat | tiered | hourly | mileage | per_diem>",
+      "contracted_rate": <number or null — use null only when rate_type is "tiered">,
+      "rate_tiers": [
+        {{"from_unit": <int>, "to_unit": <int or null>, "rate": <number>}}
+      ],
       "max_units": <number or null>,
       "is_all_inclusive": <true or false>,
       "effective_from": "<YYYY-MM-DD>",
@@ -112,6 +120,13 @@ Return exactly this JSON structure:
 Important:
 - Only use taxonomy_codes from the list above — never invent new codes.
 - If you cannot find a clear match for a service, omit that rate card rather than guess.
+- For rate_type: use "flat" for fixed fees, "hourly" for per-hour billing, "mileage" for
+  per-mile billing, "per_diem" for daily rates, and "tiered" when the contract specifies
+  different rates for different quantity ranges (e.g. pages 1–20 @ $0.85, then 21+ @ $0.55).
+  Tiered pricing is common in record retrieval (per-page) contracts.
+- For tiered rate cards: set contracted_rate to null and populate rate_tiers with all bands.
+  Leave to_unit as null on the final band (meaning "all remaining units").
+- For non-tiered rate cards: set rate_tiers to null (or []) and use contracted_rate.
 - For rule_params, use appropriate keys:
   - max_units: {{"max": <number>, "period": "per_claim | per_day | per_visit"}}
   - cap_amount: {{"max_amount": <number>}}
@@ -141,11 +156,11 @@ def _empty_result(supplier_id: str, notes: str) -> dict:
 
 
 def _validate_taxonomy_codes(rate_cards: list[dict]) -> list[dict]:
-    """Remove rate cards that reference codes not in our taxonomy."""
+    """Remove rate cards that reference codes not in our taxonomy registry."""
     try:
-        from app.taxonomy.constants import TAXONOMY
+        from app.taxonomy.constants import TAXONOMY  # list of dicts
 
-        valid_codes = set(TAXONOMY.keys())
+        valid_codes = {item["code"] for item in TAXONOMY}
     except Exception:
         return rate_cards  # can't validate — pass through unchanged
 
