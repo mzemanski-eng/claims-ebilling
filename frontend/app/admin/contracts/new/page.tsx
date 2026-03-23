@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState } from "react";
+import React, { Suspense, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,13 +10,14 @@ import {
   listAdminSuppliers,
   parseContractPdf,
 } from "@/lib/api";
-import type { GuidelineCreate, RateCardCreate } from "@/lib/types";
+import type { GuidelineCreate, RateCardCreate, RateTier } from "@/lib/types";
 import { DOMAIN_LABELS, TAXONOMY_DOMAINS, TAXONOMY_OPTIONS } from "@/lib/taxonomy";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface RateCardRow extends RateCardCreate {
   _key: number;
+  rate_tiers: RateTier[]; // always an array in local state (never null)
 }
 
 interface GuidelineRow extends GuidelineCreate {
@@ -77,7 +78,13 @@ function NewContractContent() {
       if (result.contract.geography_scope) setGeographyScope(result.contract.geography_scope);
       if (result.contract.notes) setNotes(result.contract.notes ?? "");
       // Load extracted rate cards and guidelines
-      setRateCards(result.rate_cards.map((rc) => ({ ...rc, _key: nextKey() })));
+      setRateCards(result.rate_cards.map((rc) => ({
+        ...rc,
+        _key: nextKey(),
+        rate_type: rc.rate_type ?? "flat",
+        contracted_rate: rc.contracted_rate ?? "",
+        rate_tiers: rc.rate_tiers ?? [],
+      })));
       setGuidelines(result.guidelines.map((g) => ({ ...g, _key: nextKey() })));
       setExtractionNotes(result.extraction_notes);
     } catch (err) {
@@ -146,7 +153,9 @@ function NewContractContent() {
       for (const rc of rateCards) {
         await createRateCard(contract.id, {
           taxonomy_code: rc.taxonomy_code,
-          contracted_rate: rc.contracted_rate,
+          rate_type: rc.rate_type,
+          contracted_rate: rc.rate_type === "tiered" ? null : rc.contracted_rate,
+          rate_tiers: rc.rate_type === "tiered" ? rc.rate_tiers : null,
           max_units: rc.max_units,
           is_all_inclusive: rc.is_all_inclusive,
           effective_from: rc.effective_from || effectiveFrom,
@@ -369,7 +378,9 @@ function NewContractContent() {
                     {
                       _key: nextKey(),
                       taxonomy_code: "",
+                      rate_type: "flat",
                       contracted_rate: "",
+                      rate_tiers: [],
                       max_units: null,
                       is_all_inclusive: false,
                       effective_from: effectiveFrom,
@@ -393,115 +404,265 @@ function NewContractContent() {
                   <thead>
                     <tr className="border-b border-gray-100">
                       <th className="pb-2 text-left text-xs font-medium text-gray-500">Taxonomy Code</th>
+                      <th className="pb-2 text-left text-xs font-medium text-gray-500">Rate Type</th>
                       <th className="pb-2 text-left text-xs font-medium text-gray-500">Rate ($)</th>
                       <th className="pb-2 text-left text-xs font-medium text-gray-500">Max Units</th>
-                      <th className="pb-2 text-left text-xs font-medium text-gray-500">All-Inclusive</th>
+                      <th className="pb-2 text-left text-xs font-medium text-gray-500">All-Incl.</th>
                       <th className="pb-2 text-left text-xs font-medium text-gray-500">Eff. From</th>
                       <th className="w-8" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {rateCards.map((rc, i) => (
-                      <tr key={rc._key}>
-                        <td className="py-1.5 pr-2">
-                          <select
-                            value={rc.taxonomy_code}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setRateCards((prev) =>
-                                prev.map((r, j) => (j === i ? { ...r, taxonomy_code: v } : r))
-                              );
-                            }}
-                            className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-                          >
-                            <option value="">Select…</option>
-                            {TAXONOMY_DOMAINS.map((domain) => (
-                              <optgroup key={domain} label={DOMAIN_LABELS[domain] ?? domain}>
-                                {TAXONOMY_OPTIONS.filter((t) => t.domain === domain).map((t) => (
-                                  <option key={t.code} value={t.code}>
-                                    {t.code} — {t.label}
-                                  </option>
+                      <React.Fragment key={rc._key}>
+                        <tr>
+                          {/* Taxonomy code */}
+                          <td className="py-1.5 pr-2">
+                            <select
+                              value={rc.taxonomy_code}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setRateCards((prev) =>
+                                  prev.map((r, j) => (j === i ? { ...r, taxonomy_code: v } : r))
+                                );
+                              }}
+                              className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                            >
+                              <option value="">Select…</option>
+                              {TAXONOMY_DOMAINS.map((domain) => (
+                                <optgroup key={domain} label={DOMAIN_LABELS[domain] ?? domain}>
+                                  {TAXONOMY_OPTIONS.filter((t) => t.domain === domain).map((t) => (
+                                    <option key={t.code} value={t.code}>
+                                      {t.code} — {t.label}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </td>
+                          {/* Rate type */}
+                          <td className="py-1.5 pr-2">
+                            <select
+                              value={rc.rate_type}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setRateCards((prev) =>
+                                  prev.map((r, j) => (j === i ? { ...r, rate_type: v } : r))
+                                );
+                              }}
+                              className="rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                            >
+                              <option value="flat">Flat Fee</option>
+                              <option value="tiered">Tiered</option>
+                              <option value="hourly">Hourly</option>
+                              <option value="mileage">Per Mile</option>
+                              <option value="per_diem">Per Diem</option>
+                            </select>
+                          </td>
+                          {/* Rate — hidden for tiered */}
+                          <td className="py-1.5 pr-2">
+                            {rc.rate_type === "tiered" ? (
+                              <span className="text-xs text-purple-600 font-medium">
+                                {rc.rate_tiers.length > 0
+                                  ? `${rc.rate_tiers.length} band${rc.rate_tiers.length !== 1 ? "s" : ""} ↓`
+                                  : "Add bands ↓"}
+                              </span>
+                            ) : (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={rc.contracted_rate ?? ""}
+                                onChange={(e) =>
+                                  setRateCards((prev) =>
+                                    prev.map((r, j) =>
+                                      j === i ? { ...r, contracted_rate: e.target.value } : r
+                                    )
+                                  )
+                                }
+                                className="w-24 rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                              />
+                            )}
+                          </td>
+                          {/* Max units */}
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={rc.max_units ?? ""}
+                              placeholder="—"
+                              onChange={(e) =>
+                                setRateCards((prev) =>
+                                  prev.map((r, j) =>
+                                    j === i ? { ...r, max_units: e.target.value || null } : r
+                                  )
+                                )
+                              }
+                              className="w-20 rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                            />
+                          </td>
+                          {/* All-inclusive */}
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={rc.is_all_inclusive}
+                              onChange={(e) =>
+                                setRateCards((prev) =>
+                                  prev.map((r, j) =>
+                                    j === i ? { ...r, is_all_inclusive: e.target.checked } : r
+                                  )
+                                )
+                              }
+                              className="rounded border-gray-300"
+                            />
+                          </td>
+                          {/* Effective from */}
+                          <td className="py-1.5 pr-2">
+                            <input
+                              type="date"
+                              value={rc.effective_from}
+                              onChange={(e) =>
+                                setRateCards((prev) =>
+                                  prev.map((r, j) =>
+                                    j === i ? { ...r, effective_from: e.target.value } : r
+                                  )
+                                )
+                              }
+                              className="rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                            />
+                          </td>
+                          {/* Delete */}
+                          <td className="py-1.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRateCards((prev) => prev.filter((_, j) => j !== i))
+                              }
+                              className="text-gray-400 hover:text-red-500 transition-colors text-sm"
+                              title="Remove"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                        {/* Tier band editor — shown below the row when rate_type === "tiered" */}
+                        {rc.rate_type === "tiered" && (
+                          <tr className="bg-purple-50">
+                            <td colSpan={7} className="pb-3 pt-1 px-2">
+                              <div className="ml-2 space-y-1.5">
+                                <p className="text-xs font-medium text-purple-700 mb-1">
+                                  Rate Bands
+                                  <span className="ml-1.5 font-normal text-purple-500">
+                                    (e.g. pages 1–20 @ $0.85, then 21+ @ $0.55)
+                                  </span>
+                                </p>
+                                {rc.rate_tiers.length > 0 && (
+                                  <div className="flex gap-2 text-xs text-purple-600 font-medium mb-0.5 pl-1">
+                                    <span className="w-16">From unit</span>
+                                    <span className="w-20">To unit</span>
+                                    <span className="w-20">Rate ($)</span>
+                                  </div>
+                                )}
+                                {rc.rate_tiers.map((tier, ti) => (
+                                  <div key={ti} className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={tier.from_unit}
+                                      onChange={(e) =>
+                                        setRateCards((prev) =>
+                                          prev.map((r, j) => {
+                                            if (j !== i) return r;
+                                            const tiers = [...r.rate_tiers];
+                                            tiers[ti] = { ...tiers[ti], from_unit: Number(e.target.value) };
+                                            return { ...r, rate_tiers: tiers };
+                                          })
+                                        )
+                                      }
+                                      placeholder="From"
+                                      className="w-16 rounded border border-purple-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none"
+                                    />
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={tier.to_unit ?? ""}
+                                      onChange={(e) =>
+                                        setRateCards((prev) =>
+                                          prev.map((r, j) => {
+                                            if (j !== i) return r;
+                                            const tiers = [...r.rate_tiers];
+                                            tiers[ti] = { ...tiers[ti], to_unit: e.target.value ? Number(e.target.value) : null };
+                                            return { ...r, rate_tiers: tiers };
+                                          })
+                                        )
+                                      }
+                                      placeholder="∞"
+                                      className="w-20 rounded border border-purple-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none"
+                                    />
+                                    <input
+                                      type="number"
+                                      step="0.0001"
+                                      min="0"
+                                      value={tier.rate}
+                                      onChange={(e) =>
+                                        setRateCards((prev) =>
+                                          prev.map((r, j) => {
+                                            if (j !== i) return r;
+                                            const tiers = [...r.rate_tiers];
+                                            tiers[ti] = { ...tiers[ti], rate: e.target.value };
+                                            return { ...r, rate_tiers: tiers };
+                                          })
+                                        )
+                                      }
+                                      placeholder="0.00"
+                                      className="w-20 rounded border border-purple-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setRateCards((prev) =>
+                                          prev.map((r, j) =>
+                                            j === i
+                                              ? { ...r, rate_tiers: r.rate_tiers.filter((_, k) => k !== ti) }
+                                              : r
+                                          )
+                                        )
+                                      }
+                                      className="text-purple-300 hover:text-red-500 transition-colors text-sm"
+                                      title="Remove band"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
                                 ))}
-                              </optgroup>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={rc.contracted_rate}
-                            onChange={(e) =>
-                              setRateCards((prev) =>
-                                prev.map((r, j) =>
-                                  j === i ? { ...r, contracted_rate: e.target.value } : r
-                                )
-                              )
-                            }
-                            className="w-24 rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-                          />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={rc.max_units ?? ""}
-                            placeholder="—"
-                            onChange={(e) =>
-                              setRateCards((prev) =>
-                                prev.map((r, j) =>
-                                  j === i
-                                    ? { ...r, max_units: e.target.value || null }
-                                    : r
-                                )
-                              )
-                            }
-                            className="w-20 rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-                          />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input
-                            type="checkbox"
-                            checked={rc.is_all_inclusive}
-                            onChange={(e) =>
-                              setRateCards((prev) =>
-                                prev.map((r, j) =>
-                                  j === i ? { ...r, is_all_inclusive: e.target.checked } : r
-                                )
-                              )
-                            }
-                            className="rounded border-gray-300"
-                          />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <input
-                            type="date"
-                            value={rc.effective_from}
-                            onChange={(e) =>
-                              setRateCards((prev) =>
-                                prev.map((r, j) =>
-                                  j === i ? { ...r, effective_from: e.target.value } : r
-                                )
-                              )
-                            }
-                            className="rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-                          />
-                        </td>
-                        <td className="py-1.5">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setRateCards((prev) => prev.filter((_, j) => j !== i))
-                            }
-                            className="text-gray-400 hover:text-red-500 transition-colors text-sm"
-                            title="Remove"
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setRateCards((prev) =>
+                                      prev.map((r, j) => {
+                                        if (j !== i) return r;
+                                        const lastFrom = r.rate_tiers.length > 0
+                                          ? (r.rate_tiers[r.rate_tiers.length - 1].to_unit ?? 0) + 1
+                                          : 1;
+                                        return {
+                                          ...r,
+                                          rate_tiers: [...r.rate_tiers, { from_unit: lastFrom, to_unit: null, rate: "" }],
+                                        };
+                                      })
+                                    )
+                                  }
+                                  className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                                >
+                                  + Add band
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,7 +11,7 @@ import {
   getAdminContract,
   updateGuideline,
 } from "@/lib/api";
-import type { GuidelineCreate, RateCardCreate } from "@/lib/types";
+import type { GuidelineCreate, RateCardCreate, RateTier } from "@/lib/types";
 import { DOMAIN_LABELS, TAXONOMY_DOMAINS, TAXONOMY_OPTIONS } from "@/lib/taxonomy";
 
 const RULE_TYPES = [
@@ -29,13 +29,33 @@ const RULE_TYPES = [
 function blankRateCard(effectiveFrom = ""): RateCardCreate {
   return {
     taxonomy_code: "",
+    rate_type: "flat",
     contracted_rate: "",
+    rate_tiers: [],
     max_units: null,
     is_all_inclusive: false,
     effective_from: effectiveFrom,
     effective_to: null,
   };
 }
+
+// ── Rate type display helpers ─────────────────────────────────────────────────
+
+const RATE_TYPE_LABELS: Record<string, string> = {
+  flat:     "Flat",
+  tiered:   "Tiered",
+  hourly:   "Hourly",
+  mileage:  "Per Mile",
+  per_diem: "Per Diem",
+};
+
+const RATE_TYPE_COLORS: Record<string, string> = {
+  flat:     "bg-gray-100 text-gray-600",
+  tiered:   "bg-purple-100 text-purple-700",
+  hourly:   "bg-blue-100 text-blue-700",
+  mileage:  "bg-green-100 text-green-700",
+  per_diem: "bg-amber-100 text-amber-700",
+};
 
 function blankGuideline(): GuidelineCreate {
   return {
@@ -367,6 +387,8 @@ export default function ContractDetailPage() {
   const [rcForm, setRcForm] = useState<RateCardCreate>(blankRateCard());
   const [glForm, setGlForm] = useState<GuidelineCreate>(blankGuideline());
   const [formError, setFormError] = useState<string | null>(null);
+  // Which tiered rate card row is expanded (by id)
+  const [expandedRcId, setExpandedRcId] = useState<string | null>(null);
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const {
@@ -538,6 +560,9 @@ export default function ContractDetailPage() {
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Service
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Type
+                    </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Rate
                     </th>
@@ -545,7 +570,7 @@ export default function ContractDetailPage() {
                       Max Units
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      All-Inclusive
+                      All-Incl.
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Effective
@@ -556,154 +581,336 @@ export default function ContractDetailPage() {
                 <tbody className="divide-y divide-gray-100">
                   {contract.rate_cards.length === 0 && !showAddRateCard ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
                         No rate cards yet.
                       </td>
                     </tr>
                   ) : null}
-                  {contract.rate_cards.map((rc) => (
-                    <tr key={rc.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs text-gray-700">{rc.taxonomy_code}</span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {rc.taxonomy_label ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-sm text-gray-900">
-                        ${Number(rc.contracted_rate).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-600">
-                        {rc.max_units ? Number(rc.max_units).toString() : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {rc.is_all_inclusive ? (
-                          <span className="text-green-600">✓ Yes</span>
-                        ) : (
-                          <span className="text-gray-400">No</span>
+                  {contract.rate_cards.map((rc) => {
+                    const isTiered = rc.rate_type === "tiered";
+                    const isExpanded = expandedRcId === rc.id;
+                    return (
+                      <React.Fragment key={rc.id}>
+                        <tr className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-xs text-gray-700">{rc.taxonomy_code}</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {rc.taxonomy_label ?? "—"}
+                          </td>
+                          {/* Type badge */}
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${
+                              RATE_TYPE_COLORS[rc.rate_type] ?? "bg-gray-100 text-gray-600"
+                            }`}>
+                              {RATE_TYPE_LABELS[rc.rate_type] ?? rc.rate_type}
+                            </span>
+                          </td>
+                          {/* Rate — for tiered show band count + expand toggle */}
+                          <td className="px-4 py-3 text-right font-mono text-sm text-gray-900">
+                            {isTiered ? (
+                              <button
+                                onClick={() => setExpandedRcId(isExpanded ? null : rc.id)}
+                                className="text-purple-600 hover:text-purple-800 font-medium text-xs"
+                              >
+                                {rc.rate_tiers?.length ?? 0} band{(rc.rate_tiers?.length ?? 0) !== 1 ? "s" : ""}{" "}
+                                {isExpanded ? "▲" : "▼"}
+                              </button>
+                            ) : (
+                              rc.contracted_rate != null
+                                ? `$${Number(rc.contracted_rate).toFixed(2)}`
+                                : "—"
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm text-gray-600">
+                            {rc.max_units ? Number(rc.max_units).toString() : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {rc.is_all_inclusive ? (
+                              <span className="text-green-600">✓ Yes</span>
+                            ) : (
+                              <span className="text-gray-400">No</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {rc.effective_from}
+                            {rc.effective_to && (
+                              <span className="text-gray-400"> → {rc.effective_to}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => {
+                                if (confirm("Delete this rate card?")) {
+                                  deleteRcMutation.mutate(rc.id);
+                                }
+                              }}
+                              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                              title="Delete rate card"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                        {/* Expanded tier bands row */}
+                        {isTiered && isExpanded && rc.rate_tiers && rc.rate_tiers.length > 0 && (
+                          <tr className="bg-purple-50">
+                            <td colSpan={8} className="px-6 py-3">
+                              <p className="mb-2 text-xs font-semibold text-purple-700">
+                                Rate Bands
+                              </p>
+                              <table className="text-xs">
+                                <thead>
+                                  <tr className="text-purple-600">
+                                    <th className="pr-6 text-left font-medium pb-1">From unit</th>
+                                    <th className="pr-6 text-left font-medium pb-1">To unit</th>
+                                    <th className="pr-6 text-left font-medium pb-1">Rate</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-purple-100">
+                                  {rc.rate_tiers.map((tier, ti) => (
+                                    <tr key={ti}>
+                                      <td className="pr-6 py-1 font-mono">{tier.from_unit}</td>
+                                      <td className="pr-6 py-1 font-mono">
+                                        {tier.to_unit != null ? tier.to_unit : <span className="text-purple-400">∞</span>}
+                                      </td>
+                                      <td className="pr-6 py-1 font-mono">${Number(tier.rate).toFixed(4)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {rc.effective_from}
-                        {rc.effective_to && (
-                          <span className="text-gray-400"> → {rc.effective_to}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => {
-                            if (confirm("Delete this rate card?")) {
-                              deleteRcMutation.mutate(rc.id);
-                            }
-                          }}
-                          className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                          title="Delete rate card"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
 
                   {/* Inline add form */}
                   {showAddRateCard && (
-                    <tr className="bg-blue-50">
-                      <td className="px-4 py-2">
-                        <select
-                          value={rcForm.taxonomy_code}
-                          onChange={(e) =>
-                            setRcForm({ ...rcForm, taxonomy_code: e.target.value })
-                          }
-                          className="w-full rounded border border-blue-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-                        >
-                          <option value="">Select…</option>
-                          {TAXONOMY_DOMAINS.map((domain) => (
-                            <optgroup key={domain} label={DOMAIN_LABELS[domain] ?? domain}>
-                              {TAXONOMY_OPTIONS.filter((t) => t.domain === domain).map((t) => (
-                                <option key={t.code} value={t.code}>
-                                  {t.code} — {t.label}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2 text-xs text-gray-500">
-                        {TAXONOMY_OPTIONS.find((t) => t.code === rcForm.taxonomy_code)?.label ?? ""}
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={rcForm.contracted_rate}
-                          onChange={(e) =>
-                            setRcForm({ ...rcForm, contracted_rate: e.target.value })
-                          }
-                          placeholder="0.00"
-                          className="w-24 rounded border border-blue-200 px-2 py-1 text-xs text-right focus:border-blue-500 focus:outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={rcForm.max_units ?? ""}
-                          onChange={(e) =>
-                            setRcForm({ ...rcForm, max_units: e.target.value || null })
-                          }
-                          placeholder="—"
-                          className="w-20 rounded border border-blue-200 px-2 py-1 text-xs text-right focus:border-blue-500 focus:outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="checkbox"
-                          checked={rcForm.is_all_inclusive}
-                          onChange={(e) =>
-                            setRcForm({ ...rcForm, is_all_inclusive: e.target.checked })
-                          }
-                          className="rounded border-gray-300"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="date"
-                          value={rcForm.effective_from}
-                          onChange={(e) =>
-                            setRcForm({ ...rcForm, effective_from: e.target.value })
-                          }
-                          className="rounded border border-blue-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              setFormError(null);
-                              if (!rcForm.taxonomy_code || !rcForm.contracted_rate || !rcForm.effective_from) {
-                                setFormError("Code, rate, and effective date are required.");
-                                return;
+                    <React.Fragment>
+                      <tr className="bg-blue-50">
+                        {/* Taxonomy code */}
+                        <td className="px-4 py-2">
+                          <select
+                            value={rcForm.taxonomy_code}
+                            onChange={(e) =>
+                              setRcForm({ ...rcForm, taxonomy_code: e.target.value })
+                            }
+                            className="w-full rounded border border-blue-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="">Select…</option>
+                            {TAXONOMY_DOMAINS.map((domain) => (
+                              <optgroup key={domain} label={DOMAIN_LABELS[domain] ?? domain}>
+                                {TAXONOMY_OPTIONS.filter((t) => t.domain === domain).map((t) => (
+                                  <option key={t.code} value={t.code}>
+                                    {t.code} — {t.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        </td>
+                        {/* Service label */}
+                        <td className="px-4 py-2 text-xs text-gray-500">
+                          {TAXONOMY_OPTIONS.find((t) => t.code === rcForm.taxonomy_code)?.label ?? ""}
+                        </td>
+                        {/* Rate type */}
+                        <td className="px-4 py-2">
+                          <select
+                            value={rcForm.rate_type}
+                            onChange={(e) =>
+                              setRcForm({ ...rcForm, rate_type: e.target.value })
+                            }
+                            className="rounded border border-blue-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="flat">Flat Fee</option>
+                            <option value="tiered">Tiered</option>
+                            <option value="hourly">Hourly</option>
+                            <option value="mileage">Per Mile</option>
+                            <option value="per_diem">Per Diem</option>
+                          </select>
+                        </td>
+                        {/* Rate — conditional on rate_type */}
+                        <td className="px-4 py-2">
+                          {rcForm.rate_type === "tiered" ? (
+                            <span className="text-xs text-purple-600 font-medium">
+                              {(rcForm.rate_tiers as RateTier[] ?? []).length > 0
+                                ? `${(rcForm.rate_tiers as RateTier[]).length} bands ↓`
+                                : "Add bands ↓"}
+                            </span>
+                          ) : (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={rcForm.contracted_rate ?? ""}
+                              onChange={(e) =>
+                                setRcForm({ ...rcForm, contracted_rate: e.target.value })
                               }
-                              addRcMutation.mutate(rcForm);
-                            }}
-                            disabled={addRcMutation.isPending}
-                            className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                          >
-                            {addRcMutation.isPending ? "…" : "Save"}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowAddRateCard(false);
-                              setFormError(null);
-                            }}
-                            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                              placeholder="0.00"
+                              className="w-24 rounded border border-blue-200 px-2 py-1 text-xs text-right focus:border-blue-500 focus:outline-none"
+                            />
+                          )}
+                        </td>
+                        {/* Max units */}
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={rcForm.max_units ?? ""}
+                            onChange={(e) =>
+                              setRcForm({ ...rcForm, max_units: e.target.value || null })
+                            }
+                            placeholder="—"
+                            className="w-20 rounded border border-blue-200 px-2 py-1 text-xs text-right focus:border-blue-500 focus:outline-none"
+                          />
+                        </td>
+                        {/* All-inclusive */}
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={rcForm.is_all_inclusive}
+                            onChange={(e) =>
+                              setRcForm({ ...rcForm, is_all_inclusive: e.target.checked })
+                            }
+                            className="rounded border-gray-300"
+                          />
+                        </td>
+                        {/* Effective from */}
+                        <td className="px-4 py-2">
+                          <input
+                            type="date"
+                            value={rcForm.effective_from}
+                            onChange={(e) =>
+                              setRcForm({ ...rcForm, effective_from: e.target.value })
+                            }
+                            className="rounded border border-blue-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                          />
+                        </td>
+                        {/* Save / Cancel */}
+                        <td className="px-4 py-2">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => {
+                                setFormError(null);
+                                const tiers = rcForm.rate_tiers as RateTier[] ?? [];
+                                const isValid =
+                                  rcForm.taxonomy_code &&
+                                  rcForm.effective_from &&
+                                  (rcForm.rate_type === "tiered"
+                                    ? tiers.length > 0
+                                    : rcForm.contracted_rate);
+                                if (!isValid) {
+                                  setFormError(
+                                    rcForm.rate_type === "tiered"
+                                      ? "Code, effective date, and at least one tier band are required."
+                                      : "Code, rate, and effective date are required."
+                                  );
+                                  return;
+                                }
+                                addRcMutation.mutate({
+                                  ...rcForm,
+                                  contracted_rate: rcForm.rate_type === "tiered" ? null : rcForm.contracted_rate,
+                                  rate_tiers: rcForm.rate_type === "tiered" ? tiers : null,
+                                });
+                              }}
+                              disabled={addRcMutation.isPending}
+                              className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {addRcMutation.isPending ? "…" : "Save"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowAddRateCard(false);
+                                setFormError(null);
+                              }}
+                              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Tier band editor row (only when rate_type === "tiered") */}
+                      {rcForm.rate_type === "tiered" && (
+                        <tr className="bg-purple-50">
+                          <td colSpan={8} className="pb-3 pt-1 px-6">
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-purple-700 mb-1">
+                                Rate Bands
+                                <span className="ml-1.5 font-normal text-purple-500">
+                                  (leave "To unit" blank on the last band for unlimited)
+                                </span>
+                              </p>
+                              {(rcForm.rate_tiers as RateTier[] ?? []).length > 0 && (
+                                <div className="flex gap-4 text-xs text-purple-600 font-medium mb-0.5">
+                                  <span className="w-16">From</span>
+                                  <span className="w-20">To (∞=blank)</span>
+                                  <span className="w-20">Rate ($)</span>
+                                </div>
+                              )}
+                              {(rcForm.rate_tiers as RateTier[] ?? []).map((tier, ti) => (
+                                <div key={ti} className="flex items-center gap-3">
+                                  <input
+                                    type="number" min="1" step="1"
+                                    value={tier.from_unit}
+                                    onChange={(e) => {
+                                      const tiers = [...(rcForm.rate_tiers as RateTier[])];
+                                      tiers[ti] = { ...tiers[ti], from_unit: Number(e.target.value) };
+                                      setRcForm({ ...rcForm, rate_tiers: tiers });
+                                    }}
+                                    className="w-16 rounded border border-purple-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none"
+                                  />
+                                  <input
+                                    type="number" min="1" step="1"
+                                    value={tier.to_unit ?? ""}
+                                    onChange={(e) => {
+                                      const tiers = [...(rcForm.rate_tiers as RateTier[])];
+                                      tiers[ti] = { ...tiers[ti], to_unit: e.target.value ? Number(e.target.value) : null };
+                                      setRcForm({ ...rcForm, rate_tiers: tiers });
+                                    }}
+                                    placeholder="∞"
+                                    className="w-20 rounded border border-purple-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none"
+                                  />
+                                  <input
+                                    type="number" step="0.0001" min="0"
+                                    value={tier.rate}
+                                    onChange={(e) => {
+                                      const tiers = [...(rcForm.rate_tiers as RateTier[])];
+                                      tiers[ti] = { ...tiers[ti], rate: e.target.value };
+                                      setRcForm({ ...rcForm, rate_tiers: tiers });
+                                    }}
+                                    placeholder="0.00"
+                                    className="w-20 rounded border border-purple-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const tiers = (rcForm.rate_tiers as RateTier[]).filter((_, k) => k !== ti);
+                                      setRcForm({ ...rcForm, rate_tiers: tiers });
+                                    }}
+                                    className="text-purple-300 hover:text-red-500 transition-colors"
+                                  >✕</button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const existing = rcForm.rate_tiers as RateTier[] ?? [];
+                                  const lastTo = existing.length > 0 ? (existing[existing.length - 1].to_unit ?? 0) + 1 : 1;
+                                  setRcForm({ ...rcForm, rate_tiers: [...existing, { from_unit: lastTo, to_unit: null, rate: "" }] });
+                                }}
+                                className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                              >
+                                + Add band
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   )}
                 </tbody>
               </table>

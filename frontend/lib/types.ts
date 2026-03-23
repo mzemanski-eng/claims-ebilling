@@ -122,11 +122,19 @@ export interface AdminContract {
   guideline_count: number;
 }
 
+export interface RateTier {
+  from_unit: number;
+  to_unit: number | null; // null = unlimited / all remaining units
+  rate: string;           // Decimal string e.g. "0.85"
+}
+
 export interface RateCardDetail {
   id: string;
   taxonomy_code: string;
   taxonomy_label: string | null;
-  contracted_rate: string;
+  rate_type: string;                // "flat" | "tiered" | "hourly" | "mileage" | "per_diem"
+  contracted_rate: string | null;   // null for tiered cards
+  rate_tiers: RateTier[] | null;    // null for non-tiered cards
   max_units: string | null;
   is_all_inclusive: boolean;
   effective_from: string;
@@ -135,7 +143,9 @@ export interface RateCardDetail {
 
 export interface RateCardCreate {
   taxonomy_code: string;
-  contracted_rate: string;
+  rate_type: string;                // "flat" | "tiered" | "hourly" | "mileage" | "per_diem"
+  contracted_rate: string | null;   // required for non-tiered
+  rate_tiers: RateTier[] | null;    // required for tiered
   max_units: string | null;
   is_all_inclusive: boolean;
   effective_from: string;
