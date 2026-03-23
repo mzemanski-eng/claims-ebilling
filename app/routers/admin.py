@@ -1191,10 +1191,36 @@ def add_rate_card(
 ) -> RateCardDetail:
     """Add a rate card to an existing contract."""
     contract = _get_contract(contract_id, db, current_user)
+
+    # ── Validate taxonomy code exists in the registry ─────────────────────────
+    # The DB FK would catch this as an IntegrityError, but we want a clear 422
+    # with an actionable message rather than a raw constraint violation.
+    tax_item = db.get(TaxonomyItem, payload.taxonomy_code)
+    if tax_item is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Unknown taxonomy code '{payload.taxonomy_code}'. "
+                "Add it to app/taxonomy/constants.py and frontend/lib/taxonomy.ts, "
+                "then redeploy to register it before creating a rate card."
+            ),
+        )
+    if not tax_item.is_active:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Taxonomy code '{payload.taxonomy_code}' ({tax_item.label}) is inactive "
+                "and cannot be used on new rate cards. "
+                "Re-activate it in the taxonomy registry first."
+            ),
+        )
+
     rc = RateCard(
         contract_id=contract.id,
         taxonomy_code=payload.taxonomy_code,
+        rate_type=payload.rate_type,
         contracted_rate=payload.contracted_rate,
+        rate_tiers=[t.model_dump() for t in payload.rate_tiers] if payload.rate_tiers else None,
         max_units=payload.max_units,
         is_all_inclusive=payload.is_all_inclusive,
         effective_from=payload.effective_from,
@@ -1241,6 +1267,27 @@ def add_guideline(
 ) -> GuidelineDetail:
     """Add a billing guideline to an existing contract."""
     contract = _get_contract(contract_id, db, current_user)
+
+    # ── Validate taxonomy code if provided (domain-wide guidelines use None) ──
+    if payload.taxonomy_code is not None:
+        tax_item = db.get(TaxonomyItem, payload.taxonomy_code)
+        if tax_item is None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Unknown taxonomy code '{payload.taxonomy_code}'. "
+                    "Add it to app/taxonomy/constants.py and redeploy to register it first."
+                ),
+            )
+        if not tax_item.is_active:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Taxonomy code '{payload.taxonomy_code}' ({tax_item.label}) is inactive. "
+                    "Re-activate it before creating guidelines that reference it."
+                ),
+            )
+
     g = Guideline(
         contract_id=contract.id,
         taxonomy_code=payload.taxonomy_code,
@@ -1343,7 +1390,9 @@ def _to_rate_card_detail(rc: RateCard, db: Session) -> RateCardDetail:
         id=rc.id,
         taxonomy_code=rc.taxonomy_code,
         taxonomy_label=item.label if item else None,
+        rate_type=rc.rate_type,
         contracted_rate=rc.contracted_rate,
+        rate_tiers=rc.rate_tiers,   # JSONB list[dict] → Pydantic coerces to list[RateTier]
         max_units=rc.max_units,
         is_all_inclusive=rc.is_all_inclusive,
         effective_from=rc.effective_from,
