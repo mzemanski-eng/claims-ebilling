@@ -16,6 +16,7 @@ import type {
   CarrierUser,
   CarrierUserCreate,
   UserScopeUpdate,
+  SeedDemoJobStatus,
   AiAccuracyStats,
   AnalyticsSummary,
   BulkApprovalResult,
@@ -666,4 +667,19 @@ export function updateUserScope(
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+}
+
+// ── Seed Demo ─────────────────────────────────────────────────────────────────
+
+/** Enqueue the synthetic data seeder. Returns {job_id, status: "queued"}. */
+export function runSeedDemo(clean: boolean): Promise<{ job_id: string; status: string }> {
+  return apiFetch<{ job_id: string; status: string }>(
+    `/admin/seed-demo?clean=${clean}`,
+    { method: "POST" },
+  );
+}
+
+/** Poll seed job status. */
+export function getSeedDemoStatus(jobId: string): Promise<SeedDemoJobStatus> {
+  return apiFetch<SeedDemoJobStatus>(`/admin/seed-demo/${jobId}`);
 }

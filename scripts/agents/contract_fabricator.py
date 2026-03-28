@@ -304,8 +304,10 @@ class ContractFabricator(BaseAgent):
         elif domain == "REC":
             _add("REC.MED_RECORDS.RUSH_PREMIUM", None, "cap_amount",
                  {"max_amount": 75.00})
+            # 200 pages per_claim is the realistic midrange; complex bodily injury
+            # claims routinely run 200-500 pages of records.
             _add("REC.MED_RECORDS.COPY_REPRO", None, "max_units",
-                 {"max": 100, "period": "per_claim"})
+                 {"max": 200, "period": "per_claim"})
 
         elif domain == "APPR":
             _add("APPR.UMPIRE.PROF_FEE", None, "cap_amount",

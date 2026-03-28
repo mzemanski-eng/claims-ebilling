@@ -4,6 +4,8 @@ Uses Claude (haiku) for line item descriptions; scenarios are deterministic.
 """
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import random
 from datetime import datetime, timezone
@@ -39,8 +41,13 @@ logger = logging.getLogger(__name__)
 
 INVOICES_PER_CONTRACT = 10
 
-# Scenario distribution for 10 invoices: 70% clean, 20% rate discrepancy, 10% guideline
-_BASE_SCENARIOS = ["clean"] * 7 + ["rate_discrepancy"] * 2 + ["guideline_violation"] * 1
+# Per-LINE scenario pool — drawn independently for each line item.
+# 70% clean | 20% rate_discrepancy | 10% guideline_violation
+# Domains with no max_units guideline (e.g. XDOMAIN) fall back to rate_discrepancy,
+# so the real split ends up ~70 / 22 / 8 across the full dataset.
+_LINE_SCENARIO_POOL = (
+    ["clean"] * 7 + ["rate_discrepancy"] * 2 + ["guideline_violation"] * 1
+)
 
 
 def _billing_component(taxonomy_code: str) -> str:
@@ -90,37 +97,30 @@ class Biller(BaseAgent):
                 taxonomy_codes=codes,
             )
 
-            # Shuffle scenario order for variety within each contract
-            scenarios = _BASE_SCENARIOS.copy()
-            random.shuffle(scenarios)
+            # Pre-collect max_units guidelines that have a code present in this contract.
+            # Used when a line draws "guideline_violation".
+            violation_guidelines = [
+                g
+                for g in contract_spec.guidelines
+                if g.rule_type == "max_units"
+                and g.taxonomy_code
+                and g.taxonomy_code in codes
+            ]
 
-            for scenario in scenarios[:INVOICES_PER_CONTRACT]:
+            for _ in range(INVOICES_PER_CONTRACT):
                 self._invoice_seq += 1
                 inv_date = random_invoice_date(contract_spec.contract_idx)
-                year = inv_date.year
                 domain_prefix = contract_spec.domain[:2].upper()
-                invoice_number = f"{domain_prefix}-{year}-{self._invoice_seq:04d}"
+                invoice_number = (
+                    f"{domain_prefix}-{inv_date.year}-{self._invoice_seq:04d}"
+                )
 
-                # 1-3 claim numbers per invoice, reused across line items
-                n_claims = random.randint(1, 3)
-                claim_numbers = [random_claim_number() for _ in range(n_claims)]
+                # 1-3 distinct claim numbers shared across lines on this invoice
+                claim_numbers = [
+                    random_claim_number()
+                    for _ in range(random.randint(1, 3))
+                ]
                 n_lines = random.randint(3, 8)
-
-                # For guideline_violation: find a max_units guideline with a code in this contract
-                violation_guideline = None
-                effective_scenario = scenario
-                if scenario == "guideline_violation":
-                    for g in contract_spec.guidelines:
-                        if (
-                            g.rule_type == "max_units"
-                            and g.taxonomy_code
-                            and g.taxonomy_code in codes
-                        ):
-                            violation_guideline = g
-                            break
-                    if violation_guideline is None:
-                        # Fallback if no usable max_units guideline
-                        effective_scenario = "rate_discrepancy"
 
                 line_items: list[LineItemSpec] = []
                 has_exception = False
@@ -130,63 +130,50 @@ class Biller(BaseAgent):
                     state = random.choice(US_STATES)
                     svc_date = random_service_date(inv_date)
 
-                    # Pick rate card for this line
-                    if (
-                        effective_scenario == "guideline_violation"
-                        and line_num == 1
-                        and violation_guideline
-                    ):
-                        # Force the violating code onto the first line
-                        tc = violation_guideline.taxonomy_code
+                    # Draw an independent scenario for each line
+                    line_scenario = random.choice(_LINE_SCENARIO_POOL)
+
+                    # Guideline violation needs a usable max_units guideline
+                    if line_scenario == "guideline_violation" and not violation_guidelines:
+                        line_scenario = "rate_discrepancy"
+
+                    # Pick rate card based on scenario
+                    if line_scenario == "guideline_violation":
+                        viol_g = random.choice(violation_guidelines)
+                        tc = viol_g.taxonomy_code
                         rc_spec = next(
-                            (r for r in contract_spec.rate_cards
-                             if r.taxonomy_code == tc),
-                            contract_spec.rate_cards[0],
+                            r for r in contract_spec.rate_cards
+                            if r.taxonomy_code == tc
                         )
+                        max_val = Decimal(
+                            str(viol_g.rule_params.get("max", 5))
+                        )
+                        quantity = max_val + Decimal(str(random.randint(1, 3)))
+                        has_exception = True
                     else:
                         rc_spec = random.choice(contract_spec.rate_cards)
                         tc = rc_spec.taxonomy_code
+                        quantity = random_quantity(tc, rc_spec.rate_type)
 
                     contracted_rate = rc_spec.contracted_rate
                     rate_type = rc_spec.rate_type
                     unit = _raw_unit(tc, rate_type)
-
-                    # Determine quantity and scenario for this line
-                    if (
-                        effective_scenario == "guideline_violation"
-                        and line_num == 1
-                        and violation_guideline
-                    ):
-                        max_val = Decimal(
-                            str(violation_guideline.rule_params.get("max", 5))
-                        )
-                        quantity = max_val + Decimal(str(random.randint(1, 3)))
-                        line_scenario = "guideline_violation"
-                        has_exception = True
-                    else:
-                        quantity = random_quantity(tc, rate_type)
-                        line_scenario = "clean"
-
                     expected = calc_amount(contracted_rate, quantity)
 
-                    # Rate discrepancy: overbill some lines
-                    if (
-                        effective_scenario == "rate_discrepancy"
-                        and line_scenario == "clean"
-                        and line_num <= max(1, n_lines // 2)
-                    ):
+                    if line_scenario == "rate_discrepancy":
                         multiplier = Decimal(
                             str(round(random.uniform(1.10, 1.50), 2))
                         )
                         raw_amount = (expected * multiplier).quantize(
                             Decimal("0.01"), rounding=ROUND_HALF_UP
                         )
-                        line_scenario = "rate_discrepancy"
                         has_exception = True
                     else:
                         raw_amount = expected
 
-                    desc = descriptions.get(tc, tc.replace(".", " — ").replace("_", " ").title())
+                    desc = descriptions.get(
+                        tc, tc.replace(".", " — ").replace("_", " ").title()
+                    )
 
                     line_items.append(
                         LineItemSpec(
@@ -212,18 +199,16 @@ class Biller(BaseAgent):
                     else SubmissionStatus.APPROVED
                 )
 
-                contract_global_idx = self.ctx.contracts.index(contract_spec)
-                supplier_idx = contract_spec.supplier_idx
-
-                invoice_spec = InvoiceSpec(
-                    contract_idx_global=contract_global_idx,
-                    supplier_idx=supplier_idx,
-                    invoice_number=invoice_number,
-                    invoice_date=inv_date,
-                    status=inv_status,
-                    line_items=line_items,
+                self.ctx.invoices.append(
+                    InvoiceSpec(
+                        contract_idx_global=self.ctx.contracts.index(contract_spec),
+                        supplier_idx=contract_spec.supplier_idx,
+                        invoice_number=invoice_number,
+                        invoice_date=inv_date,
+                        status=inv_status,
+                        line_items=line_items,
+                    )
                 )
-                self.ctx.invoices.append(invoice_spec)
 
         # Write to DB if not dry_run
         if not self.dry_run:
@@ -267,10 +252,51 @@ class Biller(BaseAgent):
             for code in taxonomy_codes
         }
 
+    # ── CSV generator (pipeline mode) ────────────────────────────────────────
+
+    def _generate_invoice_csv(self, invoice_spec: "InvoiceSpec") -> bytes:
+        """
+        Serialise an InvoiceSpec's line items to CSV bytes.
+        Format: claim_number,service_date,description,code,quantity,unit,amount,service_state
+        This is fed directly to process_invoice_sync() so the full AI pipeline
+        (classification + rate/guideline validation) runs on the seeded data.
+        """
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([
+            "claim_number", "service_date", "description",
+            "code", "quantity", "unit", "amount", "service_state",
+        ])
+        for li in invoice_spec.line_items:
+            writer.writerow([
+                li.claim_number,
+                li.service_date.isoformat(),
+                li.raw_description,
+                li.taxonomy_code,          # use canonical code — ensures classifiability
+                str(li.raw_quantity),
+                li.raw_unit,
+                str(li.raw_amount),
+                li.service_state,
+            ])
+        return buf.getvalue().encode("utf-8")
+
     # ── DB write ─────────────────────────────────────────────────────────────
 
     def _write_to_db(self) -> None:
-        """Write invoices, line items, validation results, and exception records."""
+        """
+        Write invoices to DB.
+
+        Normal mode (pipeline=False):
+          Writes Invoice + all LineItems + ValidationResults + ExceptionRecords
+          directly. Fast, but bypasses the AI classification/validation pipeline.
+
+        Pipeline mode (pipeline=True):
+          Writes Invoice with status=SUBMITTED and NO line items, then stores
+          CSV bytes in invoice_spec.csv_bytes so seed_platform.py can hand each
+          invoice to process_invoice_sync() and run the full AI pipeline.
+        """
+        pipeline_mode = self.ctx.pipeline
+
         for invoice_spec in self.ctx.invoices:
             contract_spec = self.ctx.contracts[invoice_spec.contract_idx_global]
             supplier_spec = self.ctx.suppliers[invoice_spec.supplier_idx]
@@ -294,20 +320,34 @@ class Biller(BaseAgent):
             if existing:
                 logger.info("Invoice %s exists — skipping", invoice_spec.invoice_number)
                 invoice_spec.db_id = existing.id
+                if pipeline_mode and invoice_spec.csv_bytes is None:
+                    invoice_spec.csv_bytes = self._generate_invoice_csv(invoice_spec)
                 continue
 
+            init_status = (
+                SubmissionStatus.SUBMITTED if pipeline_mode else invoice_spec.status
+            )
             inv = Invoice(
                 supplier_id=supplier_spec.db_id,
                 contract_id=contract_spec.db_id,
                 invoice_number=invoice_spec.invoice_number,
                 invoice_date=invoice_spec.invoice_date,
-                status=invoice_spec.status,
+                status=init_status,
                 current_version=1,
             )
             self.db.add(inv)
             self.db.flush()
             invoice_spec.db_id = inv.id
-            logger.info("Created invoice %s", invoice_spec.invoice_number)
+            logger.info(
+                "Created invoice %s (mode=%s)",
+                invoice_spec.invoice_number,
+                "pipeline" if pipeline_mode else "direct",
+            )
+
+            if pipeline_mode:
+                # In pipeline mode: store CSV bytes; the pipeline will create line items.
+                invoice_spec.csv_bytes = self._generate_invoice_csv(invoice_spec)
+                continue  # no line items written here
 
             for li_spec in invoice_spec.line_items:
                 rc_spec = next(

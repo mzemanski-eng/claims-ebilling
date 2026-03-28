@@ -7,6 +7,8 @@ Workflow:
   POST /admin/invoices/{id}/approve             → approve invoice (or specific lines)
   POST /admin/invoices/bulk-approve             → approve multiple invoices at once
   DELETE /admin/invoices/{id}                   → delete invoice (staging only)
+  POST /admin/seed-demo                         → enqueue synthetic data seed job
+  GET  /admin/seed-demo/{job_id}                → poll seed job status
   POST /admin/mappings/override                 → override a line's taxonomy mapping
   GET  /admin/mappings/review-queue             → review low-confidence mapping queue
   POST /admin/exceptions/{id}/resolve           → carrier resolves an exception
@@ -1345,6 +1347,71 @@ def delete_guideline(
 
 
 # ── Test cleanup (staging only) ───────────────────────────────────────────────
+
+
+# ── Seed Demo ─────────────────────────────────────────────────────────────────
+
+
+@router.post("/seed-demo")
+def trigger_seed_demo(
+    clean: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.CARRIER_ADMIN)),
+) -> dict:
+    """
+    Enqueue the synthetic data seeder as a background RQ job.
+
+    Generates 6 suppliers, 12 contracts, 120 invoices, and ~640 line items
+    across all 11 P&C ALAE taxonomy domains using Claude (haiku).
+
+    Args:
+        clean: If true, deletes all existing SEED-* data before generating.
+
+    Returns job_id for polling via GET /admin/seed-demo/{job_id}.
+
+    CARRIER_ADMIN only. Blocked in production.
+    """
+    if settings.is_production:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seed demo is not permitted in production environments.",
+        )
+    from app.workers.queue import enqueue_seed_demo
+
+    job_id = enqueue_seed_demo(
+        carrier_id=str(current_user.carrier_id),
+        clean=clean,
+    )
+    return {"job_id": job_id, "status": "queued"}
+
+
+@router.get("/seed-demo/{job_id}")
+def get_seed_demo_status(
+    job_id: str,
+    current_user: User = Depends(require_role(UserRole.CARRIER_ADMIN)),
+) -> dict:
+    """
+    Poll the status of a seed demo background job.
+
+    Returns status: queued | started | finished | failed
+    When finished, includes a result summary with counts.
+    """
+    from rq.job import Job, NoSuchJobError
+    from app.workers.queue import get_queue
+
+    try:
+        job = Job.fetch(job_id, connection=get_queue().connection)
+        raw_status = job.get_status()
+        # rq ≥ 1.16 returns a JobStatus enum; older returns a string
+        status_str = raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+        payload: dict = {"job_id": job_id, "status": status_str}
+        if status_str == "finished":
+            payload["result"] = job.result
+        elif status_str == "failed":
+            payload["error"] = str(job.exc_info) if job.exc_info else "Unknown error"
+        return payload
+    except NoSuchJobError:
+        raise HTTPException(status_code=404, detail="Seed job not found")
 
 
 @router.delete("/invoices/{invoice_id}", status_code=status.HTTP_200_OK)

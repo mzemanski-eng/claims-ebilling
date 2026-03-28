@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
 import {
   getAnalyticsSummary,
   listAdminInvoices,
   getMappingReviewQueue,
+  runSeedDemo,
+  getSeedDemoStatus,
 } from "@/lib/api";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { getUserInfo, isCarrierAdmin } from "@/lib/auth";
-import type { InvoiceListItem } from "@/lib/types";
+import type { InvoiceListItem, SeedDemoJobStatus } from "@/lib/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -142,6 +145,189 @@ function QuickAction({
       </span>
       <span className="text-xs text-gray-400">{description}</span>
     </Link>
+  );
+}
+
+// ── Seed Demo button + modal ──────────────────────────────────────────────────
+
+type SeedPhase = "idle" | "confirming" | "running" | "done" | "error";
+
+function SeedDemoButton() {
+  const [phase, setPhase] = useState<SeedPhase>("idle");
+  const [clean, setClean] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [result, setResult] = useState<SeedDemoJobStatus | null>(null);
+  const [errMsg, setErrMsg] = useState<string>("");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll job status every 3 s while running
+  useEffect(() => {
+    if (phase === "running" && jobId) {
+      pollRef.current = setInterval(async () => {
+        try {
+          const data = await getSeedDemoStatus(jobId);
+          if (data.status === "finished") {
+            clearInterval(pollRef.current!);
+            setResult(data);
+            setPhase("done");
+          } else if (data.status === "failed") {
+            clearInterval(pollRef.current!);
+            setErrMsg(data.error ?? "Seed job failed");
+            setPhase("error");
+          }
+        } catch {
+          // network blip — keep polling
+        }
+      }, 3000);
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [phase, jobId]);
+
+  async function handleGenerate() {
+    setPhase("running");
+    try {
+      const { job_id } = await runSeedDemo(clean);
+      setJobId(job_id);
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : "Failed to start seed job");
+      setPhase("error");
+    }
+  }
+
+  function reset() {
+    setPhase("idle");
+    setJobId(null);
+    setResult(null);
+    setErrMsg("");
+    setClean(false);
+  }
+
+  // Trigger button (always visible in Quick Actions)
+  const triggerButton = (
+    <button
+      onClick={() => setPhase("confirming")}
+      className="flex flex-col gap-1 rounded-xl border bg-white p-4 shadow-sm hover:border-purple-200 hover:shadow-md transition-all group text-left w-full"
+    >
+      <span className="text-xl">🌱</span>
+      <span className="text-sm font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">
+        Seed Demo Data
+      </span>
+      <span className="text-xs text-gray-400">Generate synthetic invoices &amp; contracts</span>
+    </button>
+  );
+
+  if (phase === "idle") return triggerButton;
+
+  // Modal overlay for all non-idle phases
+  return (
+    <>
+      {triggerButton}
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+
+          {/* confirming */}
+          {phase === "confirming" && (
+            <>
+              <h2 className="text-base font-semibold text-gray-900 mb-1">Generate Demo Data</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Creates 6 suppliers, 12 contracts, 120 invoices, and ~640 line items
+                across all 11 P&amp;C ALAE taxonomy domains using Claude AI.
+                Runs as a background job (~2–4 minutes).
+              </p>
+              <label className="flex items-center gap-2 mb-5 text-sm text-gray-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={clean}
+                  onChange={e => setClean(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span>
+                  <span className="font-medium">Regenerate</span>
+                  {" "}— delete existing SEED-* data first
+                </span>
+              </label>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleGenerate}
+                  className="flex-1 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 transition-colors"
+                >
+                  Generate
+                </button>
+                <button
+                  onClick={reset}
+                  className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* running */}
+          {phase === "running" && (
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div className="h-10 w-10 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin" />
+              <p className="text-sm font-medium text-gray-700">Generating demo data…</p>
+              <p className="text-xs text-gray-400 text-center">
+                Agents are building suppliers, contracts, and invoices.
+                This takes 2–4 minutes.
+              </p>
+            </div>
+          )}
+
+          {/* done */}
+          {phase === "done" && result?.result && (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">✅</span>
+                <h2 className="text-base font-semibold text-gray-900">Seed Complete</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-5">
+                {[
+                  ["Suppliers",  result.result.suppliers],
+                  ["Contracts",  result.result.contracts],
+                  ["Invoices",   result.result.invoices],
+                  ["Line Items", result.result.line_items],
+                ].map(([label, val]) => (
+                  <div key={label as string} className="rounded-lg bg-purple-50 p-3 text-center">
+                    <div className="text-xl font-bold text-purple-700">{val}</div>
+                    <div className="text-xs text-gray-500">{label}</div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => { reset(); window.location.reload(); }}
+                className="w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 transition-colors"
+              >
+                Refresh Dashboard
+              </button>
+            </>
+          )}
+
+          {/* error */}
+          {phase === "error" && (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">❌</span>
+                <h2 className="text-base font-semibold text-gray-900">Seed Failed</h2>
+              </div>
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3 mb-4 font-mono break-all">
+                {errMsg}
+              </p>
+              <button
+                onClick={reset}
+                className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </>
+          )}
+
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -296,7 +482,7 @@ export default function AdminDashboard() {
         <h2 className="mb-3 text-sm font-semibold text-gray-600 uppercase tracking-wide">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <QuickAction
             href="/admin/invoices/new"
             icon="📄"
@@ -321,6 +507,7 @@ export default function AdminDashboard() {
             label="Mapping Queue"
             description="Review low-confidence classifications"
           />
+          <SeedDemoButton />
         </div>
       </div>
     </div>

@@ -423,12 +423,15 @@ class InvoiceSpec:
     status: str  # APPROVED | REVIEW_REQUIRED
     line_items: list[LineItemSpec] = field(default_factory=list)
     db_id: Optional[uuid.UUID] = None
+    # Set by Biller in pipeline mode — CSV bytes ready for process_invoice_sync
+    csv_bytes: Optional[bytes] = None
 
 
 @dataclass
 class RunContext:
     carrier_id: uuid.UUID
     dry_run: bool
+    pipeline: bool = False  # when True, Biller writes SUBMITTED invoices + CSV bytes
     suppliers: list[SupplierSpec] = field(default_factory=list)
     contracts: list[ContractSpec] = field(default_factory=list)
     invoices: list[InvoiceSpec] = field(default_factory=list)

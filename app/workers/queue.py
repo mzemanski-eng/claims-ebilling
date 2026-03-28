@@ -38,3 +38,20 @@ def enqueue_invoice_processing(invoice_id: str) -> str:
         failure_ttl=86400,  # keep failed job info for 24 hours
     )
     return job.id
+
+
+def enqueue_seed_demo(carrier_id: str, clean: bool = False) -> str:
+    """
+    Enqueue the synthetic data seeder as a background job.
+    Returns the job ID for status polling.
+    """
+    from app.workers.seed_worker import run_seed  # avoid circular import
+
+    job = get_queue().enqueue(
+        run_seed,
+        kwargs={"carrier_id": carrier_id, "clean": clean},
+        job_timeout=600,   # 10 minutes — seeder makes ~56 Claude calls
+        result_ttl=3600,
+        failure_ttl=86400,
+    )
+    return job.id

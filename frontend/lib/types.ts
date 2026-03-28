@@ -627,3 +627,17 @@ export interface UserScopeUpdate {
   category_scope: string[] | null;
   supplier_scope: string[] | null;
 }
+
+export interface SeedDemoJobStatus {
+  job_id: string;
+  /** queued | started | finished | failed */
+  status: string;
+  result?: {
+    status: string;
+    suppliers: number;
+    contracts: number;
+    invoices: number;
+    line_items: number;
+  };
+  error?: string;
+}

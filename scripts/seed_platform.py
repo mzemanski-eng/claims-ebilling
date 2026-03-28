@@ -5,9 +5,14 @@ Four AI agents generate a realistic dataset across all 11 P&C ALAE
 taxonomy domains (IA, ENG, CR, INV, DRNE, INSP, LA, VIRT, REC, APPR, XDOMAIN).
 
 Usage:
-    python scripts/seed_platform.py --dry-run           # Preview — no DB writes
-    python scripts/seed_platform.py --commit            # Write to DB
-    python scripts/seed_platform.py --commit --clean    # Wipe SEED data, then write
+    python scripts/seed_platform.py --dry-run               # Preview — no DB writes
+    python scripts/seed_platform.py --commit                # Write to DB (direct)
+    python scripts/seed_platform.py --commit --clean        # Wipe SEED data, then write
+    python scripts/seed_platform.py --commit --pipeline     # Write invoices as SUBMITTED,
+                                                             # then run each through the
+                                                             # full AI classification +
+                                                             # validation pipeline
+    python scripts/seed_platform.py --commit --clean --pipeline  # clean + pipeline
 """
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models.supplier import Carrier, Supplier
+from app.workers.invoice_pipeline import process_invoice_sync
 from scripts.agents import AuditManager, Biller, ContractFabricator, SeniorLeader
 from scripts.agents.base import RunContext
 
@@ -28,6 +34,45 @@ logging.basicConfig(
     level=logging.WARNING,
     format="%(levelname)s [%(name)s] %(message)s",
 )
+
+
+def _run_pipeline_pass(ctx: RunContext, db) -> None:
+    """
+    Run each seeded invoice through the full AI classification + validation pipeline.
+
+    Called after Biller commits invoices in pipeline mode.  Each InvoiceSpec has
+    `db_id` (the Invoice UUID) and `csv_bytes` (the synthetic invoice as CSV).
+    process_invoice_sync() takes over from there: it classifies every line item,
+    runs rate + guideline validation, generates ExceptionRecords, and sets the
+    final invoice status.
+    """
+    invoices = [iv for iv in ctx.invoices if iv.db_id and iv.csv_bytes]
+    total = len(invoices)
+    if not invoices:
+        print("  ⚠ No invoices to pipeline (missing db_id or csv_bytes).\n")
+        return
+
+    print(f"\nRunning Pipeline Pass — {total} invoices through AI classification + validation")
+    ok = err = 0
+    for i, inv_spec in enumerate(invoices, 1):
+        inv_num = inv_spec.invoice_number
+        try:
+            result = process_invoice_sync(
+                invoice_id=str(inv_spec.db_id),
+                file_bytes=inv_spec.csv_bytes,
+                filename=f"{inv_num}.csv",
+                db=db,
+            )
+            db.commit()
+            status_val = result.get("status", "?")
+            print(f"  [{i:>3}/{total}] {inv_num:<24} → {status_val}")
+            ok += 1
+        except Exception as exc:
+            db.rollback()
+            print(f"  [{i:>3}/{total}] {inv_num:<24} → ERROR: {exc}")
+            err += 1
+
+    print(f"\n  Pipeline complete: {ok} succeeded, {err} failed\n")
 
 
 def main() -> None:
@@ -52,10 +97,20 @@ def main() -> None:
         action="store_true",
         help="Delete all SEED-* supplier data before writing (--commit only)",
     )
+    parser.add_argument(
+        "--pipeline",
+        action="store_true",
+        help=(
+            "Run each seeded invoice through the AI classification + validation "
+            "pipeline instead of writing line items directly (--commit only)"
+        ),
+    )
     args = parser.parse_args()
 
     if args.clean and not args.commit:
         parser.error("--clean requires --commit")
+    if args.pipeline and not args.commit:
+        parser.error("--pipeline requires --commit")
 
     db = SessionLocal()
     try:
@@ -72,6 +127,8 @@ def main() -> None:
         print(f"  Mode    : {mode_label}")
         if args.clean:
             print(f"  Clean   : yes — SEED-* data will be wiped first")
+        if args.pipeline:
+            print(f"  Pipeline: yes — invoices routed through AI classification")
         print(f"{'='*60}\n")
 
         # ── Optional clean ────────────────────────────────────────────────────
@@ -90,7 +147,11 @@ def main() -> None:
                 f"(contracts, invoices, line items, exceptions).\n"
             )
 
-        ctx = RunContext(carrier_id=carrier.id, dry_run=args.dry_run)
+        ctx = RunContext(
+            carrier_id=carrier.id,
+            dry_run=args.dry_run,
+            pipeline=args.pipeline if args.commit else False,
+        )
 
         # ── Agent 1: ContractFabricator ───────────────────────────────────────
         print("Running Agent 1 — ContractFabricator  (Claude haiku × ~40 calls)")
@@ -105,6 +166,10 @@ def main() -> None:
         if not args.dry_run:
             db.commit()
             print("  ✓ Invoices committed\n")
+
+        # ── Pipeline pass (optional) ──────────────────────────────────────────
+        if args.pipeline and not args.dry_run:
+            _run_pipeline_pass(ctx, db)
 
         # ── Agent 3: AuditManager (read-only) ─────────────────────────────────
         print("Running Agent 3 — AuditManager  (Claude sonnet × 1 call)")
