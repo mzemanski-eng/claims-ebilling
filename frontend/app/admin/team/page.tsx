@@ -15,12 +15,16 @@ import { Input } from "@/components/ui/input";
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const TAXONOMY_DOMAINS = [
-  { code: "ENG", label: "Engineering" },
-  { code: "LA",  label: "Ladder Access" },
-  { code: "IME", label: "Independent Medical Exam" },
-  { code: "IA",  label: "Independent Appraisal" },
-  { code: "INV", label: "Investigation" },
-  { code: "REC", label: "Records" },
+  { code: "IA",   label: "Independent Adjusting" },
+  { code: "ENG",  label: "Engineering & Forensic" },
+  { code: "REC",  label: "Record Retrieval" },
+  { code: "LA",   label: "Ladder Assist" },
+  { code: "INSP", label: "Property Inspections" },
+  { code: "VIRT", label: "Virtual Assist Inspections" },
+  { code: "CR",   label: "Court Reporting" },
+  { code: "INV",  label: "Investigation & Surveillance" },
+  { code: "DRNE", label: "Drone & Aerial Inspection" },
+  { code: "APPR", label: "Property Appraisal & Umpire" },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

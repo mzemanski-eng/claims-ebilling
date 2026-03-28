@@ -55,8 +55,9 @@ def create_app() -> FastAPI:
         description=(
             "Purpose-built eBilling platform for Claims ALAE vendor services. "
             "Automates invoice ingestion, classification, rate and guideline validation, "
-            "and exception resolution for IME, Engineering, IA, Investigation, "
-            "and Record Retrieval services."
+            "and exception resolution across personal P&C ALAE service domains: "
+            "IA, Engineering, Record Retrieval, Ladder Assist, Inspections, "
+            "Virtual Inspections, Court Reporting, Investigation, Drone, and Appraisal."
         ),
         version="1.0.0",
         lifespan=lifespan,

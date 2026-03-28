@@ -65,7 +65,7 @@ function OverrideForm({
             type="text"
             value={taxonomyCode}
             onChange={(e) => setTaxonomyCode(e.target.value)}
-            placeholder="e.g. IME.PHY_EXAM.PROF_FEE"
+            placeholder="e.g. IA.FIELD_ASSIGN.PROF_FEE"
             className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>

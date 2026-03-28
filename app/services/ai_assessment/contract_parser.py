@@ -83,7 +83,7 @@ Return exactly this JSON structure:
 {{
   "contract": {{
     "supplier_id": "{supplier_id}",
-    "name": "<contract or agreement title, e.g. 'IME Services Agreement 2025'>",
+    "name": "<contract or agreement title, e.g. 'Field Adjuster Services Agreement 2025'>",
     "effective_from": "<YYYY-MM-DD>",
     "effective_to": "<YYYY-MM-DD or null>",
     "geography_scope": "<national | regional | state>",
@@ -107,7 +107,7 @@ Return exactly this JSON structure:
   "guidelines": [
     {{
       "taxonomy_code": "<exact code or null for domain-wide>",
-      "domain": "<e.g. IME or null>",
+      "domain": "<e.g. IA or CR or null>",
       "rule_type": "<max_units | cap_amount | billing_increment | bundling_prohibition | requires_auth>",
       "rule_params": {{}},
       "severity": "<ERROR | WARNING | INFO>",

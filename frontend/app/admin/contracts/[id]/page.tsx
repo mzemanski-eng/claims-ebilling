@@ -171,7 +171,7 @@ function RuleParamsFields({
               })
             }
             className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-            placeholder="e.g. IME.PHY_EXAM.TRAVEL_TRANSPORT, IME.PHY_EXAM.MILEAGE"
+            placeholder="e.g. IA.FIELD_ASSIGN.MILEAGE, CR.DEPO.TRANSCRIPT"
           />
         </div>
       );

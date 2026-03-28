@@ -1,10 +1,20 @@
 /**
- * Shared TAXONOMY_OPTIONS constant — mirrors app/taxonomy/constants.py.
+ * Veridian ALAE Taxonomy — mirrors app/taxonomy/constants.py.
  *
- * ENG uses level-based billing: 12 service types × 6 levels = 72 codes.
- * Code format: ENG.{SERVICE}.L{N}
+ * Domains:
+ *   IA      Independent Adjusting
+ *   ENG     Engineering & Forensic Services (12 services × 6 levels = 72 codes)
+ *   REC     Record Retrieval & Management
+ *   LA      Ladder Assist & Roof Access
+ *   INSP    Property Inspections
+ *   VIRT    Virtual Assist Inspections
+ *   CR      Court Reporting
+ *   INV     Investigation & Surveillance
+ *   DRNE    Drone & Aerial Inspection
+ *   APPR    Property Appraisal & Umpire
+ *   XDOMAIN Cross-Domain / Pass-Through
  *
- * Level convention:
+ * ENG level convention:
  *   L1  Principal Engineer (highest rate)
  *   L2  Senior Engineer
  *   L3  Staff Engineer
@@ -47,77 +57,99 @@ const ENG_OPTIONS: TaxonomyOption[] = ENG_SERVICES.flatMap(([code, name]) =>
 // ── Full taxonomy options list ───────────────────────────────────────────────
 
 export const TAXONOMY_OPTIONS: TaxonomyOption[] = [
-  // ── IME — Independent Medical Examination ─────────────────────────────────
-  { code: "IME.PHY_EXAM.PROF_FEE",          label: "Physician Examination — Professional Fee",    domain: "IME" },
-  { code: "IME.PHY_EXAM.TRAVEL_TRANSPORT",   label: "Physician Examination — Transportation",      domain: "IME" },
-  { code: "IME.PHY_EXAM.TRAVEL_LODGING",     label: "Physician Examination — Lodging",             domain: "IME" },
-  { code: "IME.PHY_EXAM.TRAVEL_MEALS",       label: "Physician Examination — Meals & Per Diem",    domain: "IME" },
-  { code: "IME.PHY_EXAM.MILEAGE",            label: "Physician Examination — Mileage",             domain: "IME" },
-  { code: "IME.MULTI_SPECIALTY.PROF_FEE",    label: "Multi-Specialty Panel",                       domain: "IME" },
-  { code: "IME.RECORDS_REVIEW.PROF_FEE",     label: "Records Review (No Exam)",                    domain: "IME" },
-  { code: "IME.ADDENDUM.PROF_FEE",           label: "Addendum Report",                             domain: "IME" },
-  { code: "IME.PEER_REVIEW.PROF_FEE",        label: "Peer Review",                                 domain: "IME" },
-  { code: "IME.CANCELLATION.CANCEL_FEE",     label: "Cancellation Fee",                            domain: "IME" },
-  { code: "IME.NO_SHOW.NO_SHOW_FEE",         label: "No-Show Fee",                                 domain: "IME" },
-  { code: "IME.ADMIN.SCHEDULING_FEE",        label: "Administrative / Scheduling Fee",             domain: "IME" },
-
   // ── ENG — Engineering & Forensic Services (12 services × 6 levels) ────────
   ...ENG_OPTIONS,
 
   // ── IA — Independent Adjusting ────────────────────────────────────────────
-  { code: "IA.FIELD_ASSIGN.PROF_FEE",        label: "Field Assignment — Professional Fee",         domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.TRAVEL_TRANSPORT",label: "Field Assignment — Transportation",            domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.MILEAGE",         label: "Field Assignment — Mileage",                  domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.TRAVEL_LODGING",  label: "Field Assignment — Lodging",                  domain: "IA" },
-  { code: "IA.FIELD_ASSIGN.TRAVEL_MEALS",    label: "Field Assignment — Meals & Per Diem",         domain: "IA" },
-  { code: "IA.DESK_ASSIGN.PROF_FEE",         label: "Desk Assignment — Professional Fee",          domain: "IA" },
-  { code: "IA.CAT_ASSIGN.PROF_FEE",          label: "Catastrophe Assignment — Professional Fee",   domain: "IA" },
-  { code: "IA.PHOTO_DOC.PROF_FEE",           label: "Photo & Documentation Services",              domain: "IA" },
-  { code: "IA.SUPPLEMENT_HANDLING.PROF_FEE", label: "Supplement Handling",                         domain: "IA" },
-  { code: "IA.ADMIN.FILE_OPEN_FEE",          label: "Administrative / File Open Fee",              domain: "IA" },
-
-  // ── INV — Investigation & Surveillance ───────────────────────────────────
-  { code: "INV.SURVEILLANCE.PROF_FEE",       label: "Surveillance — Professional Fee",             domain: "INV" },
-  { code: "INV.SURVEILLANCE.TRAVEL_TRANSPORT",label: "Surveillance — Transportation",              domain: "INV" },
-  { code: "INV.SURVEILLANCE.MILEAGE",        label: "Surveillance — Mileage",                      domain: "INV" },
-  { code: "INV.STATEMENT.PROF_FEE",          label: "Recorded Statement",                          domain: "INV" },
-  { code: "INV.BACKGROUND_ASSET.PROF_FEE",   label: "Background / Asset Search",                   domain: "INV" },
-  { code: "INV.AOE_COE.PROF_FEE",            label: "AOE/COE Investigation",                       domain: "INV" },
-  { code: "INV.SKIP_TRACE.PROF_FEE",         label: "Skip Trace",                                  domain: "INV" },
+  { code: "IA.FIELD_ASSIGN.PROF_FEE",         label: "Field Assignment — Professional Fee",         domain: "IA" },
+  { code: "IA.FIELD_ASSIGN.TRAVEL_TRANSPORT",  label: "Field Assignment — Transportation",           domain: "IA" },
+  { code: "IA.FIELD_ASSIGN.MILEAGE",           label: "Field Assignment — Mileage",                  domain: "IA" },
+  { code: "IA.FIELD_ASSIGN.TRAVEL_LODGING",    label: "Field Assignment — Lodging",                  domain: "IA" },
+  { code: "IA.FIELD_ASSIGN.TRAVEL_MEALS",      label: "Field Assignment — Meals & Per Diem",         domain: "IA" },
+  { code: "IA.DESK_ASSIGN.PROF_FEE",           label: "Desk Assignment — Professional Fee",          domain: "IA" },
+  { code: "IA.CAT_ASSIGN.PROF_FEE",            label: "Catastrophe Assignment — Professional Fee",   domain: "IA" },
+  { code: "IA.PHOTO_DOC.PROF_FEE",             label: "Photo & Documentation Services",              domain: "IA" },
+  { code: "IA.SUPPLEMENT_HANDLING.PROF_FEE",   label: "Supplement Handling",                         domain: "IA" },
+  { code: "IA.ADMIN.FILE_OPEN_FEE",            label: "Administrative / File Open Fee",              domain: "IA" },
 
   // ── REC — Record Retrieval & Management ──────────────────────────────────
-  { code: "REC.MED_RECORDS.RETRIEVAL_FEE",   label: "Medical Records — Retrieval Fee",             domain: "REC" },
-  { code: "REC.MED_RECORDS.COPY_REPRO",      label: "Medical Records — Copy / Reproduction",       domain: "REC" },
-  { code: "REC.MED_RECORDS.POSTAGE_COURIER", label: "Medical Records — Postage / Courier",         domain: "REC" },
-  { code: "REC.MED_RECORDS.RUSH_PREMIUM",    label: "Medical Records — Rush / Expedite Premium",   domain: "REC" },
-  { code: "REC.MED_RECORDS.CERT_COPY_FEE",   label: "Medical Records — Certified Copy Fee",        domain: "REC" },
-  { code: "REC.EMPLOYMENT_RECORDS.RETRIEVAL_FEE", label: "Employment Records — Retrieval Fee",     domain: "REC" },
-  { code: "REC.LEGAL_RECORDS.RETRIEVAL_FEE", label: "Legal / Court Records — Retrieval Fee",       domain: "REC" },
-  { code: "REC.ADMIN.PROCESSING_FEE",        label: "Administrative / Processing Fee",             domain: "REC" },
+  { code: "REC.MED_RECORDS.RETRIEVAL_FEE",     label: "Medical Records — Retrieval Fee",             domain: "REC" },
+  { code: "REC.MED_RECORDS.COPY_REPRO",        label: "Medical Records — Copy / Reproduction",       domain: "REC" },
+  { code: "REC.MED_RECORDS.POSTAGE_COURIER",   label: "Medical Records — Postage / Courier",         domain: "REC" },
+  { code: "REC.MED_RECORDS.RUSH_PREMIUM",      label: "Medical Records — Rush / Expedite Premium",   domain: "REC" },
+  { code: "REC.MED_RECORDS.CERT_COPY_FEE",     label: "Medical Records — Certified Copy Fee",        domain: "REC" },
+  { code: "REC.EMPLOYMENT_RECORDS.RETRIEVAL_FEE", label: "Employment Records — Retrieval Fee",       domain: "REC" },
+  { code: "REC.LEGAL_RECORDS.RETRIEVAL_FEE",   label: "Legal / Court Records — Retrieval Fee",       domain: "REC" },
+  { code: "REC.ADMIN.PROCESSING_FEE",          label: "Administrative / Processing Fee",             domain: "REC" },
 
   // ── LA — Ladder Assist & Roof Access ─────────────────────────────────────
-  { code: "LA.LADDER_ACCESS.FLAT_FEE",       label: "Ladder Access",                               domain: "LA" },
-  { code: "LA.ROOF_INSPECT.FLAT_FEE",        label: "Roof Inspection",                             domain: "LA" },
-  { code: "LA.ROOF_INSPECT_HARNESS.FLAT_FEE",label: "Roof Inspection with Harness Equipment",      domain: "LA" },
-  { code: "LA.TARP_COVER.FLAT_FEE",          label: "Tarp / Roof Covering",                        domain: "LA" },
-  { code: "LA.CANCEL.CANCEL_FEE",            label: "Appointment Cancellation Fee",                domain: "LA" },
-  { code: "LA.TRIP_CHARGE.TRIP_FEE",         label: "Trip Charge",                                 domain: "LA" },
+  { code: "LA.LADDER_ACCESS.FLAT_FEE",         label: "Ladder Access",                               domain: "LA" },
+  { code: "LA.ROOF_INSPECT.FLAT_FEE",          label: "Roof Inspection",                             domain: "LA" },
+  { code: "LA.ROOF_INSPECT_HARNESS.FLAT_FEE",  label: "Roof Inspection with Harness Equipment",      domain: "LA" },
+  { code: "LA.TARP_COVER.FLAT_FEE",            label: "Tarp / Roof Covering",                        domain: "LA" },
+  { code: "LA.CANCEL.CANCEL_FEE",              label: "Appointment Cancellation Fee",                domain: "LA" },
+  { code: "LA.TRIP_CHARGE.TRIP_FEE",           label: "Trip Charge",                                 domain: "LA" },
 
   // ── INSP — Property Inspections ──────────────────────────────────────────
-  { code: "INSP.BASIC.FLAT_FEE",              label: "Basic Property Inspection",                   domain: "INSP" },
-  { code: "INSP.REINSPECT.FLAT_FEE",          label: "Re-Inspection",                               domain: "INSP" },
-  { code: "INSP.EXTERIOR.FLAT_FEE",           label: "Exterior / Drive-By Inspection",              domain: "INSP" },
-  { code: "INSP.INTERIOR.FLAT_FEE",           label: "Interior Inspection",                         domain: "INSP" },
-  { code: "INSP.DAMAGE_ASSESS.FLAT_FEE",      label: "Damage Assessment Report",                    domain: "INSP" },
-  { code: "INSP.SUPPLEMENT_REVIEW.FLAT_FEE",  label: "Supplement Review",                           domain: "INSP" },
-  { code: "INSP.PHOTO_DOC.FLAT_FEE",          label: "Photo Documentation Report",                  domain: "INSP" },
-  { code: "INSP.DISPUTE_REINSPECT.FLAT_FEE",  label: "Re-Inspection (Disputed Estimate)",           domain: "INSP" },
-  { code: "INSP.CANCEL.CANCEL_FEE",           label: "Cancellation Fee",                            domain: "INSP" },
-  { code: "INSP.TRIP_CHARGE.TRIP_FEE",        label: "Trip Charge / No Access",                     domain: "INSP" },
+  { code: "INSP.BASIC.FLAT_FEE",               label: "Basic Property Inspection",                   domain: "INSP" },
+  { code: "INSP.REINSPECT.FLAT_FEE",           label: "Re-Inspection",                               domain: "INSP" },
+  { code: "INSP.EXTERIOR.FLAT_FEE",            label: "Exterior / Drive-By Inspection",              domain: "INSP" },
+  { code: "INSP.INTERIOR.FLAT_FEE",            label: "Interior Inspection",                         domain: "INSP" },
+  { code: "INSP.DAMAGE_ASSESS.FLAT_FEE",       label: "Damage Assessment Report",                    domain: "INSP" },
+  { code: "INSP.SUPPLEMENT_REVIEW.FLAT_FEE",   label: "Supplement Review",                           domain: "INSP" },
+  { code: "INSP.PHOTO_DOC.FLAT_FEE",           label: "Photo Documentation Report",                  domain: "INSP" },
+  { code: "INSP.DISPUTE_REINSPECT.FLAT_FEE",   label: "Re-Inspection (Disputed Estimate)",           domain: "INSP" },
+  { code: "INSP.CANCEL.CANCEL_FEE",            label: "Cancellation Fee",                            domain: "INSP" },
+  { code: "INSP.TRIP_CHARGE.TRIP_FEE",         label: "Trip Charge / No Access",                     domain: "INSP" },
+
+  // ── VIRT — Virtual Assist Inspections ────────────────────────────────────
+  { code: "VIRT.GUIDED.FLAT_FEE",              label: "Guided Virtual Inspection",                   domain: "VIRT" },
+  { code: "VIRT.SELF_SERVICE.FLAT_FEE",        label: "Self-Service Video Inspection",               domain: "VIRT" },
+  { code: "VIRT.AI_SCOPE.FLAT_FEE",            label: "AI-Assisted Scope / Estimate",                domain: "VIRT" },
+  { code: "VIRT.AERIAL_ANALYSIS.FLAT_FEE",     label: "Aerial / Satellite Image Analysis",           domain: "VIRT" },
+  { code: "VIRT.PHOTO_AI.FLAT_FEE",            label: "Photo AI Damage Detection",                   domain: "VIRT" },
+  { code: "VIRT.CANCEL.CANCEL_FEE",            label: "Virtual Inspection Cancellation Fee",         domain: "VIRT" },
+
+  // ── CR — Court Reporting ──────────────────────────────────────────────────
+  { code: "CR.DEPO.APPEARANCE_FEE",            label: "Court Reporter Appearance Fee",               domain: "CR" },
+  { code: "CR.DEPO.TRANSCRIPT",                label: "Deposition Transcript",                       domain: "CR" },
+  { code: "CR.DEPO.COPY_FEE",                  label: "Deposition Transcript — Copy Fee",            domain: "CR" },
+  { code: "CR.DEPO.VIDEOGRAPHY",               label: "Deposition Videography",                      domain: "CR" },
+  { code: "CR.DEPO.RUSH_TRANSCRIPT",           label: "Rush / Expedited Transcript",                 domain: "CR" },
+  { code: "CR.DEPO.EXHIBIT_HANDLING",          label: "Exhibit Handling Fee",                        domain: "CR" },
+  { code: "CR.DEPO.REMOTE_FEE",                label: "Remote / Video Deposition Technology Fee",    domain: "CR" },
+  { code: "CR.DEPO.TRAVEL_TRANSPORT",          label: "Court Reporter Travel — Transportation",      domain: "CR" },
+  { code: "CR.DEPO.MILEAGE",                   label: "Court Reporter Travel — Mileage",             domain: "CR" },
+  { code: "CR.CANCEL.CANCEL_FEE",              label: "Cancellation Fee",                            domain: "CR" },
+  { code: "CR.NO_SHOW.NO_SHOW_FEE",            label: "No-Show Fee",                                 domain: "CR" },
+
+  // ── INV — Investigation & Surveillance ───────────────────────────────────
+  { code: "INV.SURVEILLANCE.PROF_FEE",         label: "Surveillance — Professional Fee",             domain: "INV" },
+  { code: "INV.SURVEILLANCE.TRAVEL_TRANSPORT", label: "Surveillance — Transportation",               domain: "INV" },
+  { code: "INV.SURVEILLANCE.MILEAGE",          label: "Surveillance — Mileage",                      domain: "INV" },
+  { code: "INV.STATEMENT.PROF_FEE",            label: "Recorded Statement",                          domain: "INV" },
+  { code: "INV.BACKGROUND_ASSET.PROF_FEE",     label: "Background / Asset Search",                   domain: "INV" },
+  { code: "INV.AOE_COE.PROF_FEE",              label: "AOE/COE Investigation",                       domain: "INV" },
+  { code: "INV.SKIP_TRACE.PROF_FEE",           label: "Skip Trace",                                  domain: "INV" },
+
+  // ── DRNE — Drone & Aerial Inspection ─────────────────────────────────────
+  { code: "DRNE.ROOF_SURVEY.FLAT_FEE",         label: "Drone Roof Survey",                           domain: "DRNE" },
+  { code: "DRNE.AERIAL_PHOTO.FLAT_FEE",        label: "Aerial Photography & Documentation",          domain: "DRNE" },
+  { code: "DRNE.VIDEO.FLAT_FEE",               label: "Aerial Video Documentation",                  domain: "DRNE" },
+  { code: "DRNE.THERMAL.FLAT_FEE",             label: "Thermal Imaging Survey",                      domain: "DRNE" },
+  { code: "DRNE.CANCEL.CANCEL_FEE",            label: "Cancellation Fee",                            domain: "DRNE" },
+  { code: "DRNE.TRIP_CHARGE.TRIP_FEE",         label: "Trip Charge / No Access",                     domain: "DRNE" },
+
+  // ── APPR — Property Appraisal & Umpire ───────────────────────────────────
+  { code: "APPR.PROPERTY_APPRAISAL.PROF_FEE",  label: "Property Appraisal — Professional Fee",       domain: "APPR" },
+  { code: "APPR.UMPIRE.PROF_FEE",              label: "Umpire Services — Professional Fee",          domain: "APPR" },
+  { code: "APPR.SITE_VISIT.FLAT_FEE",          label: "Appraisal Site Visit",                        domain: "APPR" },
+  { code: "APPR.CONTENTS_INVENTORY.PROF_FEE",  label: "Contents Inventory & Valuation",              domain: "APPR" },
+  { code: "APPR.ADMIN.FILING_FEE",             label: "Appraisal Administrative / Filing Fee",       domain: "APPR" },
 
   // ── XDOMAIN — Cross-Domain ────────────────────────────────────────────────
-  { code: "XDOMAIN.PASS_THROUGH.THIRD_PARTY_COST", label: "Pass-Through Third-Party Cost",         domain: "XDOMAIN" },
-  { code: "XDOMAIN.ADMIN_MISC.ADMIN_FEE",    label: "Miscellaneous Administrative Fee",            domain: "XDOMAIN" },
+  { code: "XDOMAIN.PASS_THROUGH.THIRD_PARTY_COST", label: "Pass-Through Third-Party Cost",          domain: "XDOMAIN" },
+  { code: "XDOMAIN.ADMIN_MISC.ADMIN_FEE",      label: "Miscellaneous Administrative Fee",           domain: "XDOMAIN" },
 ];
 
 /** Unique domain list in display order. */
@@ -125,12 +157,15 @@ export const TAXONOMY_DOMAINS = Array.from(new Set(TAXONOMY_OPTIONS.map((t) => t
 
 /** Human-readable display labels for each domain, used in UI optgroup headers. */
 export const DOMAIN_LABELS: Record<string, string> = {
-  IME:     "Medical — Independent Examinations",
-  REC:     "Medical — Record Retrieval",
-  IA:      "Property — Independent Adjusting",
-  LA:      "Property — Ladder Assist",
-  INSP:    "Property — Inspections",
+  IA:      "Independent Adjusting",
   ENG:     "Engineering & Forensic",
+  REC:     "Record Retrieval",
+  LA:      "Ladder Assist",
+  INSP:    "Property Inspections",
+  VIRT:    "Virtual Assist Inspections",
+  CR:      "Court Reporting",
   INV:     "Investigation & Surveillance",
+  DRNE:    "Drone & Aerial Inspection",
+  APPR:    "Property Appraisal & Umpire",
   XDOMAIN: "Cross-Domain / Pass-Through",
 };

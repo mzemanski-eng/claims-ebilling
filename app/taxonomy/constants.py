@@ -1,5 +1,5 @@
 """
-Claims UTMSB Taxonomy — canonical code definitions.
+Veridian ALAE Taxonomy — canonical code definitions for personal P&C ALAE spend.
 
 Format: each entry is a dict that maps 1:1 to TaxonomyItem columns.
 These are the ground-truth definitions; the DB is seeded from this file.
@@ -7,13 +7,16 @@ These are the ground-truth definitions; the DB is seeded from this file.
 Code format: {DOMAIN}.{SERVICE_ITEM}.{COMPONENT}
 
 Domains:
-  IME     Independent Medical Examination
-  ENG     Engineering & Forensic Services  (level-based: ENG.{SERVICE}.L{1-6})
   IA      Independent Adjusting
-  INV     Investigation & Surveillance
+  ENG     Engineering & Forensic Services  (level-based: ENG.{SERVICE}.L{1-6})
+  REC     Record Retrieval & Management
   LA      Ladder Assist & Roof Access
   INSP    Property Inspections (standalone inspection vendors)
-  REC     Record Retrieval & Management
+  VIRT    Virtual Assist Inspections
+  CR      Court Reporting
+  INV     Investigation & Surveillance
+  DRNE    Drone & Aerial Inspection
+  APPR    Property Appraisal & Umpire
   XDOMAIN Cross-domain (pass-through, misc admin)
 
 ENG level convention:
@@ -76,120 +79,6 @@ def _eng_entries() -> list[dict]:
 
 
 TAXONOMY: list[dict] = [
-    # ══════════════════════════════════════════════════════════════════════════
-    # IME — Independent Medical Examination
-    # ══════════════════════════════════════════════════════════════════════════
-    {
-        "code": "IME.PHY_EXAM.PROF_FEE",
-        "domain": "IME",
-        "service_item": "PHY_EXAM",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_report",
-        "label": "IME Physician Examination — Professional Fee",
-        "description": (
-            "Fee for a single-specialty independent medical examination by a "
-            "physician. Includes examination, medical records review, and written report."
-        ),
-    },
-    {
-        "code": "IME.PHY_EXAM.TRAVEL_TRANSPORT",
-        "domain": "IME",
-        "service_item": "PHY_EXAM",
-        "billing_component": "TRAVEL_TRANSPORT",
-        "unit_model": "actual",
-        "label": "IME Physician Examination — Transportation",
-        "description": "Actual transportation cost (airfare, train, taxi) for physician travel.",
-    },
-    {
-        "code": "IME.PHY_EXAM.TRAVEL_LODGING",
-        "domain": "IME",
-        "service_item": "PHY_EXAM",
-        "billing_component": "TRAVEL_LODGING",
-        "unit_model": "per_night",
-        "label": "IME Physician Examination — Lodging",
-        "description": "Hotel/lodging for physician overnight travel.",
-    },
-    {
-        "code": "IME.PHY_EXAM.TRAVEL_MEALS",
-        "domain": "IME",
-        "service_item": "PHY_EXAM",
-        "billing_component": "TRAVEL_MEALS",
-        "unit_model": "per_diem",
-        "label": "IME Physician Examination — Meals & Per Diem",
-        "description": "Meal per diem for physician travel days.",
-    },
-    {
-        "code": "IME.PHY_EXAM.MILEAGE",
-        "domain": "IME",
-        "service_item": "PHY_EXAM",
-        "billing_component": "MILEAGE",
-        "unit_model": "per_mile",
-        "label": "IME Physician Examination — Mileage",
-        "description": "Mileage reimbursement for physician driving to examination location.",
-    },
-    {
-        "code": "IME.MULTI_SPECIALTY.PROF_FEE",
-        "domain": "IME",
-        "service_item": "MULTI_SPECIALTY",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_report",
-        "label": "IME Multi-Specialty Panel — Professional Fee",
-        "description": "Fee for IME involving two or more specialty physicians in one session.",
-    },
-    {
-        "code": "IME.RECORDS_REVIEW.PROF_FEE",
-        "domain": "IME",
-        "service_item": "RECORDS_REVIEW",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_report",
-        "label": "IME Records Review (No Exam) — Professional Fee",
-        "description": "Physician review of medical records without a physical examination.",
-    },
-    {
-        "code": "IME.ADDENDUM.PROF_FEE",
-        "domain": "IME",
-        "service_item": "ADDENDUM",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_report",
-        "label": "IME Addendum Report — Professional Fee",
-        "description": "Supplemental report responding to additional records or questions after initial IME.",
-    },
-    {
-        "code": "IME.PEER_REVIEW.PROF_FEE",
-        "domain": "IME",
-        "service_item": "PEER_REVIEW",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_report",
-        "label": "IME Peer Review — Professional Fee",
-        "description": "Physician review of another provider's treatment plan or records.",
-    },
-    {
-        "code": "IME.CANCELLATION.CANCEL_FEE",
-        "domain": "IME",
-        "service_item": "CANCELLATION",
-        "billing_component": "CANCEL_FEE",
-        "unit_model": "flat_fee",
-        "label": "IME Cancellation Fee",
-        "description": "Fee charged when an IME is cancelled within the contract-specified notice window.",
-    },
-    {
-        "code": "IME.NO_SHOW.NO_SHOW_FEE",
-        "domain": "IME",
-        "service_item": "NO_SHOW",
-        "billing_component": "NO_SHOW_FEE",
-        "unit_model": "flat_fee",
-        "label": "IME No-Show Fee",
-        "description": "Fee charged when the claimant fails to appear for a scheduled IME.",
-    },
-    {
-        "code": "IME.ADMIN.SCHEDULING_FEE",
-        "domain": "IME",
-        "service_item": "ADMIN",
-        "billing_component": "SCHEDULING_FEE",
-        "unit_model": "flat_fee",
-        "label": "IME Administrative / Scheduling Fee",
-        "description": "Administrative fee for IME scheduling and coordination services.",
-    },
     # ══════════════════════════════════════════════════════════════════════════
     # ENG — Engineering & Forensic Services
     # 12 service types × 6 levels = 72 codes.  See _eng_entries() above.
@@ -288,72 +177,6 @@ TAXONOMY: list[dict] = [
         "unit_model": "flat_fee",
         "label": "Independent Adjusting Administrative / File Open Fee",
         "description": "One-time administrative fee for opening and setting up a new claim file.",
-    },
-    # ══════════════════════════════════════════════════════════════════════════
-    # INV — Investigation & Surveillance
-    # ══════════════════════════════════════════════════════════════════════════
-    {
-        "code": "INV.SURVEILLANCE.PROF_FEE",
-        "domain": "INV",
-        "service_item": "SURVEILLANCE",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_hour",
-        "label": "Investigation Surveillance — Professional Fee",
-        "description": "Hourly fee for claimant surveillance services.",
-    },
-    {
-        "code": "INV.SURVEILLANCE.TRAVEL_TRANSPORT",
-        "domain": "INV",
-        "service_item": "SURVEILLANCE",
-        "billing_component": "TRAVEL_TRANSPORT",
-        "unit_model": "actual",
-        "label": "Investigation Surveillance — Transportation",
-        "description": "Actual transportation costs for surveillance investigators.",
-    },
-    {
-        "code": "INV.SURVEILLANCE.MILEAGE",
-        "domain": "INV",
-        "service_item": "SURVEILLANCE",
-        "billing_component": "MILEAGE",
-        "unit_model": "per_mile",
-        "label": "Investigation Surveillance — Mileage",
-        "description": "Mileage for surveillance investigators.",
-    },
-    {
-        "code": "INV.STATEMENT.PROF_FEE",
-        "domain": "INV",
-        "service_item": "STATEMENT",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_occurrence",
-        "label": "Investigation Recorded Statement — Professional Fee",
-        "description": "Fee for obtaining a recorded statement from claimant, witness, or involved party.",
-    },
-    {
-        "code": "INV.BACKGROUND_ASSET.PROF_FEE",
-        "domain": "INV",
-        "service_item": "BACKGROUND_ASSET",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_report",
-        "label": "Investigation Background / Asset Search — Professional Fee",
-        "description": "Fee for background check, asset search, or public records investigation.",
-    },
-    {
-        "code": "INV.AOE_COE.PROF_FEE",
-        "domain": "INV",
-        "service_item": "AOE_COE",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_file",
-        "label": "Investigation AOE/COE Investigation — Professional Fee",
-        "description": "Arising Out of Employment / Course of Employment investigation.",
-    },
-    {
-        "code": "INV.SKIP_TRACE.PROF_FEE",
-        "domain": "INV",
-        "service_item": "SKIP_TRACE",
-        "billing_component": "PROF_FEE",
-        "unit_model": "per_occurrence",
-        "label": "Investigation Skip Trace — Professional Fee",
-        "description": "Fee for locating a claimant or witness whose address is unknown.",
     },
     # ══════════════════════════════════════════════════════════════════════════
     # REC — Record Retrieval & Management
@@ -625,6 +448,393 @@ TAXONOMY: list[dict] = [
             "Fee charged when the inspector is dispatched and arrives on site "
             "but is unable to complete the inspection (e.g., access denied, property vacant)."
         ),
+    },
+    # ══════════════════════════════════════════════════════════════════════════
+    # VIRT — Virtual Assist Inspections
+    # Remote/digital inspection services: guided video, AI scope, satellite imagery.
+    # ══════════════════════════════════════════════════════════════════════════
+    {
+        "code": "VIRT.GUIDED.FLAT_FEE",
+        "domain": "VIRT",
+        "service_item": "GUIDED",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Guided Virtual Inspection",
+        "description": (
+            "Live video-guided inspection where a vendor technician directs the "
+            "policyholder or field contact through a structured damage walkthrough."
+        ),
+    },
+    {
+        "code": "VIRT.SELF_SERVICE.FLAT_FEE",
+        "domain": "VIRT",
+        "service_item": "SELF_SERVICE",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Self-Service Video Inspection",
+        "description": (
+            "App-guided inspection where the policyholder submits photos and video "
+            "following a scripted capture workflow; vendor reviews and reports."
+        ),
+    },
+    {
+        "code": "VIRT.AI_SCOPE.FLAT_FEE",
+        "domain": "VIRT",
+        "service_item": "AI_SCOPE",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "AI-Assisted Scope / Estimate",
+        "description": (
+            "Automated damage scoping service using AI image analysis to generate "
+            "a preliminary repair estimate from submitted photos or video."
+        ),
+    },
+    {
+        "code": "VIRT.AERIAL_ANALYSIS.FLAT_FEE",
+        "domain": "VIRT",
+        "service_item": "AERIAL_ANALYSIS",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Aerial / Satellite Image Analysis",
+        "description": (
+            "Roof and property condition analysis using third-party aerial or "
+            "satellite imagery (e.g., EagleView, Nearmap, Verisk). "
+            "No site visit required."
+        ),
+    },
+    {
+        "code": "VIRT.PHOTO_AI.FLAT_FEE",
+        "domain": "VIRT",
+        "service_item": "PHOTO_AI",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Photo AI Damage Detection",
+        "description": (
+            "AI-powered review of submitted photographs to detect, classify, "
+            "and quantify property damage items."
+        ),
+    },
+    {
+        "code": "VIRT.CANCEL.CANCEL_FEE",
+        "domain": "VIRT",
+        "service_item": "CANCEL",
+        "billing_component": "CANCEL_FEE",
+        "unit_model": "flat_fee",
+        "label": "Virtual Inspection Cancellation Fee",
+        "description": (
+            "Fee charged when a scheduled virtual inspection session is cancelled "
+            "within the contract-specified notice window."
+        ),
+    },
+    # ══════════════════════════════════════════════════════════════════════════
+    # CR — Court Reporting
+    # Deposition, transcript, and litigation support services.
+    # ══════════════════════════════════════════════════════════════════════════
+    {
+        "code": "CR.DEPO.APPEARANCE_FEE",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "APPEARANCE_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Court Reporter Appearance Fee",
+        "description": "Flat fee for the court reporter's attendance at a deposition.",
+    },
+    {
+        "code": "CR.DEPO.TRANSCRIPT",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "TRANSCRIPT",
+        "unit_model": "per_page",
+        "label": "Deposition Transcript",
+        "description": (
+            "Per-page fee for the original deposition transcript. "
+            "Rates are often tiered (e.g., first 100 pages / pages 101+)."
+        ),
+    },
+    {
+        "code": "CR.DEPO.COPY_FEE",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "COPY_FEE",
+        "unit_model": "per_page",
+        "label": "Deposition Transcript — Copy Fee",
+        "description": "Per-page fee for additional copies of a deposition transcript.",
+    },
+    {
+        "code": "CR.DEPO.VIDEOGRAPHY",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "VIDEOGRAPHY",
+        "unit_model": "per_hour",
+        "label": "Deposition Videography",
+        "description": "Hourly fee for video recording of a deposition.",
+    },
+    {
+        "code": "CR.DEPO.RUSH_TRANSCRIPT",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "RUSH_TRANSCRIPT",
+        "unit_model": "per_page",
+        "label": "Rush / Expedited Transcript",
+        "description": "Premium per-page surcharge for expedited transcript delivery.",
+    },
+    {
+        "code": "CR.DEPO.EXHIBIT_HANDLING",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "EXHIBIT_HANDLING",
+        "unit_model": "flat_fee",
+        "label": "Exhibit Handling Fee",
+        "description": "Flat fee for managing and reproducing deposition exhibits.",
+    },
+    {
+        "code": "CR.DEPO.REMOTE_FEE",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "REMOTE_FEE",
+        "unit_model": "flat_fee",
+        "label": "Remote / Video Deposition Technology Fee",
+        "description": (
+            "Platform and connectivity fee for depositions conducted via "
+            "videoconference (Zoom, Teams, Veritext Connect, etc.)."
+        ),
+    },
+    {
+        "code": "CR.DEPO.TRAVEL_TRANSPORT",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "TRAVEL_TRANSPORT",
+        "unit_model": "actual",
+        "label": "Court Reporter Travel — Transportation",
+        "description": "Actual transportation cost for court reporter travel to deposition location.",
+    },
+    {
+        "code": "CR.DEPO.MILEAGE",
+        "domain": "CR",
+        "service_item": "DEPO",
+        "billing_component": "MILEAGE",
+        "unit_model": "per_mile",
+        "label": "Court Reporter Travel — Mileage",
+        "description": "Mileage reimbursement for court reporter driving to deposition.",
+    },
+    {
+        "code": "CR.CANCEL.CANCEL_FEE",
+        "domain": "CR",
+        "service_item": "CANCEL",
+        "billing_component": "CANCEL_FEE",
+        "unit_model": "flat_fee",
+        "label": "Cancellation Fee",
+        "description": (
+            "Fee charged when a scheduled deposition is cancelled within "
+            "the contract-specified notice window."
+        ),
+    },
+    {
+        "code": "CR.NO_SHOW.NO_SHOW_FEE",
+        "domain": "CR",
+        "service_item": "NO_SHOW",
+        "billing_component": "NO_SHOW_FEE",
+        "unit_model": "flat_fee",
+        "label": "No-Show Fee",
+        "description": "Fee charged when a deposition witness fails to appear.",
+    },
+    # ══════════════════════════════════════════════════════════════════════════
+    # INV — Investigation & Surveillance
+    # ══════════════════════════════════════════════════════════════════════════
+    {
+        "code": "INV.SURVEILLANCE.PROF_FEE",
+        "domain": "INV",
+        "service_item": "SURVEILLANCE",
+        "billing_component": "PROF_FEE",
+        "unit_model": "per_hour",
+        "label": "Investigation Surveillance — Professional Fee",
+        "description": "Hourly fee for claimant surveillance services.",
+    },
+    {
+        "code": "INV.SURVEILLANCE.TRAVEL_TRANSPORT",
+        "domain": "INV",
+        "service_item": "SURVEILLANCE",
+        "billing_component": "TRAVEL_TRANSPORT",
+        "unit_model": "actual",
+        "label": "Investigation Surveillance — Transportation",
+        "description": "Actual transportation costs for surveillance investigators.",
+    },
+    {
+        "code": "INV.SURVEILLANCE.MILEAGE",
+        "domain": "INV",
+        "service_item": "SURVEILLANCE",
+        "billing_component": "MILEAGE",
+        "unit_model": "per_mile",
+        "label": "Investigation Surveillance — Mileage",
+        "description": "Mileage for surveillance investigators.",
+    },
+    {
+        "code": "INV.STATEMENT.PROF_FEE",
+        "domain": "INV",
+        "service_item": "STATEMENT",
+        "billing_component": "PROF_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Investigation Recorded Statement — Professional Fee",
+        "description": "Fee for obtaining a recorded statement from claimant, witness, or involved party.",
+    },
+    {
+        "code": "INV.BACKGROUND_ASSET.PROF_FEE",
+        "domain": "INV",
+        "service_item": "BACKGROUND_ASSET",
+        "billing_component": "PROF_FEE",
+        "unit_model": "per_report",
+        "label": "Investigation Background / Asset Search — Professional Fee",
+        "description": "Fee for background check, asset search, or public records investigation.",
+    },
+    {
+        "code": "INV.AOE_COE.PROF_FEE",
+        "domain": "INV",
+        "service_item": "AOE_COE",
+        "billing_component": "PROF_FEE",
+        "unit_model": "per_file",
+        "label": "Investigation AOE/COE Investigation — Professional Fee",
+        "description": "Arising Out of Employment / Course of Employment investigation.",
+    },
+    {
+        "code": "INV.SKIP_TRACE.PROF_FEE",
+        "domain": "INV",
+        "service_item": "SKIP_TRACE",
+        "billing_component": "PROF_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Investigation Skip Trace — Professional Fee",
+        "description": "Fee for locating a claimant or witness whose address is unknown.",
+    },
+    # ══════════════════════════════════════════════════════════════════════════
+    # DRNE — Drone & Aerial Inspection
+    # Physical drone deployments for roof, structural, and site documentation.
+    # Distinct from VIRT (no-visit digital services) and INSP (ground inspections).
+    # ══════════════════════════════════════════════════════════════════════════
+    {
+        "code": "DRNE.ROOF_SURVEY.FLAT_FEE",
+        "domain": "DRNE",
+        "service_item": "ROOF_SURVEY",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Drone Roof Survey",
+        "description": (
+            "Aerial drone survey of a roof structure to document condition, "
+            "damage extent, and measurement data."
+        ),
+    },
+    {
+        "code": "DRNE.AERIAL_PHOTO.FLAT_FEE",
+        "domain": "DRNE",
+        "service_item": "AERIAL_PHOTO",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Aerial Photography & Documentation",
+        "description": (
+            "Drone-captured still photography of a property for damage documentation, "
+            "site orientation, or pre/post loss comparison."
+        ),
+    },
+    {
+        "code": "DRNE.VIDEO.FLAT_FEE",
+        "domain": "DRNE",
+        "service_item": "VIDEO",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Aerial Video Documentation",
+        "description": "Drone video footage of a loss site for claim file documentation.",
+    },
+    {
+        "code": "DRNE.THERMAL.FLAT_FEE",
+        "domain": "DRNE",
+        "service_item": "THERMAL",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Thermal Imaging Survey",
+        "description": (
+            "Infrared/thermal drone survey to detect moisture intrusion, "
+            "heat loss, or hidden damage not visible in standard photography."
+        ),
+    },
+    {
+        "code": "DRNE.CANCEL.CANCEL_FEE",
+        "domain": "DRNE",
+        "service_item": "CANCEL",
+        "billing_component": "CANCEL_FEE",
+        "unit_model": "flat_fee",
+        "label": "Cancellation Fee",
+        "description": (
+            "Fee charged when a scheduled drone flight is cancelled within "
+            "the contract-specified notice window."
+        ),
+    },
+    {
+        "code": "DRNE.TRIP_CHARGE.TRIP_FEE",
+        "domain": "DRNE",
+        "service_item": "TRIP_CHARGE",
+        "billing_component": "TRIP_FEE",
+        "unit_model": "flat_fee",
+        "label": "Trip Charge / No Access",
+        "description": (
+            "Fee charged when the drone operator is dispatched and arrives on site "
+            "but cannot complete the flight (FAA restriction, unsafe weather, access denied)."
+        ),
+    },
+    # ══════════════════════════════════════════════════════════════════════════
+    # APPR — Property Appraisal & Umpire
+    # Used in contested property claims under the insurance appraisal clause.
+    # ══════════════════════════════════════════════════════════════════════════
+    {
+        "code": "APPR.PROPERTY_APPRAISAL.PROF_FEE",
+        "domain": "APPR",
+        "service_item": "PROPERTY_APPRAISAL",
+        "billing_component": "PROF_FEE",
+        "unit_model": "flat_fee",
+        "label": "Property Appraisal — Professional Fee",
+        "description": (
+            "Fee for an independent property appraisal to establish the value of "
+            "loss or repair cost as part of the insurance appraisal clause process."
+        ),
+    },
+    {
+        "code": "APPR.UMPIRE.PROF_FEE",
+        "domain": "APPR",
+        "service_item": "UMPIRE",
+        "billing_component": "PROF_FEE",
+        "unit_model": "flat_fee",
+        "label": "Umpire Services — Professional Fee",
+        "description": (
+            "Fee for a neutral umpire to resolve a disputed appraisal when "
+            "the carrier and insured appraisers cannot agree on loss amount."
+        ),
+    },
+    {
+        "code": "APPR.SITE_VISIT.FLAT_FEE",
+        "domain": "APPR",
+        "service_item": "SITE_VISIT",
+        "billing_component": "FLAT_FEE",
+        "unit_model": "per_occurrence",
+        "label": "Appraisal Site Visit",
+        "description": "Fee for an appraiser or umpire site visit to inspect the loss property.",
+    },
+    {
+        "code": "APPR.CONTENTS_INVENTORY.PROF_FEE",
+        "domain": "APPR",
+        "service_item": "CONTENTS_INVENTORY",
+        "billing_component": "PROF_FEE",
+        "unit_model": "per_file",
+        "label": "Contents Inventory & Valuation",
+        "description": (
+            "Professional inventory and valuation of personal property contents "
+            "for homeowners or renters insurance claims."
+        ),
+    },
+    {
+        "code": "APPR.ADMIN.FILING_FEE",
+        "domain": "APPR",
+        "service_item": "ADMIN",
+        "billing_component": "FILING_FEE",
+        "unit_model": "flat_fee",
+        "label": "Appraisal Administrative / Filing Fee",
+        "description": "Administrative fee for appraisal process coordination and documentation.",
     },
     # ══════════════════════════════════════════════════════════════════════════
     # XDOMAIN — Cross-Domain (Pass-Through, Misc Admin)

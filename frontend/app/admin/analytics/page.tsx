@@ -70,17 +70,20 @@ const USSpendMap = dynamic(() => import("@/components/us-spend-map"), {
 
 
 const DOMAIN_COLORS: Record<string, string> = {
-  IME:     "#3B82F6",
-  ENG:     "#F59E0B",
   IA:      "#8B5CF6",
-  INV:     "#EF4444",
+  ENG:     "#F59E0B",
+  REC:     "#10B981",
   LA:      "#14B8A6",
   INSP:    "#F97316",
-  REC:     "#10B981",
+  VIRT:    "#06B6D4",
+  CR:      "#3B82F6",
+  INV:     "#EF4444",
+  DRNE:    "#84CC16",
+  APPR:    "#F43F5E",
   XDOMAIN: "#6B7280",
 };
 
-const DOMAIN_ORDER = ["IME", "ENG", "IA", "INV", "LA", "INSP", "REC", "XDOMAIN"];
+const DOMAIN_ORDER = ["IA", "ENG", "REC", "LA", "INSP", "VIRT", "CR", "INV", "DRNE", "APPR", "XDOMAIN"];
 
 const STATUS_ORDER = [
   "REVIEW_REQUIRED",

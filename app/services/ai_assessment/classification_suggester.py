@@ -19,7 +19,7 @@ The ai_classification_suggestion column stays NULL — no exceptions are raised.
 Suggestion schema (stored as JSONB on LineItem):
     {
         "verdict": "SUGGESTED" | "TAXONOMY_GAP" | "OUT_OF_SCOPE",
-        "suggested_code": "IME.RECORDS_REVIEW.PROF_FEE" | null,
+        "suggested_code": "IA.FIELD_ASSIGN.PROF_FEE" | null,
         "suggested_billing_component": "PROF_FEE" | null,
         "confidence": "HIGH" | "MEDIUM" | "LOW" | null,
         "rationale": "<one sentence>",

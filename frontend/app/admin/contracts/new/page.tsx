@@ -287,7 +287,7 @@ function NewContractContent() {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. IME Services Agreement 2025"
+                placeholder="e.g. Field Adjuster Services Agreement 2025"
                 required
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />

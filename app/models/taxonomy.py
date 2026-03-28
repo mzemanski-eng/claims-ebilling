@@ -1,8 +1,8 @@
 """
-TaxonomyItem — the Claims UTMSB taxonomy table.
+TaxonomyItem — the Veridian ALAE taxonomy table.
 
 Codes follow the pattern: {DOMAIN}.{SERVICE_ITEM}.{COMPONENT}
-e.g.  IME.PHY_EXAM.PROF_FEE
+e.g.  IA.FIELD_ASSIGN.PROF_FEE
 
 This table is seeded from app/taxonomy/seed.py and treated as
 configuration-level data (rarely changes; changes are versioned).
@@ -25,7 +25,7 @@ class TaxonomyItem(Base, TimestampMixin):
         String(16),
         nullable=False,
         index=True,
-        comment="Top-level domain: IME | ENG | IA | INV | REC | XDOMAIN",
+        comment="Top-level domain: IA | ENG | REC | LA | INSP | VIRT | CR | INV | DRNE | APPR | XDOMAIN",
     )
     service_item: Mapped[str] = mapped_column(
         String(32), nullable=False, comment="e.g. PHY_EXAM, CAUSE_ORIGIN, FIELD_ASSIGN"

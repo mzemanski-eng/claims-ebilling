@@ -185,7 +185,7 @@ class Contract(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     name: Mapped[str] = mapped_column(
-        String(256), nullable=False, comment="e.g. 'ACME IME Services Agreement 2024'"
+        String(256), nullable=False, comment="e.g. 'ACME Field Adjuster Services Agreement 2024'"
     )
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     effective_to: Mapped[Optional[date]] = mapped_column(
@@ -345,7 +345,7 @@ class Guideline(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     domain: Mapped[Optional[str]] = mapped_column(
         String(16),
         nullable=True,
-        comment="If taxonomy_code is NULL, applies to this domain (e.g. IME)",
+        comment="If taxonomy_code is NULL, applies to this domain (e.g. IA, CR)",
     )
 
     rule_type: Mapped[str] = mapped_column(

@@ -6,7 +6,7 @@ optional filter query params (date_from, date_to, supplier_id, domain) so the
 frontend global filter bar cascades across every section.
 
   GET /admin/analytics/summary                        → KPI scalars (billed, approved, savings, exceptions)
-  GET /admin/analytics/spend-by-domain                → spend grouped by service domain (IME, ENG, etc.)
+  GET /admin/analytics/spend-by-domain                → spend grouped by service domain (IA, ENG, CR, etc.)
   GET /admin/analytics/spend-by-supplier              → spend grouped by supplier
   GET /admin/analytics/spend-by-taxonomy              → spend grouped by taxonomy code (+ units, avg rate)
   GET /admin/analytics/exception-breakdown            → exception counts by validation type
@@ -212,7 +212,7 @@ def get_spend_by_domain(
 ):
     """
     Groups classified line items by the first segment of their taxonomy code
-    (the service domain: IME, ENG, IA, INV, REC, XDOMAIN).
+    (the service domain: IA, ENG, REC, LA, INSP, VIRT, CR, INV, DRNE, APPR, XDOMAIN).
     Only classified lines are included.
     """
     domain_expr = func.split_part(LineItem.taxonomy_code, ".", 1).label("domain")

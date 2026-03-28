@@ -11,7 +11,7 @@ Expected (but flexible) columns:
   service_state (optional), service_zip (optional)
 
 The alias map below covers the most common variations we expect to see
-from IME schedulers, IA networks, and engineering firms.
+from IA networks, engineering firms, court reporting agencies, and inspection vendors.
 """
 
 import io
