@@ -14,7 +14,6 @@ import {
 } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfidenceBadge } from "@/components/confidence-badge";
-import { ValidationSummaryCard } from "@/components/validation-summary-card";
 import { AiClassificationSuggestion } from "@/components/ai-classification-suggestion";
 import { Button } from "@/components/ui/button";
 import type { LineItemCarrierView } from "@/lib/types";
@@ -52,7 +51,7 @@ type StepVariant = "neutral" | "pass" | "warn" | "pending";
 function TimelineStep({
   icon, label, detail, variant,
 }: {
-  icon: string; label: string; detail: string; variant: StepVariant;
+  icon: string; label: string; detail: React.ReactNode; variant: StepVariant;
 }) {
   const colors: Record<StepVariant, string> = {
     neutral: "text-gray-500",
@@ -70,7 +69,22 @@ function TimelineStep({
     <div className="flex flex-col items-center gap-1 flex-1">
       <div className={`mt-2 h-2 w-2 rounded-full ${dotColors[variant]}`} />
       <span className="text-xs font-semibold text-gray-700 mt-0.5">{label}</span>
-      <span className={`text-[11px] ${colors[variant]}`}>{detail}</span>
+      <div className={`text-[11px] text-center ${colors[variant]}`}>{detail}</div>
+    </div>
+  );
+}
+
+function StatPill({
+  label, value, highlight, green,
+}: {
+  label: string; value: string; highlight?: boolean; green?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
+      <span className={`text-sm font-semibold ${highlight ? "text-red-600" : green ? "text-green-600" : "text-gray-900"}`}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -86,11 +100,10 @@ function AIProcessingTimeline({
   const total = summary?.total_lines ?? 0;
   const spendExcs = (summary?.rate_exceptions ?? 0) + (summary?.guideline_exceptions ?? 0);
   const linesWithIssues = summary?.lines_with_exceptions ?? 0;
+  const validated = summary?.lines_validated ?? 0;
+  const denied = summary?.lines_denied ?? 0;
   const spendVariant: StepVariant = !isProcessed ? "pending" : spendExcs === 0 ? "pass" : "warn";
   const resultVariant: StepVariant = !isProcessed ? "pending" : invoice.status === "APPROVED" ? "pass" : "warn";
-  const triageVariant: StepVariant = invoice.triage_risk_level
-    ? invoice.triage_risk_level === "LOW" ? "pass" : "warn"
-    : "pending";
 
   const fmtMoney = (v: string | null | undefined) => {
     const n = parseFloat(v ?? "0");
@@ -100,26 +113,24 @@ function AIProcessingTimeline({
 
   return (
     <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-4">
-      <div className="flex items-baseline justify-between mb-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          ✦ AI Processing
-        </p>
-        {/* Totals — start here, then each step shows what happened to these */}
-        {isProcessed && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-gray-900">{total} line{total !== 1 ? "s" : ""}</span>
-            <span className="text-gray-300">·</span>
-            <span className="font-semibold text-gray-900">{fmtMoney(summary?.total_billed)}</span>
-            <span className="text-xs text-gray-400">submitted</span>
-          </div>
-        )}
-      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">
+        ✦ AI Processing
+      </p>
       <div className="relative flex items-start">
         {/* Connector line */}
         <div className="absolute top-3 left-0 right-0 h-px bg-gray-200 mx-4" />
         <TimelineStep
           icon="📥" label="Received"
-          detail={fmt(invoice.submitted_at)}
+          detail={
+            isProcessed ? (
+              <>
+                <span>{fmt(invoice.submitted_at)}</span>
+                <span className="block text-gray-500 mt-0.5">
+                  {total} line{total !== 1 ? "s" : ""} · {fmtMoney(summary?.total_billed)}
+                </span>
+              </>
+            ) : fmt(invoice.submitted_at)
+          }
           variant={invoice.submitted_at ? "neutral" : "pending"}
         />
         <TimelineStep
@@ -129,13 +140,8 @@ function AIProcessingTimeline({
         />
         <TimelineStep
           icon="💲" label="Spend Audit"
-          detail={isProcessed ? (spendExcs === 0 ? `${total} passed` : `${spendExcs} flagged`) : "Pending"}
+          detail={isProcessed ? (spendExcs === 0 ? `All passed` : `${spendExcs} flagged`) : "Pending"}
           variant={spendVariant}
-        />
-        <TimelineStep
-          icon="🤖" label="Risk Assessed"
-          detail={invoice.triage_risk_level ?? (isProcessed ? "—" : "Pending")}
-          variant={triageVariant}
         />
         <TimelineStep
           icon={invoice.status === "APPROVED" ? "✅" : "🔴"}
@@ -150,6 +156,19 @@ function AIProcessingTimeline({
           variant={resultVariant}
         />
       </div>
+
+      {/* Stats footer — replaces the ValidationSummaryCard */}
+      {isProcessed && (
+        <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <StatPill label="Validated" value={`${validated}`} />
+          <StatPill label="Exceptions" value={`${linesWithIssues}`} highlight={linesWithIssues > 0} />
+          <StatPill label="Submitted" value={fmtMoney(summary?.total_billed)} />
+          <StatPill label="Payable" value={fmtMoney(summary?.total_payable)} green />
+          {denied > 0 && (
+            <StatPill label="Denied" value={`${denied} line${denied !== 1 ? "s" : ""}`} highlight />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -868,13 +887,6 @@ export default function AdminInvoiceDetailPage({
           expanded={triageExpanded}
           onToggle={() => setTriageExpanded((v) => !v)}
         />
-      )}
-
-      {/* Validation summary */}
-      {invoice.validation_summary && (
-        <div className="mb-6">
-          <ValidationSummaryCard summary={invoice.validation_summary} />
-        </div>
       )}
 
       {/* Line items */}
