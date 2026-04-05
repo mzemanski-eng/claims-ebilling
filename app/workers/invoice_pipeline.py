@@ -602,36 +602,13 @@ def _process_line(
         audit.log_line_item_classified(db, line_item, result)
 
         if result.confidence == "UNRECOGNIZED":
-            val_result = ValidationResult(
-                line_item_id=line_item.id,
-                validation_type=ValidationType.CLASSIFICATION,
-                status=ValidationStatus.FAIL,
-                severity=ValidationSeverity.ERROR,
-                message=(
-                    f"Service description could not be classified: "
-                    f"'{raw_item.raw_description}'. "
-                    f"Please provide a clearer description or request manual "
-                    f"reclassification."
-                ),
-                required_action=RequiredAction.REQUEST_RECLASSIFICATION,
-            )
-            db.add(val_result)
-            db.flush()
-            exc_record = ExceptionRecord(
-                line_item_id=line_item.id,
-                validation_result_id=val_result.id,
-                status=ExceptionStatus.OPEN,
-            )
-            db.add(exc_record)
-            line_item.status = LineItemStatus.EXCEPTION
-            error_count += 1
-            # spend_error_count intentionally NOT incremented — classification
-            # failures do not require supplier correction; carrier confirms taxonomy.
-
-            # ── AI classification suggestion ───────────────────────────────────
-            # Run a second Claude pass to give ops guidance on what this line
-            # might be (SUGGESTED code, TAXONOMY_GAP, or OUT_OF_SCOPE).
-            # Gracefully skips on failure — column stays NULL.
+            # ── AI classification suggestion (runs BEFORE deciding to exception) ─
+            # We ask the AI suggester first. If it returns HIGH or MEDIUM confidence
+            # we accept the taxonomy inline and fall through to rate/guideline
+            # validation — decoupling classification from spend audit so these lines
+            # aren't held in dispute just because the rule engine didn't recognise them.
+            # LOW confidence or no suggestion → flag for carrier review as before.
+            suggestion = None
             try:
                 suggestion = suggest_classification(
                     raw_description=raw_item.raw_description,
@@ -646,7 +623,80 @@ def _process_line(
                     ai_exc,
                 )
 
-            return line_item, error_count, spend_error_count, warning_count, 0
+            _AUTO_CONF = {"HIGH", "MEDIUM"}
+            auto_accepted = (
+                isinstance(suggestion, dict)
+                and suggestion.get("confidence") in _AUTO_CONF
+                and suggestion.get("suggested_code")
+            )
+
+            if auto_accepted:
+                # Accept the AI suggestion inline; continue to rate validation below.
+                line_item.taxonomy_code = suggestion["suggested_code"]  # type: ignore[index]
+                line_item.billing_component = (
+                    suggestion.get("suggested_billing_component") or ""  # type: ignore[union-attr]
+                )
+                line_item.mapping_confidence = suggestion["confidence"]  # type: ignore[index]
+                line_item.mapping_rule_id = None  # AI-suggested, no rule matched
+                logger.info(
+                    "Line %d: UNRECOGNIZED → AI auto-accepted '%s' (%s confidence); "
+                    "proceeding to rate validation",
+                    raw_item.line_number,
+                    suggestion["suggested_code"],  # type: ignore[index]
+                    suggestion["confidence"],  # type: ignore[index]
+                )
+                # Record the accepted mapping so the rule engine learns from it
+                # and won't need to call the AI suggester again for the same supplier.
+                try:
+                    from app.services.classification.mapping_learner import (
+                        record_confirmed_mapping,
+                    )
+                    from app.models.mapping import ConfirmedBy
+
+                    record_confirmed_mapping(
+                        db=db,
+                        line_item=line_item,
+                        taxonomy_code=suggestion["suggested_code"],  # type: ignore[index]
+                        billing_component=suggestion.get("suggested_billing_component") or "",  # type: ignore[union-attr]
+                        source=ConfirmedBy.SYSTEM,
+                        scope="this_supplier",
+                    )
+                except Exception as learn_exc:
+                    logger.warning(
+                        "Mapping learning skipped for auto-accepted line %d: %s",
+                        raw_item.line_number,
+                        learn_exc,
+                    )
+                # Fall through to rate/guideline validation (do NOT return early).
+
+            else:
+                # No confident suggestion — flag for carrier classification review.
+                # spend_error_count intentionally NOT incremented: classification
+                # failures do not require supplier correction; carrier confirms taxonomy.
+                val_result = ValidationResult(
+                    line_item_id=line_item.id,
+                    validation_type=ValidationType.CLASSIFICATION,
+                    status=ValidationStatus.FAIL,
+                    severity=ValidationSeverity.ERROR,
+                    message=(
+                        f"Service description could not be classified: "
+                        f"'{raw_item.raw_description}'. "
+                        f"Please provide a clearer description or request manual "
+                        f"reclassification."
+                    ),
+                    required_action=RequiredAction.REQUEST_RECLASSIFICATION,
+                )
+                db.add(val_result)
+                db.flush()
+                exc_record = ExceptionRecord(
+                    line_item_id=line_item.id,
+                    validation_result_id=val_result.id,
+                    status=ExceptionStatus.OPEN,
+                )
+                db.add(exc_record)
+                line_item.status = LineItemStatus.EXCEPTION
+                error_count += 1
+                return line_item, error_count, spend_error_count, warning_count, 0
 
         # ── AI description alignment assessment ───────────────────────────────
         # Run after a successful classification (not UNRECOGNIZED). Fetches the

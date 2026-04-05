@@ -103,18 +103,38 @@ function StatCard({
 function AIProcessingTimeline({
   invoice,
   summary,
+  lines,
 }: {
   invoice: { submitted_at: string | null; processed_at?: string | null; status: string; triage_risk_level?: string | null };
   summary: import("@/lib/types").ValidationSummary | null;
+  lines?: import("@/lib/types").LineItemCarrierView[];
 }) {
   const isProcessed = !!summary;
   const total = summary?.total_lines ?? 0;
-  // Use line-level counts (not exception record counts) for consistent units across steps
+  // Snapshot count from processing time (never changes after processing)
   const linesWithSpendExcs = summary?.lines_with_spend_exceptions ?? 0;
-  const linesWithIssues = summary?.lines_with_exceptions ?? 0;
-  const validated = summary?.lines_validated ?? 0;
   const denied = summary?.lines_denied ?? 0;
-  const spendVariant: StepVariant = !isProcessed ? "pending" : linesWithSpendExcs === 0 ? "pass" : "warn";
+
+  // Live counts from the exceptions table — tells us how many are still open vs resolved
+  const OPEN_EXC_STATUSES = new Set(["OPEN", "SUPPLIER_RESPONDED", "CARRIER_REVIEWING"]);
+  const openSpendLines = (lines ?? []).filter((line) =>
+    line.exceptions.some(
+      (e) => OPEN_EXC_STATUSES.has(e.status) && e.required_action !== "REQUEST_RECLASSIFICATION"
+    )
+  ).length;
+  // Only show resolved breakdown once we have line data loaded
+  const hasLineData = lines !== undefined;
+  const resolvedSpendLines = hasLineData ? linesWithSpendExcs - openSpendLines : 0;
+
+  // Spend Audit step variant: if exceptions existed but all are resolved → pass; any open → warn
+  const spendVariant: StepVariant = !isProcessed
+    ? "pending"
+    : linesWithSpendExcs === 0
+    ? "pass"
+    : hasLineData && openSpendLines === 0
+    ? "pass"   // all resolved
+    : "warn";
+
   const resultVariant: StepVariant = !isProcessed ? "pending" : invoice.status === "APPROVED" ? "pass" : "warn";
 
   const fmtMoney = (v: string | null | undefined) => {
@@ -122,6 +142,45 @@ function AIProcessingTimeline({
     if (isNaN(n)) return "—";
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
   };
+
+  // Build the Spend Audit detail line, reconciling snapshot vs live data
+  function spendAuditDetail(): React.ReactNode {
+    if (!isProcessed) return "Pending";
+    if (linesWithSpendExcs === 0) return "All passed";
+    if (!hasLineData) return `${linesWithSpendExcs} line${linesWithSpendExcs !== 1 ? "s" : ""} flagged`;
+    if (openSpendLines === 0) {
+      return (
+        <>
+          <span>{linesWithSpendExcs} flagged</span>
+          <span className="block text-green-500 font-medium">all resolved ✓</span>
+        </>
+      );
+    }
+    if (resolvedSpendLines > 0) {
+      return (
+        <>
+          <span>{openSpendLines} open</span>
+          <span className="block text-green-500">{resolvedSpendLines} resolved</span>
+        </>
+      );
+    }
+    return `${linesWithSpendExcs} line${linesWithSpendExcs !== 1 ? "s" : ""} flagged`;
+  }
+
+  // Build the Result step detail, using live open count (not snapshot) for "need attention"
+  function resultDetail(): React.ReactNode {
+    if (invoice.status === "APPROVED") return "No action needed";
+    if (!isProcessed) return "—";
+    if (!hasLineData) {
+      return linesWithSpendExcs === 0
+        ? "Classification only"
+        : `${linesWithSpendExcs} line${linesWithSpendExcs !== 1 ? "s" : ""} need attention`;
+    }
+    if (openSpendLines > 0) {
+      return `${openSpendLines} line${openSpendLines !== 1 ? "s" : ""} need attention`;
+    }
+    return "Classification only";
+  }
 
   return (
     <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-5">
@@ -153,24 +212,12 @@ function AIProcessingTimeline({
         />
         <TimelineStep
           label="Spend Audit"
-          detail={isProcessed
-            ? (linesWithSpendExcs === 0
-              ? "All passed"
-              : `${linesWithSpendExcs} line${linesWithSpendExcs !== 1 ? "s" : ""} flagged`)
-            : "Pending"}
+          detail={spendAuditDetail()}
           variant={spendVariant}
         />
         <TimelineStep
           label={invoice.status === "APPROVED" ? "Auto-Approved" : isProcessed ? "Flagged for Review" : "Pending"}
-          detail={
-            invoice.status === "APPROVED"
-              ? "No action needed"
-              : isProcessed
-              ? (linesWithSpendExcs === 0
-                  ? "Classification only"
-                  : `${linesWithSpendExcs} line${linesWithSpendExcs !== 1 ? "s" : ""} need attention`)
-              : "—"
-          }
+          detail={resultDetail()}
           variant={resultVariant}
         />
       </div>
@@ -179,7 +226,16 @@ function AIProcessingTimeline({
       {isProcessed && (
         <div className="mt-6 pt-5 border-t border-gray-100 flex gap-3">
           <StatCard label="Clean Lines" value={String(total - linesWithSpendExcs)} />
-          <StatCard label="Spend Exceptions" value={String(linesWithSpendExcs)} highlight={linesWithSpendExcs > 0} />
+          <StatCard
+            label="Spend Exceptions"
+            value={
+              hasLineData && resolvedSpendLines > 0
+                ? `${openSpendLines} / ${linesWithSpendExcs}`
+                : String(linesWithSpendExcs)
+            }
+            highlight={openSpendLines > 0}
+            green={hasLineData && linesWithSpendExcs > 0 && openSpendLines === 0}
+          />
           <StatCard label="Submitted" value={fmtMoney(summary?.total_billed)} />
           <StatCard label="Payable" value={fmtMoney(summary?.total_payable)} green />
           {denied > 0 && (
@@ -905,6 +961,7 @@ export default function AdminInvoiceDetailPage({
       <AIProcessingTimeline
         invoice={invoice}
         summary={invoice.validation_summary}
+        lines={lines}
       />
 
       {/* AI Triage panel */}
