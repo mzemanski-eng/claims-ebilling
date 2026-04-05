@@ -38,6 +38,7 @@ export interface ValidationSummary {
   classification_exceptions: number;
   rate_exceptions: number;
   guideline_exceptions: number;
+  lines_with_spend_exceptions: number; // lines with rate or guideline failures (timeline-facing)
 }
 
 export interface InvoiceListItem {

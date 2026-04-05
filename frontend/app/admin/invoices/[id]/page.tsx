@@ -69,10 +69,9 @@ function AIProcessingTimeline({
 }) {
   const isProcessed = !!summary;
   const total = summary?.total_lines ?? 0;
-  const classExcs = summary?.classification_exceptions ?? 0;
   const rateExcs = summary?.rate_exceptions ?? 0;
   const guideExcs = summary?.guideline_exceptions ?? 0;
-  const classVariant: StepVariant = !isProcessed ? "pending" : classExcs === 0 ? "neutral" : "warn";
+  const spendLines = summary?.lines_with_spend_exceptions ?? 0;
   const rateVariant: StepVariant = !isProcessed ? "pending" : rateExcs === 0 ? "pass" : "warn";
   const guideVariant: StepVariant = !isProcessed ? "pending" : guideExcs === 0 ? "pass" : "warn";
   const resultVariant: StepVariant = !isProcessed ? "pending" : invoice.status === "APPROVED" ? "pass" : "warn";
@@ -95,14 +94,8 @@ function AIProcessingTimeline({
         />
         <TimelineStep
           icon="🔍" label="Classified"
-          detail={
-            isProcessed
-              ? classExcs > 0
-                ? `${total} mapped · ${classExcs} flagged`
-                : `${total} line${total !== 1 ? "s" : ""} mapped`
-              : "Pending"
-          }
-          variant={classVariant}
+          detail={isProcessed ? `${total} line${total !== 1 ? "s" : ""} mapped` : "Pending"}
+          variant={isProcessed ? "neutral" : "pending"}
         />
         <TimelineStep
           icon="💲" label="Rate Check"
@@ -127,7 +120,7 @@ function AIProcessingTimeline({
             invoice.status === "APPROVED"
               ? "No action needed"
               : isProcessed
-              ? `${summary?.lines_with_exceptions ?? 0} line${(summary?.lines_with_exceptions ?? 0) !== 1 ? "s" : ""} need attention`
+              ? `${spendLines} line${spendLines !== 1 ? "s" : ""} need attention`
               : "—"
           }
           variant={resultVariant}

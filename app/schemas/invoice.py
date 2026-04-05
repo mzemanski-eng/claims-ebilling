@@ -53,9 +53,10 @@ class ValidationSummary(BaseSchema):
     total_denied: Decimal = Decimal("0")  # sum of raw_amount for denied lines
 
     # Exception breakdown by type (carrier-facing)
-    classification_exceptions: int = 0  # exceptions from spend classification
+    classification_exceptions: int = 0  # lines with classification failures (taxonomy)
     rate_exceptions: int = 0            # exceptions from rate validation
     guideline_exceptions: int = 0       # exceptions from guideline validation
+    lines_with_spend_exceptions: int = 0  # lines with rate or guideline failures (timeline-facing)
 
 
 class InvoiceResponse(TimestampedSchema):

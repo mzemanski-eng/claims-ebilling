@@ -440,6 +440,7 @@ def _build_validation_summary(
     classification_exceptions = 0
     rate_exceptions = 0
     guideline_exceptions = 0
+    with_spend_exceptions = 0
 
     for li in lines:
         # DENIED lines are carrier-final: excluded from both payable and in-dispute
@@ -463,15 +464,20 @@ def _build_validation_summary(
         if has_low_confidence and not has_error:
             pending_review += 1
 
-        # Count exceptions by validation type
+        # Count exceptions by validation type; track lines with spend (rate/guideline) failures
+        has_spend_fail = False
         for v in li.validation_results:
             if v.status == ValidationStatus.FAIL:
                 if v.validation_type == "CLASSIFICATION":
                     classification_exceptions += 1
                 elif v.validation_type == "RATE":
                     rate_exceptions += 1
+                    has_spend_fail = True
                 elif v.validation_type == "GUIDELINE":
                     guideline_exceptions += 1
+                    has_spend_fail = True
+        if has_spend_fail:
+            with_spend_exceptions += 1
 
     return ValidationSummary(
         total_lines=len(lines),
@@ -486,6 +492,7 @@ def _build_validation_summary(
         classification_exceptions=classification_exceptions,
         rate_exceptions=rate_exceptions,
         guideline_exceptions=guideline_exceptions,
+        lines_with_spend_exceptions=with_spend_exceptions,
     )
 
 
