@@ -436,10 +436,43 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
                                 f"suggested code: {suggested_code})."
                             )
                             exc.resolved_at = now
+                    # ── Write AI suggestion onto the line item (was missing) ────
+                    # Without this, approved lines have taxonomy_code=NULL and
+                    # mapping_confidence=LOW, breaking analytics and the review queue.
+                    if suggestion.get("suggested_code"):
+                        line.taxonomy_code = suggestion["suggested_code"]
+                        line.billing_component = (
+                            suggestion.get("suggested_billing_component") or ""
+                        )
+                        line.mapping_confidence = conf_label  # LOW → HIGH or MEDIUM
                     line.status = LineItemStatus.APPROVED
                 elif line.status == LineItemStatus.VALIDATED:
                     line.status = LineItemStatus.APPROVED
             db.flush()
+
+            # ── Write confirmed mappings to the MappingRule corpus ────────────
+            # Classifier checks MappingRule first, so these rules immediately
+            # improve accuracy for future invoices from the same supplier.
+            from app.services.classification.mapping_learner import record_confirmed_mapping
+            from app.models.mapping import ConfirmedBy
+
+            for line in processed_lines:
+                if line.status == LineItemStatus.APPROVED:
+                    sug = line.ai_classification_suggestion
+                    if (
+                        sug
+                        and sug.get("verdict") == "SUGGESTED"
+                        and sug.get("suggested_code")
+                    ):
+                        record_confirmed_mapping(
+                            db=db,
+                            line_item=line,
+                            taxonomy_code=sug["suggested_code"],
+                            billing_component=sug.get("suggested_billing_component") or "",
+                            source=ConfirmedBy.SYSTEM,
+                            scope="this_supplier",
+                        )
+
             new_status = SubmissionStatus.APPROVED
             logger.info(
                 "Invoice %s auto-approved: classification exceptions auto-resolved "

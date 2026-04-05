@@ -9,6 +9,7 @@ import {
   approveAdminInvoice,
   exportAdminInvoice,
   resolveAdminException,
+  overrideMapping,
   downloadBlob,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
@@ -546,6 +547,30 @@ export default function AdminInvoiceDetailPage({
   const [showBulkModal, setShowBulkModal] = useState(false);
   const toast = useToast();
 
+  // ── Inline classification correction ──────────────────────────────────────
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editTaxonomy, setEditTaxonomy]   = useState("");
+  const [editComponent, setEditComponent] = useState("");
+  const [editScope, setEditScope]         = useState<"this_line" | "this_supplier" | "global">("this_supplier");
+  const [editNotes, setEditNotes]         = useState("");
+
+  const overrideMut = useMutation({
+    mutationFn: () =>
+      overrideMapping(editingLineId!, editTaxonomy, editComponent, editScope, editNotes || undefined),
+    onSuccess: () => {
+      setEditingLineId(null);
+      qc.invalidateQueries({ queryKey: ["admin-invoice-lines", id] });
+      qc.invalidateQueries({ queryKey: ["admin-invoice", id] });
+      toast.success(
+        "Classification updated",
+        editScope !== "this_line"
+          ? "Saved as a mapping rule — future similar lines will classify automatically."
+          : "Updated for this line only.",
+      );
+    },
+    onError: (err: Error) => toast.error("Could not update classification", err.message),
+  });
+
   const { data: invoice, isLoading: loadingInvoice } = useQuery({
     queryKey: ["admin-invoice", id],
     queryFn: () => getAdminInvoice(id),
@@ -924,19 +949,109 @@ export default function AdminInvoiceDetailPage({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {line.taxonomy_code ? (
-                          <div>
-                            <p className="font-mono text-xs text-gray-700">
-                              {line.taxonomy_code}
-                            </p>
-                            {line.taxonomy_label && (
-                              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-40">
-                                {line.taxonomy_label}
-                              </p>
+                        {/* Taxonomy display + inline correction */}
+                        <div className="flex items-start justify-between gap-1 group/tax">
+                          <div className="min-w-0">
+                            {line.taxonomy_code ? (
+                              <>
+                                <p className="font-mono text-xs text-gray-700">
+                                  {line.taxonomy_code}
+                                </p>
+                                {line.taxonomy_label && (
+                                  <p className="text-xs text-gray-400 mt-0.5 truncate max-w-40">
+                                    {line.taxonomy_label}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-gray-300">—</span>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-gray-300">—</span>
+                          {/* ✏ edit button — visible on row hover */}
+                          <button
+                            className="shrink-0 mt-0.5 opacity-0 group-hover/tax:opacity-100 transition-opacity text-gray-400 hover:text-blue-600 text-xs"
+                            title="Correct classification"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (editingLineId === line.id) {
+                                setEditingLineId(null);
+                              } else {
+                                setEditTaxonomy(line.taxonomy_code ?? "");
+                                setEditComponent(line.billing_component ?? "");
+                                setEditScope("this_supplier");
+                                setEditNotes("");
+                                setEditingLineId(line.id);
+                              }
+                            }}
+                          >
+                            ✏
+                          </button>
+                        </div>
+
+                        {/* Inline correction form */}
+                        {editingLineId === line.id && (
+                          <div
+                            className="mt-2 space-y-2 rounded border border-blue-200 bg-blue-50 p-3"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                              Correct Classification
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                value={editTaxonomy}
+                                onChange={(e) => setEditTaxonomy(e.target.value)}
+                                placeholder="Taxonomy code"
+                                className="rounded border border-gray-300 bg-white px-2 py-1 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <input
+                                value={editComponent}
+                                onChange={(e) => setEditComponent(e.target.value)}
+                                placeholder="Billing component"
+                                className="rounded border border-gray-300 bg-white px-2 py-1 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                            <select
+                              value={editScope}
+                              onChange={(e) =>
+                                setEditScope(e.target.value as typeof editScope)
+                              }
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="this_line">This line only</option>
+                              <option value="this_supplier">
+                                This supplier — save as mapping rule ✦
+                              </option>
+                              <option value="global">
+                                All suppliers — save as global rule ✦
+                              </option>
+                            </select>
+                            <input
+                              value={editNotes}
+                              onChange={(e) => setEditNotes(e.target.value)}
+                              placeholder="Notes (optional)"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                loading={overrideMut.isPending}
+                                disabled={
+                                  !editTaxonomy.trim() || !editComponent.trim()
+                                }
+                                onClick={() => overrideMut.mutate()}
+                              >
+                                Save &amp; Learn
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingLineId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">

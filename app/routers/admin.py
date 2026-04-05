@@ -49,7 +49,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.audit import ActorType
 from app.models.invoice import Invoice, LineItem, LineItemStatus, SubmissionStatus
-from app.models.mapping import ConfirmedBy, MatchType, MappingRule
+from app.models.mapping import ConfirmedBy
 from app.models.supplier import Contract, Guideline, RateCard, Supplier, User, UserRole
 from app.models.taxonomy import TaxonomyItem
 from app.schemas.contracts import (
@@ -213,49 +213,23 @@ def override_mapping(
     )
 
     # ── Create persistent MappingRule (if scope > this_line) ─────────────────
-    rule_id = None
+    from app.services.classification.mapping_learner import record_confirmed_mapping
+
+    rule = None
     if payload.scope in ("this_supplier", "global"):
-        supplier_id = None
-        if payload.scope == "this_supplier":
-            invoice = db.get(Invoice, line_item.invoice_id)
-            supplier_id = invoice.supplier_id if invoice else None
-
-        # Expire any existing active rule for this pattern
-        existing = (
-            db.query(MappingRule)
-            .filter(
-                MappingRule.match_pattern == line_item.raw_description,
-                MappingRule.match_type == MatchType.KEYWORD_SET,
-                MappingRule.effective_to.is_(None),
-                MappingRule.supplier_id == supplier_id,
-            )
-            .first()
-        )
-        if existing:
-            existing.effective_to = datetime.now(timezone.utc)
-            db.flush()
-
-        new_rule = MappingRule(
-            supplier_id=supplier_id,
-            match_type=MatchType.KEYWORD_SET,
-            match_pattern=line_item.raw_description,
+        rule = record_confirmed_mapping(
+            db=db,
+            line_item=line_item,
             taxonomy_code=payload.taxonomy_code,
             billing_component=payload.billing_component,
-            confidence_weight=1.0,
-            confidence_label="HIGH",
-            confirmed_by=ConfirmedBy.CARRIER_OVERRIDE,
-            confirmed_by_user_id=current_user.id,
-            confirmed_at=datetime.now(timezone.utc),
-            effective_from=datetime.now(timezone.utc),
-            supersedes_rule_id=existing.id if existing else None,
-            version=((existing.version + 1) if existing else 1),
+            source=ConfirmedBy.CARRIER_OVERRIDE,
+            user_id=current_user.id,
+            scope=payload.scope,
             notes=payload.notes,
         )
-        db.add(new_rule)
-        db.flush()
-        rule_id = new_rule.id
-
-        audit.log_mapping_overridden(db, new_rule, old_taxonomy, current_user.id)
+        if rule:
+            audit.log_mapping_overridden(db, rule, old_taxonomy, current_user.id)
+    rule_id = rule.id if rule else None
 
     db.commit()
 
