@@ -27,6 +27,25 @@ function fmt(iso: string | null) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+/** Normalise a billing unit to its singular form for use in rate labels (e.g. "hrs" → "hr"). */
+function toUnitSingular(unit: string): string {
+  const map: Record<string, string> = {
+    hrs: "hr", hours: "hr", hour: "hr",
+    days: "day",
+    claims: "claim",
+    units: "unit",
+    pages: "page",
+    items: "item",
+    reports: "report",
+    assessments: "assessment",
+    inspections: "inspection",
+    reviews: "review",
+    visits: "visit",
+    services: "service",
+  };
+  return map[unit.toLowerCase().trim()] ?? unit.toLowerCase().trim();
+}
+
 type StepVariant = "neutral" | "pass" | "warn" | "pending";
 
 function TimelineStep({
@@ -928,17 +947,25 @@ export default function AdminInvoiceDetailPage({
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className="font-mono text-gray-900">
-                          ${Number(line.raw_amount).toFixed(2)}
-                        </p>
-                        {(line.raw_quantity && Number(line.raw_quantity) !== 1 || line.raw_unit) && (
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {Number(line.raw_quantity) !== 1 ? Number(line.raw_quantity).toLocaleString() : ""}
-                            {line.raw_unit ? ` ${line.raw_unit}` : ""}
-                          </p>
-                        )}
+                        {(() => {
+                          const qty = Number(line.raw_quantity);
+                          const total = Number(line.raw_amount);
+                          const unitSingular = line.raw_unit ? toUnitSingular(line.raw_unit) : null;
+                          const showFormula = qty > 1;
+                          const billedRate = showFormula ? total / qty : null;
+                          return (
+                            <>
+                              {showFormula && billedRate !== null && (
+                                <p className="text-[11px] text-gray-400 mb-0.5">
+                                  {qty.toLocaleString()}{line.raw_unit ? ` ${line.raw_unit}` : ""} × ${billedRate.toFixed(2)}{unitSingular ? `/${unitSingular}` : ""}
+                                </p>
+                              )}
+                              <p className="font-mono text-gray-900">${total.toFixed(2)}</p>
+                            </>
+                          );
+                        })()}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono">
+                      <td className="px-4 py-3 text-right">
                         {(() => {
                           const noRateActions = ["REQUEST_RECLASSIFICATION", "ESTABLISH_CONTRACT_RATE"];
                           const hasNoRate = line.exceptions.some(
@@ -957,16 +984,23 @@ export default function AdminInvoiceDetailPage({
                           if (!line.expected_amount) {
                             return <span className="text-gray-300">—</span>;
                           }
+                          const qty = Number(line.raw_quantity);
+                          const expected = Number(line.expected_amount);
+                          const contractRate = line.mapped_rate ? Number(line.mapped_rate) : null;
+                          const unitSingular = line.raw_unit ? toUnitSingular(line.raw_unit) : null;
+                          const showFormula = qty > 1 && contractRate !== null;
+                          const isOver = Number(line.raw_amount) > expected;
                           return (
-                            <span
-                              className={
-                                Number(line.raw_amount) > Number(line.expected_amount)
-                                  ? "text-red-600"
-                                  : "text-gray-700"
-                              }
-                            >
-                              ${Number(line.expected_amount).toFixed(2)}
-                            </span>
+                            <>
+                              {showFormula && contractRate !== null && (
+                                <p className="text-[11px] text-gray-400 mb-0.5">
+                                  {qty.toLocaleString()}{line.raw_unit ? ` ${line.raw_unit}` : ""} × ${contractRate.toFixed(2)}{unitSingular ? `/${unitSingular}` : ""}
+                                </p>
+                              )}
+                              <p className={`font-mono ${isOver ? "text-red-600" : "text-gray-700"}`}>
+                                ${expected.toFixed(2)}
+                              </p>
+                            </>
                           );
                         })()}
                       </td>
