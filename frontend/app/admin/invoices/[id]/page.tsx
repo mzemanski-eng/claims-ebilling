@@ -69,11 +69,9 @@ function AIProcessingTimeline({
 }) {
   const isProcessed = !!summary;
   const total = summary?.total_lines ?? 0;
-  const rateExcs = summary?.rate_exceptions ?? 0;
-  const guideExcs = summary?.guideline_exceptions ?? 0;
-  const spendLines = summary?.lines_with_spend_exceptions ?? 0;
-  const rateVariant: StepVariant = !isProcessed ? "pending" : rateExcs === 0 ? "pass" : "warn";
-  const guideVariant: StepVariant = !isProcessed ? "pending" : guideExcs === 0 ? "pass" : "warn";
+  const spendExcs = (summary?.rate_exceptions ?? 0) + (summary?.guideline_exceptions ?? 0);
+  const linesWithIssues = summary?.lines_with_exceptions ?? 0;
+  const spendVariant: StepVariant = !isProcessed ? "pending" : spendExcs === 0 ? "pass" : "warn";
   const resultVariant: StepVariant = !isProcessed ? "pending" : invoice.status === "APPROVED" ? "pass" : "warn";
   const triageVariant: StepVariant = invoice.triage_risk_level
     ? invoice.triage_risk_level === "LOW" ? "pass" : "warn"
@@ -98,14 +96,9 @@ function AIProcessingTimeline({
           variant={isProcessed ? "neutral" : "pending"}
         />
         <TimelineStep
-          icon="💲" label="Rate Check"
-          detail={isProcessed ? (rateExcs === 0 ? `${total} passed` : `${rateExcs} flagged`) : "Pending"}
-          variant={rateVariant}
-        />
-        <TimelineStep
-          icon="📋" label="Guideline Check"
-          detail={isProcessed ? (guideExcs === 0 ? `${total} passed` : `${guideExcs} flagged`) : "Pending"}
-          variant={guideVariant}
+          icon="💲" label="Spend Audit"
+          detail={isProcessed ? (spendExcs === 0 ? `${total} passed` : `${spendExcs} flagged`) : "Pending"}
+          variant={spendVariant}
           emphasis
         />
         <TimelineStep
@@ -120,7 +113,7 @@ function AIProcessingTimeline({
             invoice.status === "APPROVED"
               ? "No action needed"
               : isProcessed
-              ? `${spendLines} line${spendLines !== 1 ? "s" : ""} need attention`
+              ? `${linesWithIssues} line${linesWithIssues !== 1 ? "s" : ""} need attention`
               : "—"
           }
           variant={resultVariant}
