@@ -164,18 +164,20 @@ function AIProcessingTimeline({
             invoice.status === "APPROVED"
               ? "No action needed"
               : isProcessed
-              ? `${linesWithIssues} line${linesWithIssues !== 1 ? "s" : ""} need attention`
+              ? (linesWithSpendExcs === 0
+                  ? "Classification only"
+                  : `${linesWithSpendExcs} line${linesWithSpendExcs !== 1 ? "s" : ""} need attention`)
               : "—"
           }
           variant={resultVariant}
         />
       </div>
 
-      {/* Outcome stats — card format for clear visual hierarchy */}
+      {/* Outcome stats — spend audit perspective only; classification handled in mapping queue */}
       {isProcessed && (
         <div className="mt-6 pt-5 border-t border-gray-100 flex gap-3">
-          <StatCard label="Validated" value={String(validated)} />
-          <StatCard label="Exceptions" value={String(linesWithIssues)} highlight={linesWithIssues > 0} />
+          <StatCard label="Clean Lines" value={String(total - linesWithSpendExcs)} />
+          <StatCard label="Spend Exceptions" value={String(linesWithSpendExcs)} highlight={linesWithSpendExcs > 0} />
           <StatCard label="Submitted" value={fmtMoney(summary?.total_billed)} />
           <StatCard label="Payable" value={fmtMoney(summary?.total_payable)} green />
           {denied > 0 && (
