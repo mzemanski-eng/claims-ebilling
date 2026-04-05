@@ -981,9 +981,24 @@ export default function AdminInvoiceDetailPage({
                         <p className="font-medium text-gray-900 leading-snug">
                           {line.raw_description}
                         </p>
-                        {line.claim_number && (
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Claim {line.claim_number}
+                        {(line.claim_number || line.service_date) && (
+                          <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                            {line.claim_number && (
+                              <span>Claim {line.claim_number}</span>
+                            )}
+                            {line.claim_number && line.service_date && (
+                              <span className="text-gray-300">·</span>
+                            )}
+                            {line.service_date && (
+                              <span>
+                                {(() => {
+                                  const [y, m, d] = line.service_date!.split("-").map(Number);
+                                  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+                                    month: "short", day: "numeric", year: "numeric",
+                                  });
+                                })()}
+                              </span>
+                            )}
                           </p>
                         )}
                       </td>
