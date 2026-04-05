@@ -49,42 +49,51 @@ function toUnitSingular(unit: string): string {
 type StepVariant = "neutral" | "pass" | "warn" | "pending";
 
 function TimelineStep({
-  icon, label, detail, variant,
+  label, detail, variant,
 }: {
-  icon: string; label: string; detail: React.ReactNode; variant: StepVariant;
+  label: string; detail: React.ReactNode; variant: StepVariant;
 }) {
-  const colors: Record<StepVariant, string> = {
-    neutral: "text-gray-500",
-    pass:    "text-green-700",
-    warn:    "text-amber-700",
-    pending: "text-gray-300",
-  };
   const dotColors: Record<StepVariant, string> = {
-    neutral: "bg-gray-300",
+    neutral: "bg-gray-400",
     pass:    "bg-green-400",
     warn:    "bg-amber-400",
     pending: "bg-gray-200",
   };
+  const labelColors: Record<StepVariant, string> = {
+    neutral: "text-gray-700",
+    pass:    "text-green-800",
+    warn:    "text-amber-800",
+    pending: "text-gray-400",
+  };
+  const detailColors: Record<StepVariant, string> = {
+    neutral: "text-gray-500",
+    pass:    "text-green-600",
+    warn:    "text-amber-600",
+    pending: "text-gray-300",
+  };
   return (
-    <div className="flex flex-col items-center gap-1 flex-1">
-      <div className={`mt-2 h-2 w-2 rounded-full ${dotColors[variant]}`} />
-      <span className="text-xs font-semibold text-gray-700 mt-0.5">{label}</span>
-      <div className={`text-[11px] text-center ${colors[variant]}`}>{detail}</div>
+    <div className="flex flex-col items-center flex-1 px-1">
+      {/* Dot sits on the connector line; ring punches through it cleanly */}
+      <div className={`h-3 w-3 rounded-full ring-[3px] ring-white shrink-0 ${dotColors[variant]}`} />
+      <span className={`text-xs font-semibold mt-2 text-center ${labelColors[variant]}`}>{label}</span>
+      <div className={`mt-0.5 text-[11px] text-center leading-relaxed ${detailColors[variant]}`}>{detail}</div>
     </div>
   );
 }
 
-function StatPill({
+function StatCard({
   label, value, highlight, green,
 }: {
   label: string; value: string; highlight?: boolean; green?: boolean;
 }) {
   return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? "text-red-600" : green ? "text-green-600" : "text-gray-900"}`}>
+    <div className="flex-1 min-w-0 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-center">
+      <p className={`text-xl font-bold tabular-nums ${
+        highlight ? "text-red-600" : green ? "text-green-700" : "text-gray-900"
+      }`}>
         {value}
-      </span>
+      </p>
+      <p className="mt-0.5 text-[10px] uppercase tracking-wider text-gray-400">{label}</p>
     </div>
   );
 }
@@ -98,11 +107,12 @@ function AIProcessingTimeline({
 }) {
   const isProcessed = !!summary;
   const total = summary?.total_lines ?? 0;
-  const spendExcs = (summary?.rate_exceptions ?? 0) + (summary?.guideline_exceptions ?? 0);
+  // Use line-level counts (not exception record counts) for consistent units across steps
+  const linesWithSpendExcs = summary?.lines_with_spend_exceptions ?? 0;
   const linesWithIssues = summary?.lines_with_exceptions ?? 0;
   const validated = summary?.lines_validated ?? 0;
   const denied = summary?.lines_denied ?? 0;
-  const spendVariant: StepVariant = !isProcessed ? "pending" : spendExcs === 0 ? "pass" : "warn";
+  const spendVariant: StepVariant = !isProcessed ? "pending" : linesWithSpendExcs === 0 ? "pass" : "warn";
   const resultVariant: StepVariant = !isProcessed ? "pending" : invoice.status === "APPROVED" ? "pass" : "warn";
 
   const fmtMoney = (v: string | null | undefined) => {
@@ -112,20 +122,21 @@ function AIProcessingTimeline({
   };
 
   return (
-    <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-5">
         ✦ AI Processing
       </p>
+
+      {/* Timeline steps — dots sit on the connector line */}
       <div className="relative flex items-start">
-        {/* Connector line */}
-        <div className="absolute top-3 left-0 right-0 h-px bg-gray-200 mx-4" />
+        <div className="absolute top-[6px] left-0 right-0 h-px bg-gray-200 mx-8" />
         <TimelineStep
-          icon="📥" label="Received"
+          label="Received"
           detail={
             isProcessed ? (
               <>
                 <span>{fmt(invoice.submitted_at)}</span>
-                <span className="block text-gray-500 mt-0.5">
+                <span className="block text-gray-400 mt-0.5">
                   {total} line{total !== 1 ? "s" : ""} · {fmtMoney(summary?.total_billed)}
                 </span>
               </>
@@ -134,17 +145,20 @@ function AIProcessingTimeline({
           variant={invoice.submitted_at ? "neutral" : "pending"}
         />
         <TimelineStep
-          icon="🔍" label="Classified"
+          label="Classified"
           detail={isProcessed ? `${total} line${total !== 1 ? "s" : ""} mapped` : "Pending"}
           variant={isProcessed ? "neutral" : "pending"}
         />
         <TimelineStep
-          icon="💲" label="Spend Audit"
-          detail={isProcessed ? (spendExcs === 0 ? `All passed` : `${spendExcs} flagged`) : "Pending"}
+          label="Spend Audit"
+          detail={isProcessed
+            ? (linesWithSpendExcs === 0
+              ? "All passed"
+              : `${linesWithSpendExcs} line${linesWithSpendExcs !== 1 ? "s" : ""} flagged`)
+            : "Pending"}
           variant={spendVariant}
         />
         <TimelineStep
-          icon={invoice.status === "APPROVED" ? "✅" : "🔴"}
           label={invoice.status === "APPROVED" ? "Auto-Approved" : isProcessed ? "Flagged for Review" : "Pending"}
           detail={
             invoice.status === "APPROVED"
@@ -157,15 +171,15 @@ function AIProcessingTimeline({
         />
       </div>
 
-      {/* Stats footer — replaces the ValidationSummaryCard */}
+      {/* Outcome stats — card format for clear visual hierarchy */}
       {isProcessed && (
-        <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-x-6 gap-y-2">
-          <StatPill label="Validated" value={`${validated}`} />
-          <StatPill label="Exceptions" value={`${linesWithIssues}`} highlight={linesWithIssues > 0} />
-          <StatPill label="Submitted" value={fmtMoney(summary?.total_billed)} />
-          <StatPill label="Payable" value={fmtMoney(summary?.total_payable)} green />
+        <div className="mt-6 pt-5 border-t border-gray-100 flex gap-3">
+          <StatCard label="Validated" value={String(validated)} />
+          <StatCard label="Exceptions" value={String(linesWithIssues)} highlight={linesWithIssues > 0} />
+          <StatCard label="Submitted" value={fmtMoney(summary?.total_billed)} />
+          <StatCard label="Payable" value={fmtMoney(summary?.total_payable)} green />
           {denied > 0 && (
-            <StatPill label="Denied" value={`${denied} line${denied !== 1 ? "s" : ""}`} highlight />
+            <StatCard label="Denied" value={String(denied)} highlight />
           )}
         </div>
       )}
