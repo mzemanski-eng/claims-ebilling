@@ -927,8 +927,16 @@ export default function AdminInvoiceDetailPage({
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-gray-900">
-                        ${Number(line.raw_amount).toFixed(2)}
+                      <td className="px-4 py-3 text-right">
+                        <p className="font-mono text-gray-900">
+                          ${Number(line.raw_amount).toFixed(2)}
+                        </p>
+                        {(line.raw_quantity && Number(line.raw_quantity) !== 1 || line.raw_unit) && (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {Number(line.raw_quantity) !== 1 ? Number(line.raw_quantity).toLocaleString() : ""}
+                            {line.raw_unit ? ` ${line.raw_unit}` : ""}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
                         {(() => {
