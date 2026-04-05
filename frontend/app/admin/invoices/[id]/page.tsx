@@ -308,7 +308,7 @@ function ExceptionRow({
     }
     return defaultResolutionAction(exc.required_action);
   });
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState<string>(() => exc.ai_reasoning ?? "");
 
   const resolveMut = useMutation({
     mutationFn: () => resolveAdminException(exc.exception_id, action, notes),
@@ -337,10 +337,12 @@ function ExceptionRow({
   });
 
   const isDenying = action === "DENIED";
+  const isAiAction = !!exc.ai_recommendation && action === exc.ai_recommendation;
   const selectedOption = RESOLUTION_OPTIONS.find((o) => o.value === action);
   const aiOption = exc.ai_recommendation
     ? RESOLUTION_OPTIONS.find((o) => o.value === exc.ai_recommendation)
     : null;
+  const ctaLabel = isAiAction ? "Accept & Send" : isDenying ? "Deny & Send" : "Resolve";
 
   if (exc.status !== "OPEN" && exc.status !== "SUPPLIER_RESPONDED" && exc.status !== "CARRIER_REVIEWING") {
     const isResolved = exc.status === "RESOLVED" || exc.status === "WAIVED";
@@ -455,17 +457,30 @@ function ExceptionRow({
           )}
         </div>
 
-        <input
-          type="text"
-          placeholder={isDenying ? "Reason for denial (required)" : "Notes (optional)"}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className={`flex-1 min-w-32 rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-            isDenying && !notes.trim()
-              ? "border-red-300 bg-red-50"
-              : "border-gray-300 bg-white"
-          }`}
-        />
+        <div className="flex flex-col flex-1 min-w-32 gap-0.5">
+          <input
+            type="text"
+            placeholder={
+              exc.ai_reasoning
+                ? "AI reasoning (editable)"
+                : isDenying
+                ? "Reason for denial (required)"
+                : "Notes (optional)"
+            }
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className={`rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              isDenying && !notes.trim()
+                ? "border-red-300 bg-red-50"
+                : "border-gray-300 bg-white"
+            }`}
+          />
+          {exc.ai_reasoning && notes === exc.ai_reasoning && (
+            <p className="text-[10px] text-amber-500 pl-0.5">
+              ✦ Pre-filled from AI reasoning — edit before sending if needed
+            </p>
+          )}
+        </div>
 
         <Button
           size="sm"
@@ -474,7 +489,7 @@ function ExceptionRow({
           disabled={isDenying && !notes.trim()}
           onClick={() => resolveMut.mutate()}
         >
-          {isDenying ? "Deny" : "Resolve"}
+          {ctaLabel}
         </Button>
       </div>
 
@@ -515,6 +530,7 @@ export default function AdminInvoiceDetailPage({
   const [approvalNotes, setApprovalNotes] = useState("");
   const [exportError, setExportError] = useState<string | null>(null);
   const [triageExpanded, setTriageExpanded] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   const { data: invoice, isLoading: loadingInvoice } = useQuery({
     queryKey: ["admin-invoice", id],
@@ -532,6 +548,45 @@ export default function AdminInvoiceDetailPage({
     onSuccess: () => {
       setShowApproveConfirm(false);
       qc.invalidateQueries({ queryKey: ["admin-invoice", id] });
+    },
+  });
+
+  // ── Bulk AI resolve ────────────────────────────────────────────────────────
+  const aiResolvableExceptions = (lines ?? []).flatMap((line) =>
+    line.exceptions
+      .filter(
+        (exc) =>
+          exc.ai_recommendation &&
+          ["OPEN", "SUPPLIER_RESPONDED", "CARRIER_REVIEWING"].includes(exc.status)
+      )
+      .map((exc) => ({
+        exc,
+        lineNumber: line.line_number,
+        description: line.raw_description,
+      }))
+  );
+
+  const bulkResolveMut = useMutation({
+    mutationFn: async () => {
+      for (const { exc } of aiResolvableExceptions) {
+        await resolveAdminException(
+          exc.exception_id,
+          exc.ai_recommendation!,
+          exc.ai_reasoning ?? ""
+        );
+      }
+    },
+    onSuccess: () => {
+      setShowBulkModal(false);
+      qc.invalidateQueries({ queryKey: ["admin-invoice", id] });
+      qc.invalidateQueries({ queryKey: ["admin-invoice-lines", id] });
+      toast.success(
+        "AI recommendations applied",
+        `${aiResolvableExceptions.length} exception${aiResolvableExceptions.length !== 1 ? "s" : ""} resolved.`
+      );
+    },
+    onError: (err: Error) => {
+      toast.error("Bulk resolve failed", err.message);
     },
   });
 
@@ -579,6 +634,58 @@ export default function AdminInvoiceDetailPage({
 
   return (
     <>
+      {/* Bulk AI resolve confirmation dialog */}
+      <Dialog
+        open={showBulkModal}
+        title={`Apply ${aiResolvableExceptions.length} AI Recommendation${aiResolvableExceptions.length !== 1 ? "s" : ""}`}
+        onClose={() => setShowBulkModal(false)}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            The following AI recommendations will be applied and the supplier will be notified for each exception:
+          </p>
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+            {aiResolvableExceptions.map(({ exc, lineNumber, description }) => {
+              const opt = RESOLUTION_OPTIONS.find((o) => o.value === exc.ai_recommendation);
+              return (
+                <div
+                  key={exc.exception_id}
+                  className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs"
+                >
+                  <p className="font-medium text-gray-700">
+                    Line {lineNumber} —{" "}
+                    <span className="font-normal text-gray-500 truncate">{description}</span>
+                  </p>
+                  <p
+                    className={`mt-0.5 font-semibold ${
+                      exc.ai_recommendation === "DENIED" ? "text-red-600" : "text-green-700"
+                    }`}
+                  >
+                    → {opt?.label ?? exc.ai_recommendation}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          {bulkResolveMut.isError && (
+            <p className="text-sm text-red-600">
+              {(bulkResolveMut.error as Error).message}
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowBulkModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              loading={bulkResolveMut.isPending}
+              onClick={() => bulkResolveMut.mutate()}
+            >
+              Apply {aiResolvableExceptions.length} Recommendation{aiResolvableExceptions.length !== 1 ? "s" : ""}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
       {/* Approve confirmation dialog */}
       <Dialog
         open={showApproveConfirm}
@@ -722,8 +829,16 @@ export default function AdminInvoiceDetailPage({
 
       {/* Line items */}
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="border-b px-6 py-4">
+        <div className="border-b px-6 py-4 flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">Line Items</h2>
+          {aiResolvableExceptions.length > 0 && (
+            <button
+              onClick={() => setShowBulkModal(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+            >
+              ✦ Apply {aiResolvableExceptions.length} AI Recommendation{aiResolvableExceptions.length !== 1 ? "s" : ""}
+            </button>
+          )}
         </div>
         {loadingLines ? (
           <div className="flex justify-center py-10">
