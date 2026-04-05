@@ -12,15 +12,16 @@ Configuration (via environment variables / .env):
     SMTP_PASSWORD    SMTP login password            (default: "")
     SMTP_FROM        Sender address                 (default: SMTP_USER)
     SMTP_USE_TLS     Use STARTTLS                   (default: true)
+    PORTAL_URL       Base URL of the supplier portal (default: http://localhost:3000)
 
 Compatible with any SMTP provider (Postmark, SendGrid, Gmail, etc.).
 If SMTP_HOST is not set, notifications are silently skipped — the pipeline
 continues normally without email delivery.
 
 Trigger points:
-    notify_invoice_flagged()    → REVIEW_REQUIRED — exceptions found
-    notify_invoice_approved()   → APPROVED / PENDING_CARRIER_REVIEW
-    notify_exception_resolved() → exception resolved by carrier
+    notify_invoice_flagged()    → REVIEW_REQUIRED — action required from supplier
+    notify_invoice_approved()   → APPROVED — payment confirmed
+    notify_exception_resolved() → carrier resolves a specific exception
 """
 
 import logging
@@ -96,6 +97,24 @@ def _supplier_emails(db, supplier_id: str) -> list[str]:
     return [row.email for row in users]
 
 
+def _invoice_url(invoice_id: str) -> str:
+    """Direct deep-link to the invoice in the supplier portal."""
+    base = settings.portal_url.rstrip("/")
+    return f"{base}/invoices/{invoice_id}"
+
+
+def _cta_button(label: str, url: str, color: str = "#2563EB") -> str:
+    """HTML CTA button for use inside email bodies."""
+    return (
+        f'<p style="margin:20px 0">'
+        f'<a href="{url}" style="display:inline-block;padding:10px 20px;'
+        f'background:{color};color:#fff;text-decoration:none;border-radius:6px;'
+        f'font-weight:bold;font-size:14px">{label}</a></p>'
+        f'<p style="font-size:11px;color:#9CA3AF">Or copy this link: '
+        f'<a href="{url}" style="color:#6B7280">{url}</a></p>'
+    )
+
+
 # ── Public notification functions ─────────────────────────────────────────────
 
 
@@ -103,12 +122,14 @@ def notify_invoice_flagged(db, invoice) -> None:
     """
     Notify supplier users that their invoice has exceptions requiring attention.
     Fires when invoice status transitions to REVIEW_REQUIRED.
+    Includes a direct link to the invoice so the supplier can act immediately.
     """
     recipients = _supplier_emails(db, str(invoice.supplier_id))
     if not recipients:
         return
 
     invoice_ref = invoice.invoice_number or str(invoice.id)[:8].upper()
+    url = _invoice_url(str(invoice.id))
     subject = f"Action Required: Invoice {invoice_ref} has exceptions"
 
     body_text = f"""\
@@ -117,13 +138,14 @@ Hi,
 Invoice {invoice_ref} has been reviewed and requires your attention.
 
 One or more line items could not be validated against the contracted rates
-or billing guidelines. Please log in to the billing portal to review the
-flagged exceptions and take the required action.
+or billing guidelines. Please review the flagged exceptions and take the
+required action as soon as possible to avoid payment delays.
 
 Invoice: {invoice_ref}
-Status: Flagged for Review
+Status:  Flagged for Review
 
-Please review and respond as soon as possible to avoid payment delays.
+Review your invoice here:
+{url}
 
 This is an automated notification from the eBilling platform.
 """
@@ -133,15 +155,14 @@ This is an automated notification from the eBilling platform.
   <h2 style="color:#DC2626">⚠ Action Required: Invoice {invoice_ref}</h2>
   <p>Invoice <strong>{invoice_ref}</strong> has been reviewed and requires your attention.</p>
   <p>One or more line items could not be validated against the contracted rates
-  or billing guidelines.</p>
-  <p><strong>Please log in to the billing portal</strong> to review the flagged
-  exceptions and take the required action.</p>
+  or billing guidelines. Please review the exceptions and respond to avoid payment delays.</p>
   <table style="border-collapse:collapse;width:100%;margin:16px 0">
     <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Invoice</td>
         <td style="padding:8px">{invoice_ref}</td></tr>
     <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Status</td>
         <td style="padding:8px;color:#DC2626">Flagged for Review</td></tr>
   </table>
+  {_cta_button("Review Invoice", url, "#DC2626")}
   <p style="color:#6B7280;font-size:12px">This is an automated notification from the eBilling platform.</p>
 </body></html>
 """
@@ -152,12 +173,14 @@ def notify_invoice_approved(db, invoice) -> None:
     """
     Notify supplier users that their invoice has been approved.
     Fires when invoice status transitions to APPROVED.
+    Includes a direct link to the invoice for their records.
     """
     recipients = _supplier_emails(db, str(invoice.supplier_id))
     if not recipients:
         return
 
     invoice_ref = invoice.invoice_number or str(invoice.id)[:8].upper()
+    url = _invoice_url(str(invoice.id))
     subject = f"Invoice {invoice_ref} Approved"
 
     body_text = f"""\
@@ -168,7 +191,10 @@ Good news — Invoice {invoice_ref} has been reviewed and approved.
 Payment will be processed according to the contracted terms.
 
 Invoice: {invoice_ref}
-Status: Approved
+Status:  Approved
+
+View your invoice here:
+{url}
 
 Thank you for your submission.
 
@@ -186,51 +212,7 @@ This is an automated notification from the eBilling platform.
     <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Status</td>
         <td style="padding:8px;color:#16A34A">Approved</td></tr>
   </table>
-  <p style="color:#6B7280;font-size:12px">This is an automated notification from the eBilling platform.</p>
-</body></html>
-"""
-    _send(recipients, subject, body_text, body_html)
-
-
-def notify_invoice_pending_approval(db, invoice) -> None:
-    """
-    Notify supplier users that their invoice is under carrier review.
-    Fires when invoice status transitions to PENDING_CARRIER_REVIEW.
-    """
-    recipients = _supplier_emails(db, str(invoice.supplier_id))
-    if not recipients:
-        return
-
-    invoice_ref = invoice.invoice_number or str(invoice.id)[:8].upper()
-    subject = f"Invoice {invoice_ref} Under Review"
-
-    body_text = f"""\
-Hi,
-
-Invoice {invoice_ref} has passed automated validation and is now pending
-carrier approval. No action is required from you at this time.
-
-You will receive a further notification when the invoice is approved.
-
-Invoice: {invoice_ref}
-Status: Pending Carrier Approval
-
-This is an automated notification from the eBilling platform.
-"""
-
-    body_html = f"""\
-<html><body style="font-family:Arial,sans-serif;color:#111;max-width:600px">
-  <h2 style="color:#2563EB">Invoice {invoice_ref} — Pending Approval</h2>
-  <p>Invoice <strong>{invoice_ref}</strong> has passed automated validation
-  and is now pending carrier approval.</p>
-  <p>No action is required from you at this time. You will be notified when
-  the invoice is approved.</p>
-  <table style="border-collapse:collapse;width:100%;margin:16px 0">
-    <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Invoice</td>
-        <td style="padding:8px">{invoice_ref}</td></tr>
-    <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Status</td>
-        <td style="padding:8px;color:#2563EB">Pending Carrier Approval</td></tr>
-  </table>
+  {_cta_button("View Invoice", url, "#16A34A")}
   <p style="color:#6B7280;font-size:12px">This is an automated notification from the eBilling platform.</p>
 </body></html>
 """
@@ -243,12 +225,14 @@ def notify_exception_resolved(
     """
     Notify supplier users that a specific exception on their invoice has been resolved.
     Fires when a carrier resolves an exception (any resolution action).
+    Includes a direct link so the supplier can review and act if needed.
     """
     recipients = _supplier_emails(db, str(invoice.supplier_id))
     if not recipients:
         return
 
     invoice_ref = invoice.invoice_number or str(invoice.id)[:8].upper()
+    url = _invoice_url(str(invoice.id))
     code = line_item.taxonomy_code or "N/A"
 
     _RESOLUTION_LABELS = {
@@ -263,6 +247,12 @@ def notify_exception_resolved(
 
     subject = f"Invoice {invoice_ref} — Exception {'Denied' if is_denied else 'Resolved'} ({code})"
 
+    next_step_text = (
+        "Please review this decision and resubmit the corrected line if needed."
+        if is_denied
+        else "No further action is required for this line item."
+    )
+
     body_text = f"""\
 Hi,
 
@@ -272,12 +262,17 @@ Invoice:    {invoice_ref}
 Line Item:  {code}
 Resolution: {resolution_label}
 
-{"Please log in to the billing portal to review this decision and resubmit if required." if is_denied else "No further action is required for this line item."}
+{next_step_text}
+
+View your invoice here:
+{url}
 
 This is an automated notification from the eBilling platform.
 """
 
     status_color = "#DC2626" if is_denied else "#16A34A"
+    cta_label = "Review & Resubmit" if is_denied else "View Invoice"
+
     body_html = f"""\
 <html><body style="font-family:Arial,sans-serif;color:#111;max-width:600px">
   <h2 style="color:{status_color}">
@@ -293,7 +288,8 @@ This is an automated notification from the eBilling platform.
     <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Resolution</td>
         <td style="padding:8px;color:{status_color}">{resolution_label}</td></tr>
   </table>
-  {"<p><strong>Please log in to the billing portal</strong> to review this decision and resubmit if required.</p>" if is_denied else "<p>No further action is required for this line item.</p>"}
+  <p>{next_step_text}</p>
+  {_cta_button(cta_label, url, status_color)}
   <p style="color:#6B7280;font-size:12px">This is an automated notification from the eBilling platform.</p>
 </body></html>
 """

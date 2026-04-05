@@ -59,7 +59,6 @@ from app.services.ai_assessment.invoice_triage import triage_invoice
 from app.services.notifications.email import (
     notify_invoice_approved,
     notify_invoice_flagged,
-    notify_invoice_pending_approval,
 )
 from app.services.validation.guideline_validator import GuidelineValidator
 from app.services.validation.rate_validator import RateValidator
@@ -525,8 +524,9 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
         notify_invoice_flagged(db, invoice)
     elif new_status == SubmissionStatus.APPROVED:
         notify_invoice_approved(db, invoice)
-    elif new_status == SubmissionStatus.PENDING_CARRIER_REVIEW:
-        notify_invoice_pending_approval(db, invoice)
+    # PENDING_CARRIER_REVIEW intentionally sends no notification — no action
+    # is needed from the supplier at this stage and a "we're reviewing it"
+    # email provides no value and adds noise to their inbox.
 
     summary = {
         "invoice_id": invoice_id,

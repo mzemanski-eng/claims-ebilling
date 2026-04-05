@@ -87,6 +87,13 @@ class Settings(BaseSettings):
     smtp_from: str = ""  # Defaults to smtp_user if blank
     smtp_use_tls: bool = True  # STARTTLS — set false for port 465 / SSL wrappers
 
+    # ── Portal / Frontend ───────────────────────────────────────────────────
+    # Base URL of the supplier-facing portal. Included as a direct deep-link
+    # in outbound email notifications so suppliers can click straight through
+    # to their invoice without hunting for it after login.
+    # Set PORTAL_URL to your deployed frontend domain in production.
+    portal_url: str = "http://localhost:3000"
+
     # ── Invoice Processing ──────────────────────────────────────────────────
     # When true, invoices that pass all validations (zero ERROR-severity
     # exceptions) are automatically approved without carrier review.
