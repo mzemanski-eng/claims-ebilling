@@ -561,8 +561,8 @@ export default function AdminAnalyticsPage() {
                 {/* KPI cards */}
                 <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                   <MetricCard
-                    label="Total ALAE Billed"
-                    value={formatCurrency(summary?.total_billed ?? "0")}
+                    label="Submitted Amount"
+                    value={new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(parseFloat(summary?.total_billed ?? "0"))}
                     sublabel="All non-draft invoices"
                     accent="blue"
                   />

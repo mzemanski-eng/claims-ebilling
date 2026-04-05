@@ -430,7 +430,7 @@ export default function AdminDashboard() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard
-          label="Total ALAE Billed"
+          label="Submitted Amount"
           value={fmt(summary?.total_billed)}
           sublabel="All processed invoices"
           accent="blue"

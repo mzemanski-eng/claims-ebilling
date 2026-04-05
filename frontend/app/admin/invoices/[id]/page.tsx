@@ -50,9 +50,9 @@ function toUnitSingular(unit: string): string {
 type StepVariant = "neutral" | "pass" | "warn" | "pending";
 
 function TimelineStep({
-  icon, label, detail, variant, emphasis,
+  icon, label, detail, variant,
 }: {
-  icon: string; label: string; detail: string; variant: StepVariant; emphasis?: boolean;
+  icon: string; label: string; detail: string; variant: StepVariant;
 }) {
   const colors: Record<StepVariant, string> = {
     neutral: "text-gray-500",
@@ -67,12 +67,7 @@ function TimelineStep({
     pending: "bg-gray-200",
   };
   return (
-    <div className={`flex flex-col items-center gap-1 flex-1 ${emphasis ? "relative" : ""}`}>
-      {emphasis && (
-        <div className="absolute -top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 whitespace-nowrap">
-          KEY CHECK
-        </div>
-      )}
+    <div className="flex flex-col items-center gap-1 flex-1">
       <div className={`mt-2 h-2 w-2 rounded-full ${dotColors[variant]}`} />
       <span className="text-xs font-semibold text-gray-700 mt-0.5">{label}</span>
       <span className={`text-[11px] ${colors[variant]}`}>{detail}</span>
@@ -97,11 +92,28 @@ function AIProcessingTimeline({
     ? invoice.triage_risk_level === "LOW" ? "pass" : "warn"
     : "pending";
 
+  const fmtMoney = (v: string | null | undefined) => {
+    const n = parseFloat(v ?? "0");
+    if (isNaN(n)) return "—";
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+  };
+
   return (
     <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
-        ✦ AI Processing
-      </p>
+      <div className="flex items-baseline justify-between mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          ✦ AI Processing
+        </p>
+        {/* Totals — start here, then each step shows what happened to these */}
+        {isProcessed && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold text-gray-900">{total} line{total !== 1 ? "s" : ""}</span>
+            <span className="text-gray-300">·</span>
+            <span className="font-semibold text-gray-900">{fmtMoney(summary?.total_billed)}</span>
+            <span className="text-xs text-gray-400">submitted</span>
+          </div>
+        )}
+      </div>
       <div className="relative flex items-start">
         {/* Connector line */}
         <div className="absolute top-3 left-0 right-0 h-px bg-gray-200 mx-4" />
@@ -119,7 +131,6 @@ function AIProcessingTimeline({
           icon="💲" label="Spend Audit"
           detail={isProcessed ? (spendExcs === 0 ? `${total} passed` : `${spendExcs} flagged`) : "Pending"}
           variant={spendVariant}
-          emphasis
         />
         <TimelineStep
           icon="🤖" label="Risk Assessed"
