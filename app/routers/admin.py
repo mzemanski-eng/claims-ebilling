@@ -1518,8 +1518,7 @@ def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
     exc_count = sum(
         1
         for li in invoice.line_items
-        for exc in li.exceptions
-        if exc.status == ExceptionStatus.OPEN
+        if any(exc.status == ExceptionStatus.OPEN for exc in li.exceptions)
     )
     return InvoiceListItem(
         id=invoice.id,
