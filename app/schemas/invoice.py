@@ -227,6 +227,29 @@ class MappingOverrideRequest(BaseSchema):
         return v
 
 
+class BatchOverrideRequest(BaseSchema):
+    """Carrier admin applies the same taxonomy correction to multiple line items at once."""
+
+    line_item_ids: list[uuid.UUID] = Field(..., min_length=1)
+    taxonomy_code: str = Field(..., min_length=1)
+    billing_component: str = Field(..., min_length=1)
+    scope: str = Field(
+        default="this_supplier", description="this_line | this_supplier | global"
+    )
+    notes: Optional[str] = None
+    is_confirm: bool = Field(
+        default=False,
+        description="True = CARRIER_CONFIRMED (AI was right); False = CARRIER_OVERRIDE (AI was wrong)",
+    )
+
+    @field_validator("scope")
+    @classmethod
+    def validate_scope(cls, v: str) -> str:
+        if v not in ("this_line", "this_supplier", "global"):
+            raise ValueError("scope must be this_line, this_supplier, or global")
+        return v
+
+
 class ApprovalRequest(BaseSchema):
     """Carrier admin approves an invoice (or specific line items)."""
 

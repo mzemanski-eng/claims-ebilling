@@ -10,7 +10,10 @@ Workflow:
   POST /admin/seed-demo                         → enqueue synthetic data seed job
   GET  /admin/seed-demo/{job_id}                → poll seed job status
   POST /admin/mappings/override                 → override a line's taxonomy mapping
-  GET  /admin/mappings/review-queue             → review low-confidence mapping queue
+  POST /admin/mappings/batch-override           → batch override multiple lines at once
+  GET  /admin/mappings/review-queue             → review low-confidence mapping queue (flat)
+  GET  /admin/mappings/review-queue/grouped     → review queue grouped by supplier + taxonomy
+  GET  /admin/mappings/insights                 → learning stats + pattern suggestions
   POST /admin/exceptions/{id}/resolve           → carrier resolves an exception
   GET  /admin/invoices/{id}/export              → export approved lines to CSV
   GET  /admin/suppliers                         → list all suppliers
@@ -68,6 +71,7 @@ from app.models.validation import (
 from app.routers.auth import require_role
 from app.schemas.invoice import (
     ApprovalRequest,
+    BatchOverrideRequest,
     BulkApprovalRequest,
     ExceptionSupplierView,
     InvoiceListItem,
@@ -301,6 +305,311 @@ def get_mapping_review_queue(
         }
         for li in lines
     ]
+
+
+@router.get("/mappings/review-queue/grouped")
+def get_grouped_review_queue(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> list[dict]:
+    """
+    Returns the mapping review queue grouped by (supplier, AI-suggested taxonomy code).
+
+    Groups with a confirmed AI suggestion appear first (ordered by item_count DESC),
+    followed by unclassified groups that need manual triage.
+
+    Each group contains the full list of line items so the frontend can render
+    individual items without a second round-trip, plus up to 3 sample descriptions
+    for at-a-glance review.
+    """
+    from sqlalchemy import or_
+
+    q = (
+        db.query(LineItem, Invoice.supplier_id, Supplier.name)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .join(Supplier, Supplier.id == Invoice.supplier_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            (LineItem.mapping_confidence.in_(["LOW", "MEDIUM"]))
+            | (LineItem.taxonomy_code.is_(None) & (LineItem.status == "EXCEPTION")),
+        )
+    )
+
+    # Auditor scope filters (mirror flat queue)
+    if current_user.category_scope:
+        domain_filters = [
+            LineItem.taxonomy_code.like(f"{domain}.%")
+            for domain in current_user.category_scope
+        ]
+        q = q.filter(or_(*domain_filters, LineItem.taxonomy_code.is_(None)))
+    if current_user.supplier_scope:
+        q = q.filter(Invoice.supplier_id.in_(current_user.supplier_scope))
+
+    rows = q.order_by(LineItem.created_at.desc()).limit(200).all()
+
+    # Group in Python — key: (supplier_id_str, suggested_code or "__unclassified__")
+    groups: dict[tuple, dict] = {}
+    for li, supplier_id, supplier_name in rows:
+        sug = li.ai_classification_suggestion or {}
+        suggested_code = sug.get("suggested_code")
+        suggested_billing = sug.get("suggested_billing_component")
+        confidence = sug.get("confidence")
+        key = (str(supplier_id), suggested_code or "__unclassified__")
+
+        if key not in groups:
+            groups[key] = {
+                "supplier_id": str(supplier_id),
+                "supplier_name": supplier_name,
+                "suggested_taxonomy_code": suggested_code,
+                "suggested_billing_component": suggested_billing,
+                "confidence": confidence,
+                "item_count": 0,
+                "total_amount": 0.0,
+                "sample_descriptions": [],
+                "line_item_ids": [],
+                "items": [],
+            }
+        g = groups[key]
+        g["item_count"] += 1
+        g["total_amount"] += float(li.raw_amount or 0)
+        g["line_item_ids"].append(str(li.id))
+        if (
+            len(g["sample_descriptions"]) < 3
+            and li.raw_description not in g["sample_descriptions"]
+        ):
+            g["sample_descriptions"].append(li.raw_description)
+        g["items"].append(
+            {
+                "line_item_id": str(li.id),
+                "invoice_id": str(li.invoice_id),
+                "line_number": li.line_number,
+                "raw_description": li.raw_description,
+                "raw_code": li.raw_code,
+                "taxonomy_code": li.taxonomy_code,
+                "billing_component": li.billing_component,
+                "mapping_confidence": li.mapping_confidence,
+                "raw_amount": str(li.raw_amount),
+                "ai_classification_suggestion": li.ai_classification_suggestion,
+            }
+        )
+
+    result = list(groups.values())
+    # Groups with an AI suggestion first (highest item count first), unclassified last
+    result.sort(key=lambda g: (g["suggested_taxonomy_code"] is None, -g["item_count"]))
+    for g in result:
+        g["total_amount"] = str(round(g["total_amount"], 2))
+    return result
+
+
+@router.post("/mappings/batch-override", status_code=status.HTTP_200_OK)
+def batch_override_mappings(
+    payload: BatchOverrideRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """
+    Apply the same taxonomy correction to multiple line items in one request.
+
+    Intended for the grouped review queue: carrier confirms or overrides all
+    items in a group without clicking through each one individually.
+
+    MappingRule creation is deduplicated: if multiple lines share the same
+    raw_description, only one rule is written (not one per line), preventing
+    unnecessary version churn in the mapping corpus.
+
+    Returns counts of updated lines, new rules created, and skipped items
+    (not found or outside the carrier's scope).
+    """
+    from app.services.classification.mapping_learner import record_confirmed_mapping
+
+    source = (
+        ConfirmedBy.CARRIER_CONFIRMED if payload.is_confirm else ConfirmedBy.CARRIER_OVERRIDE
+    )
+    updated = 0
+    skipped = 0
+    rules_created = 0
+    # Track (supplier_id_or_None, raw_description) pairs already written to avoid
+    # creating multiple rule versions for lines with identical descriptions.
+    seen_patterns: set[tuple] = set()
+
+    for line_item_id in payload.line_item_ids:
+        li = db.get(LineItem, line_item_id)
+        if li is None:
+            skipped += 1
+            continue
+        inv = db.get(Invoice, li.invoice_id)
+        contract = db.get(Contract, inv.contract_id) if inv else None
+        if contract is None or contract.carrier_id != current_user.carrier_id:
+            skipped += 1
+            continue
+
+        old_taxonomy = li.taxonomy_code
+        li.taxonomy_code = payload.taxonomy_code
+        li.billing_component = payload.billing_component
+        li.mapping_confidence = "HIGH"
+        li.status = LineItemStatus.OVERRIDE
+        updated += 1
+
+        audit.log_event(
+            db,
+            "line_item",
+            li.id,
+            "line_item.mapping_overridden",
+            payload={
+                "old_taxonomy_code": old_taxonomy,
+                "new_taxonomy_code": payload.taxonomy_code,
+                "billing_component": payload.billing_component,
+                "scope": payload.scope,
+                "batch": True,
+                "is_confirm": payload.is_confirm,
+            },
+            actor_type=ActorType.CARRIER,
+            actor_id=current_user.id,
+        )
+
+        if payload.scope in ("this_supplier", "global"):
+            supplier_id_for_key = (
+                str(inv.supplier_id)
+                if inv and payload.scope == "this_supplier"
+                else None
+            )
+            pattern_key = (supplier_id_for_key, li.raw_description)
+            if pattern_key not in seen_patterns:
+                rule = record_confirmed_mapping(
+                    db=db,
+                    line_item=li,
+                    taxonomy_code=payload.taxonomy_code,
+                    billing_component=payload.billing_component,
+                    source=source,
+                    user_id=current_user.id,
+                    scope=payload.scope,
+                    notes=payload.notes,
+                )
+                if rule:
+                    audit.log_mapping_overridden(db, rule, old_taxonomy, current_user.id)
+                    rules_created += 1
+                seen_patterns.add(pattern_key)
+
+    db.commit()
+    return {"updated": updated, "rules_created": rules_created, "skipped": skipped}
+
+
+@router.get("/mappings/insights")
+def get_mapping_insights(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> dict:
+    """
+    Returns fast-query learning stats and pattern suggestions for the carrier.
+
+    Stats:
+      - queue_count:       Total items currently in the mapping review queue.
+      - rules_learned_30d: MappingRules written in the last 30 days for this carrier's suppliers.
+
+    Suggestions (up to 5):
+      - Patterns where the same raw_description appears 3+ times in the current queue
+        with a consistent AI-suggested taxonomy code but no active MappingRule yet.
+      - One-click "Create Rule" in the UI calls batch-override for all matching line_item_ids.
+
+    No AI calls — all pure SQL.
+    """
+    from sqlalchemy import func, or_
+    from datetime import timedelta
+    from app.models.mapping import MappingRule
+
+    cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
+
+    # Queue count (same filter as flat queue, no scope restrictions for summary)
+    queue_count = (
+        db.query(func.count(LineItem.id))
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            (LineItem.mapping_confidence.in_(["LOW", "MEDIUM"]))
+            | (LineItem.taxonomy_code.is_(None) & (LineItem.status == "EXCEPTION")),
+        )
+        .scalar()
+        or 0
+    )
+
+    # Rules created in last 30 days — scoped to carrier's supplier IDs + global rules
+    carrier_supplier_ids = [
+        r[0]
+        for r in db.query(Supplier.id)
+        .join(Contract, Contract.supplier_id == Supplier.id)
+        .filter(Contract.carrier_id == current_user.carrier_id)
+        .all()
+    ]
+    rules_learned_30d = (
+        db.query(func.count(MappingRule.id))
+        .filter(
+            MappingRule.confirmed_at >= cutoff_30d,
+            or_(
+                MappingRule.supplier_id.in_(carrier_supplier_ids),
+                MappingRule.supplier_id.is_(None),
+            ),
+        )
+        .scalar()
+        or 0
+    )
+
+    # Suggestions: same (description, suggested_code) pair appearing 3+ times in queue
+    rows = (
+        db.query(LineItem, Invoice.supplier_id, Supplier.name)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .join(Supplier, Supplier.id == Invoice.supplier_id)
+        .filter(
+            Contract.carrier_id == current_user.carrier_id,
+            (LineItem.mapping_confidence.in_(["LOW", "MEDIUM"]))
+            | (LineItem.taxonomy_code.is_(None) & (LineItem.status == "EXCEPTION")),
+        )
+        .limit(200)
+        .all()
+    )
+
+    pattern_groups: dict[tuple, dict] = {}
+    for li, supplier_id, supplier_name in rows:
+        sug = li.ai_classification_suggestion or {}
+        code = sug.get("suggested_code")
+        billing = sug.get("suggested_billing_component") or ""
+        if not code:
+            continue
+        key = (li.raw_description, code, billing, str(supplier_id))
+        if key not in pattern_groups:
+            pattern_groups[key] = {
+                "count": 0,
+                "line_item_ids": [],
+                "supplier_name": supplier_name,
+            }
+        pattern_groups[key]["count"] += 1
+        pattern_groups[key]["line_item_ids"].append(str(li.id))
+
+    suggestions = [
+        {
+            "id": f"{key[1]}:{key[0][:40]}",
+            "type": "create_rule",
+            "message": f'"{key[0][:60]}" appears {v["count"]}× — save as a rule for {v["supplier_name"]}?',
+            "taxonomy_code": key[1],
+            "billing_component": key[2],
+            "supplier_id": key[3],
+            "supplier_name": v["supplier_name"],
+            "line_item_ids": v["line_item_ids"],
+            "count": v["count"],
+        }
+        for key, v in pattern_groups.items()
+        if v["count"] >= 3
+    ]
+    suggestions.sort(key=lambda s: s["count"], reverse=True)
+
+    return {
+        "stats": {"queue_count": queue_count, "rules_learned_30d": rules_learned_30d},
+        "suggestions": suggestions[:5],
+    }
 
 
 # ── Exception Resolution ──────────────────────────────────────────────────────

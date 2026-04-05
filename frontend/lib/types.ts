@@ -102,6 +102,49 @@ export interface MappingQueueItem {
   ai_classification_suggestion: AiClassificationSuggestion | null;
 }
 
+/** One group from the grouped mapping review queue. */
+export interface ReviewQueueGroup {
+  supplier_id: string;
+  supplier_name: string;
+  /** null = no AI suggestion (unclassified lines that need manual triage) */
+  suggested_taxonomy_code: string | null;
+  suggested_billing_component: string | null;
+  /** "HIGH" | "MEDIUM" | "LOW" | null */
+  confidence: string | null;
+  item_count: number;
+  /** Decimal string, sum of raw_amount for all items in the group */
+  total_amount: string;
+  /** Up to 3 unique descriptions for at-a-glance preview */
+  sample_descriptions: string[];
+  /** All line_item_ids in the group — used for batch confirm/override */
+  line_item_ids: string[];
+  /** Full line items — available without a second round-trip */
+  items: MappingQueueItem[];
+}
+
+/** A single learning insight suggestion (create a mapping rule). */
+export interface MappingInsightSuggestion {
+  id: string;
+  type: "create_rule";
+  /** Human-readable message shown in the UI card */
+  message: string;
+  taxonomy_code: string;
+  billing_component: string;
+  supplier_id: string;
+  supplier_name: string;
+  line_item_ids: string[];
+  count: number;
+}
+
+/** Response from GET /admin/mappings/insights */
+export interface MappingInsights {
+  stats: {
+    queue_count: number;
+    rules_learned_30d: number;
+  };
+  suggestions: MappingInsightSuggestion[];
+}
+
 /** Admin supplier row */
 export interface AdminSupplier {
   id: string;

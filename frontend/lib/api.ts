@@ -55,6 +55,8 @@ import type {
   UtilizationRow,
   ClaimStackingRow,
   RateBenchmarkRow,
+  ReviewQueueGroup,
+  MappingInsights,
 } from "./types";
 
 const BASE_URL =
@@ -536,6 +538,35 @@ export function overrideMapping(
       notes: notes ?? null,
     }),
   });
+}
+
+export function getGroupedReviewQueue(): Promise<ReviewQueueGroup[]> {
+  return apiFetch<ReviewQueueGroup[]>("/admin/mappings/review-queue/grouped");
+}
+
+export function batchOverrideMapping(payload: {
+  line_item_ids: string[];
+  taxonomy_code: string;
+  billing_component: string;
+  scope: "this_line" | "this_supplier" | "global";
+  notes?: string;
+  is_confirm?: boolean;
+}): Promise<{ updated: number; rules_created: number; skipped: number }> {
+  return apiFetch("/admin/mappings/batch-override", {
+    method: "POST",
+    body: JSON.stringify({
+      line_item_ids: payload.line_item_ids,
+      taxonomy_code: payload.taxonomy_code,
+      billing_component: payload.billing_component,
+      scope: payload.scope,
+      notes: payload.notes ?? null,
+      is_confirm: payload.is_confirm ?? false,
+    }),
+  });
+}
+
+export function getMappingInsights(): Promise<MappingInsights> {
+  return apiFetch<MappingInsights>("/admin/mappings/insights");
 }
 
 export function getExceptionDetails(
