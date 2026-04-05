@@ -522,13 +522,7 @@ function ExceptionRow({
         <div className="flex flex-col flex-1 min-w-32 gap-0.5">
           <input
             type="text"
-            placeholder={
-              exc.ai_reasoning
-                ? "AI reasoning (editable)"
-                : isDenying
-                ? "Reason for denial (required)"
-                : "Notes (optional)"
-            }
+            placeholder="AI reasoning (editable)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className={`rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
@@ -537,11 +531,6 @@ function ExceptionRow({
                 : "border-gray-300 bg-white"
             }`}
           />
-          {exc.ai_reasoning && notes === exc.ai_reasoning && (
-            <p className="text-[10px] text-amber-500 pl-0.5">
-              ✦ Pre-filled from AI reasoning — edit before sending if needed
-            </p>
-          )}
         </div>
 
         <Button
@@ -1200,14 +1189,41 @@ export default function AdminInvoiceDetailPage({
                         })()}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={line.status} />
-                          {line.exceptions.length > 0 && (
-                            <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">
-                              {line.exceptions.length}
-                            </span>
-                          )}
-                        </div>
+                        {(() => {
+                          const openExcs = line.exceptions.filter((e) =>
+                            ["OPEN", "SUPPLIER_RESPONDED", "CARRIER_REVIEWING"].includes(e.status)
+                          );
+                          const openSpendExcs = openExcs.filter(
+                            (e) => e.required_action !== "REQUEST_RECLASSIFICATION"
+                          );
+                          const needsClassify =
+                            line.needs_review ||
+                            !line.taxonomy_code ||
+                            openExcs.some((e) => e.required_action === "REQUEST_RECLASSIFICATION");
+                          const hasSpend = openSpendExcs.length > 0;
+
+                          return (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {hasSpend && (
+                                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 whitespace-nowrap">
+                                  {openSpendExcs.length} Spend Issue{openSpendExcs.length !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                              {needsClassify && (
+                                <Link
+                                  href="/admin/mappings"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-200 transition-colors whitespace-nowrap"
+                                >
+                                  → Classify
+                                </Link>
+                              )}
+                              {!hasSpend && !needsClassify && (
+                                <StatusBadge status={line.status} />
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-gray-400 text-xs">
                         {hasIssues && (isExpanded ? "▲" : "▼")}

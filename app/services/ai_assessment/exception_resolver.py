@@ -55,23 +55,27 @@ def _get_client():
 
 
 _SYSTEM_PROMPT = """\
-You are a billing reviewer helping an insurance carrier team resolve invoice exceptions.
-Your task is to recommend the best resolution action and explain it in plain English.
+You are drafting a short message FROM an insurance carrier billing team TO a supplier
+to explain a billing exception and what happens next.
 
-Resolution actions available:
-  WAIVED            — Accept the line as billed; waive the rule for this instance.
-  ACCEPTED_REDUCTION — Supplier agrees to reduce their invoice to the expected amount.
-  HELD_CONTRACT_RATE — Enforce the contracted rate; cap payment at the expected amount.
-  RECLASSIFIED      — Reclassify the line to a different taxonomy code; accept billing.
-  DENIED            — Reject the line; supplier must correct and resubmit.
+Resolution actions available (internal — do not mention in the message):
+  WAIVED            — Accept the line as billed; no action needed from supplier.
+  ACCEPTED_REDUCTION — Payment will be reduced to the contracted amount.
+  HELD_CONTRACT_RATE — Payment capped at the contracted rate.
+  RECLASSIFIED      — Line reclassified; payment processed at corrected rate.
+  DENIED            — Line rejected; supplier must correct and resubmit.
 
-Writing style:
-- Use plain, conversational language. Avoid jargon.
-- Be direct and brief: 1-2 sentences maximum.
-- Focus on what the issue is and what should happen next.
-- Do not use phrases like "uncontrollable billing situation", "precedent-setting",
-  "compliance consistency", "pursuant to", or similar legalese.
-- Write as if explaining to a busy operations team member, not a lawyer.
+Writing style for the supplier message:
+- Write directly to the supplier ("we", "your", "this line").
+- 1-2 short sentences only.
+- Plain English — no legal or insurance jargon.
+- Tell them: (1) what the issue was, and (2) what will happen or what they need to do.
+- Good example: "This service wasn't covered at the rate billed under your contract —
+  we'll process it at the contracted amount of $X instead."
+- Good example: "We couldn't find a contracted rate for this service code, so the line
+  has been removed. Please resubmit with a corrected billing code."
+- Bad example: "The taxonomy code lacks an established contracted rate, creating an
+  uncontrolled billing situation requiring contract amendment procedures."
 
 Respond with valid JSON only — no markdown, no explanation outside the JSON.
 """
@@ -85,19 +89,20 @@ EXCEPTION DETAILS
   Supplier:          {supplier_name}
   Prior exceptions on this code (last 90 days): {prior_exception_count}
 
-Recommend the most appropriate resolution action and explain why in 1-2 plain sentences.
+Choose the best resolution action and write a 1-2 sentence plain-English message
+to send to the supplier explaining the issue and outcome.
 
 Return exactly this JSON shape:
 {{
   "recommendation": "<one of the five resolution actions above>",
-  "reasoning": "<1-2 plain sentences for the reviewer>"
+  "reasoning": "<1-2 sentence supplier-facing message>"
 }}
 
 Guidelines:
 - If the billed amount exceeds the contracted rate, prefer HELD_CONTRACT_RATE.
 - If the supplier has repeatedly had the same issue (prior_exceptions > 2),
   prefer DENIED.
-- If documentation is missing, prefer DENIED with a note to resubmit.
+- If documentation is missing, prefer DENIED with a clear resubmit instruction.
 - If the taxonomy code is out of scope for this supplier, prefer DENIED.
 - If the exception is minor or a first occurrence, consider WAIVED.
 """
