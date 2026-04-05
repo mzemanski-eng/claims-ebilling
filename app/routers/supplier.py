@@ -437,6 +437,7 @@ def _build_validation_summary(
     with_exceptions = 0
     pending_review = 0
     lines_denied = 0
+    classification_exceptions = 0
     rate_exceptions = 0
     guideline_exceptions = 0
 
@@ -465,7 +466,9 @@ def _build_validation_summary(
         # Count exceptions by validation type
         for v in li.validation_results:
             if v.status == ValidationStatus.FAIL:
-                if v.validation_type == "RATE":
+                if v.validation_type == "CLASSIFICATION":
+                    classification_exceptions += 1
+                elif v.validation_type == "RATE":
                     rate_exceptions += 1
                 elif v.validation_type == "GUIDELINE":
                     guideline_exceptions += 1
@@ -480,6 +483,7 @@ def _build_validation_summary(
         total_in_dispute=total_in_dispute,
         lines_denied=lines_denied,
         total_denied=total_denied,
+        classification_exceptions=classification_exceptions,
         rate_exceptions=rate_exceptions,
         guideline_exceptions=guideline_exceptions,
     )

@@ -35,6 +35,7 @@ export interface ValidationSummary {
   lines_denied: number;
   total_denied: string;
   // Exception breakdown by type (carrier-facing)
+  classification_exceptions: number;
   rate_exceptions: number;
   guideline_exceptions: number;
 }
