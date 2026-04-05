@@ -398,22 +398,71 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             warning_count += 1
 
     # ── Determine final invoice status ────────────────────────────────────────
-    # Only spend (rate / guideline) errors trigger REVIEW_REQUIRED.
-    # Classification-only failures land in PENDING_CARRIER_REVIEW so the
-    # carrier can confirm taxonomy internally — the supplier is not at fault
-    # and should not receive a "changes required" notification.
-    new_status = (
-        SubmissionStatus.REVIEW_REQUIRED
-        if spend_error_count > 0
-        else SubmissionStatus.PENDING_CARRIER_REVIEW
-    )
+    # spend_error_count > 0  → REVIEW_REQUIRED (billing dispute; supplier notified)
+    # spend_error_count == 0, error_count > 0 → classification-only exceptions;
+    #   HIGH/MEDIUM AI confidence → auto-resolve + APPROVED (no human needed)
+    #   LOW confidence or no suggestion → PENDING_CARRIER_REVIEW (carrier confirms)
+    # error_count == 0 → PENDING_CARRIER_REVIEW (auto-approve if setting enabled)
+    if spend_error_count > 0:
+        new_status = SubmissionStatus.REVIEW_REQUIRED
 
-    # ── Auto-approve clean invoices (if configured) ───────────────────────────
-    # Invoices with zero ERROR-severity exceptions advance directly to APPROVED.
-    # All line-item structured data (taxonomy codes, mapped rates, AI assessments,
-    # expected amounts) is preserved in the DB — only the status changes.
+    elif error_count > 0:
+        # Classification-only exceptions. Auto-resolve when every flagged line
+        # has a HIGH or MEDIUM confidence AI suggestion — no billing dispute
+        # exists and the AI is confident in the mapping, so human review adds no value.
+        _HIGH_CONF = {"HIGH", "MEDIUM"}
+        can_auto_resolve = all(
+            line.status != LineItemStatus.EXCEPTION
+            or (
+                isinstance(line.ai_classification_suggestion, dict)
+                and line.ai_classification_suggestion.get("confidence") in _HIGH_CONF
+            )
+            for line in processed_lines
+        )
+        if can_auto_resolve:
+            now = datetime.now(timezone.utc)
+            for line in processed_lines:
+                if line.status == LineItemStatus.EXCEPTION:
+                    suggestion = line.ai_classification_suggestion or {}
+                    conf_label = suggestion.get("confidence", "HIGH")
+                    suggested_code = suggestion.get("suggested_code") or "—"
+                    for exc in line.exceptions:
+                        if exc.status == ExceptionStatus.OPEN:
+                            exc.status = ExceptionStatus.RESOLVED
+                            exc.resolution_action = "RECLASSIFIED"
+                            exc.resolution_notes = (
+                                f"Auto-resolved by AI classification pipeline "
+                                f"(confidence: {conf_label}, "
+                                f"suggested code: {suggested_code})."
+                            )
+                            exc.resolved_at = now
+                    line.status = LineItemStatus.APPROVED
+                elif line.status == LineItemStatus.VALIDATED:
+                    line.status = LineItemStatus.APPROVED
+            db.flush()
+            new_status = SubmissionStatus.APPROVED
+            logger.info(
+                "Invoice %s auto-approved: classification exceptions auto-resolved "
+                "(all lines had HIGH/MEDIUM AI confidence)",
+                invoice_id,
+            )
+        else:
+            new_status = SubmissionStatus.PENDING_CARRIER_REVIEW
+            logger.info(
+                "Invoice %s → PENDING_CARRIER_REVIEW: classification exceptions "
+                "need carrier confirmation (low-confidence or missing AI suggestion)",
+                invoice_id,
+            )
+
+    else:
+        new_status = SubmissionStatus.PENDING_CARRIER_REVIEW
+
+    # ── Auto-approve fully clean invoices (if configured) ─────────────────────
+    # Only applies when error_count == 0 (no classification or spend errors).
+    # The high-confidence classification path above handles its own approval.
     if (
         new_status == SubmissionStatus.PENDING_CARRIER_REVIEW
+        and error_count == 0
         and settings.auto_approve_clean_invoices
     ):
         new_status = SubmissionStatus.APPROVED
