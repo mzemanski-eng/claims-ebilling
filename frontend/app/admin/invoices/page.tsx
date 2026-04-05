@@ -451,11 +451,32 @@ function AdminInvoicesContent() {
                     </td>
                     <td className="px-4 py-3 text-right text-sm">
                       {inv.exception_count > 0 ? (
-                        <span className="font-semibold text-red-600">
-                          {inv.exception_count}
-                        </span>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className={`font-semibold ${
+                            inv.status === "REVIEW_REQUIRED" ||
+                            inv.status === "SUPPLIER_RESPONDED" ||
+                            inv.status === "CARRIER_REVIEWING"
+                              ? "text-red-600"
+                              : "text-amber-500"
+                          }`}>
+                            {inv.exception_count}
+                          </span>
+                          <span className={`text-[10px] font-medium ${
+                            inv.status === "REVIEW_REQUIRED" ||
+                            inv.status === "SUPPLIER_RESPONDED" ||
+                            inv.status === "CARRIER_REVIEWING"
+                              ? "text-red-400"
+                              : "text-amber-400"
+                          }`}>
+                            {inv.status === "REVIEW_REQUIRED" ||
+                            inv.status === "SUPPLIER_RESPONDED" ||
+                            inv.status === "CARRIER_REVIEWING"
+                              ? "spend"
+                              : "classif."}
+                          </span>
+                        </div>
                       ) : (
-                        <span className="text-gray-400">0</span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">

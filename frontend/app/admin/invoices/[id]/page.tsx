@@ -967,9 +967,12 @@ export default function AdminInvoiceDetailPage({
                       </td>
                       <td className="px-4 py-3 text-right">
                         {(() => {
-                          const noRateActions = ["REQUEST_RECLASSIFICATION", "ESTABLISH_CONTRACT_RATE"];
+                          // "No rate" only fires when the line was successfully classified
+                          // but no contracted rate card exists (ESTABLISH_CONTRACT_RATE).
+                          // Classification failures (REQUEST_RECLASSIFICATION) should show "—"
+                          // because there's no taxonomy mapping yet, not a missing rate.
                           const hasNoRate = line.exceptions.some(
-                            (ex) => noRateActions.includes(ex.required_action)
+                            (ex) => ex.required_action === "ESTABLISH_CONTRACT_RATE"
                           );
                           if (hasNoRate) {
                             return (

@@ -288,13 +288,18 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
 
     # ── Process each line item ────────────────────────────────────────────────
     error_count = 0
+    # Tracks only RATE / GUIDELINE failures (not classification).
+    # Classification failures affect line status (EXCEPTION) but do NOT trigger
+    # REVIEW_REQUIRED — those invoices land in PENDING_CARRIER_REVIEW so the
+    # carrier ops team can confirm taxonomy without the supplier being notified.
+    spend_error_count = 0
     warning_count = 0
     pass_count = 0
     total_expected = 0
     processed_lines: list = []
 
     for raw_item in parse_result.line_items:
-        line_item, item_errors, item_warnings, item_expected = _process_line(
+        line_item, item_errors, item_spend_errors, item_warnings, item_expected = _process_line(
             db=db,
             raw_item=raw_item,
             invoice=invoice,
@@ -306,6 +311,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
         )
         processed_lines.append(line_item)
         error_count += item_errors
+        spend_error_count += item_spend_errors
         warning_count += item_warnings
         if item_errors == 0:
             pass_count += 1
@@ -348,6 +354,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             if anchor_line.status == LineItemStatus.VALIDATED:
                 anchor_line.status = LineItemStatus.EXCEPTION
             error_count += 1
+            spend_error_count += 1  # guideline exclusivity = spend error
         elif excl_result.status == ValidationStatus.WARNING:
             warning_count += 1
 
@@ -386,13 +393,18 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             if anchor_line.status == LineItemStatus.VALIDATED:
                 anchor_line.status = LineItemStatus.EXCEPTION
             error_count += 1
+            spend_error_count += 1  # percentage guideline = spend error
         elif pct_result.status == ValidationStatus.WARNING:
             warning_count += 1
 
     # ── Determine final invoice status ────────────────────────────────────────
+    # Only spend (rate / guideline) errors trigger REVIEW_REQUIRED.
+    # Classification-only failures land in PENDING_CARRIER_REVIEW so the
+    # carrier can confirm taxonomy internally — the supplier is not at fault
+    # and should not receive a "changes required" notification.
     new_status = (
         SubmissionStatus.REVIEW_REQUIRED
-        if error_count > 0
+        if spend_error_count > 0
         else SubmissionStatus.PENDING_CARRIER_REVIEW
     )
 
@@ -459,12 +471,15 @@ def _process_line(
     classifier,
     rate_validator,
     guideline_validator,
-) -> tuple[LineItem, int, int, float]:
+) -> tuple[LineItem, int, int, int, float]:
     """
     Process a single raw line item through the full pipeline.
-    Returns (line_item, error_count, warning_count, expected_amount).
+    Returns (line_item, error_count, spend_error_count, warning_count, expected_amount).
+    error_count       — all failures (classification + rate + guideline); drives line EXCEPTION status.
+    spend_error_count — only rate / guideline failures; drives invoice REVIEW_REQUIRED status.
     """
     error_count = 0
+    spend_error_count = 0
     warning_count = 0
 
     # ── Create LineItem (PENDING) ─────────────────────────────────────────────
@@ -528,6 +543,8 @@ def _process_line(
             db.add(exc_record)
             line_item.status = LineItemStatus.EXCEPTION
             error_count += 1
+            # spend_error_count intentionally NOT incremented — classification
+            # failures do not require supplier correction; carrier confirms taxonomy.
 
             # ── AI classification suggestion ───────────────────────────────────
             # Run a second Claude pass to give ops guidance on what this line
@@ -547,7 +564,7 @@ def _process_line(
                     ai_exc,
                 )
 
-            return line_item, error_count, warning_count, 0
+            return line_item, error_count, spend_error_count, warning_count, 0
 
         # ── AI description alignment assessment ───────────────────────────────
         # Run after a successful classification (not UNRECOGNIZED). Fetches the
@@ -574,7 +591,7 @@ def _process_line(
         logger.error("Classification failed for line %d: %s", raw_item.line_number, exc)
         line_item.status = LineItemStatus.EXCEPTION
         error_count += 1
-        return line_item, error_count, warning_count, 0
+        return line_item, error_count, spend_error_count, warning_count, 0
 
     # ── Rate validation ────────────────────────────────────────────────────────
     rate_results = rate_validator.validate(line_item, contract)
@@ -608,6 +625,7 @@ def _process_line(
             _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract)
             audit.log_line_item_exception_opened(db, line_item, rate_result)
             error_count += 1
+            spend_error_count += 1
             if rate_result.expected_value:
                 try:
                     expected_amount = float(
@@ -649,6 +667,7 @@ def _process_line(
             _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract)
             audit.log_line_item_exception_opened(db, line_item, guide_result)
             error_count += 1
+            spend_error_count += 1
         elif guide_result.status == ValidationStatus.WARNING:
             warning_count += 1
 
@@ -658,7 +677,7 @@ def _process_line(
     )
     line_item.expected_amount = expected_amount
 
-    return line_item, error_count, warning_count, expected_amount
+    return line_item, error_count, spend_error_count, warning_count, expected_amount
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
