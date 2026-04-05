@@ -27,7 +27,7 @@ Pipeline steps:
 
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 from app.database import SessionLocal
 from app.models.invoice import (
@@ -417,6 +417,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
 
     old_status = invoice.status
     invoice.status = new_status
+    invoice.processed_at = datetime.now(timezone.utc)
     db.flush()
 
     audit.log_invoice_status_changed(

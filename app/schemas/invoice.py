@@ -52,6 +52,10 @@ class ValidationSummary(BaseSchema):
     lines_denied: int = 0  # lines carrier has denied (will not pay)
     total_denied: Decimal = Decimal("0")  # sum of raw_amount for denied lines
 
+    # Exception breakdown by type (carrier-facing)
+    rate_exceptions: int = 0       # exceptions from rate validation
+    guideline_exceptions: int = 0  # exceptions from guideline validation
+
 
 class InvoiceResponse(TimestampedSchema):
     """Full invoice detail — returned to supplier and carrier."""
@@ -64,6 +68,7 @@ class InvoiceResponse(TimestampedSchema):
     current_version: int
     file_format: Optional[str]
     submitted_at: Optional[datetime]
+    processed_at: Optional[datetime] = None  # When AI pipeline finished
     submission_notes: Optional[str]
     validation_summary: Optional[ValidationSummary] = None
 
@@ -112,6 +117,7 @@ class ExceptionSupplierView(BaseSchema):
     message: str  # From the ValidationResult
     severity: str
     required_action: str
+    validation_type: str = "RATE"  # RATE | GUIDELINE | CLASSIFICATION
     supplier_response: Optional[str] = None
     resolution_action: Optional[str] = (
         None  # Set once carrier resolves (e.g. DENIED, WAIVED)

@@ -1565,6 +1565,9 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
             required_action=exc.validation_result.required_action
             if exc.validation_result
             else "NONE",
+            validation_type=exc.validation_result.validation_type
+            if exc.validation_result
+            else "RATE",
             supplier_response=exc.supplier_response,
             resolution_action=exc.resolution_action,
             ai_recommendation=exc.ai_recommendation,

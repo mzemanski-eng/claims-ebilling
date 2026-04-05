@@ -392,6 +392,7 @@ def _to_invoice_response(invoice: Invoice, db: Session) -> InvoiceResponse:
         current_version=invoice.current_version,
         file_format=invoice.file_format,
         submitted_at=invoice.submitted_at,
+        processed_at=invoice.processed_at,
         submission_notes=invoice.submission_notes,
         created_at=invoice.created_at,
         updated_at=invoice.updated_at,
@@ -436,6 +437,8 @@ def _build_validation_summary(
     with_exceptions = 0
     pending_review = 0
     lines_denied = 0
+    rate_exceptions = 0
+    guideline_exceptions = 0
 
     for li in lines:
         # DENIED lines are carrier-final: excluded from both payable and in-dispute
@@ -459,6 +462,14 @@ def _build_validation_summary(
         if has_low_confidence and not has_error:
             pending_review += 1
 
+        # Count exceptions by validation type
+        for v in li.validation_results:
+            if v.status == ValidationStatus.FAIL:
+                if v.validation_type == "RATE":
+                    rate_exceptions += 1
+                elif v.validation_type == "GUIDELINE":
+                    guideline_exceptions += 1
+
     return ValidationSummary(
         total_lines=len(lines),
         lines_validated=validated,
@@ -469,6 +480,8 @@ def _build_validation_summary(
         total_in_dispute=total_in_dispute,
         lines_denied=lines_denied,
         total_denied=total_denied,
+        rate_exceptions=rate_exceptions,
+        guideline_exceptions=guideline_exceptions,
     )
 
 

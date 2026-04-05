@@ -127,6 +127,13 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # Set by the AI pipeline when processing completes (APPROVED or REVIEW_REQUIRED)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when AI pipeline finished processing this invoice",
+    )
+
     # Supplier memo on initial submission
     submission_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

@@ -34,6 +34,9 @@ export interface ValidationSummary {
   total_in_dispute: string;
   lines_denied: number;
   total_denied: string;
+  // Exception breakdown by type (carrier-facing)
+  rate_exceptions: number;
+  guideline_exceptions: number;
 }
 
 export interface InvoiceListItem {
@@ -67,6 +70,7 @@ export interface InvoiceDetail {
   current_version: number;
   file_format: string | null;
   submitted_at: string | null;
+  processed_at: string | null; // When AI pipeline finished
   submission_notes: string | null;
   created_at: string;
   updated_at: string;
@@ -241,6 +245,7 @@ export interface ExceptionView {
   message: string;
   severity: string;
   required_action: string;
+  validation_type: string; // RATE | GUIDELINE | CLASSIFICATION
   supplier_response: string | null;
   resolution_action: string | null;
   /** AI-suggested resolution action (a ResolutionAction constant). Null until processed. */

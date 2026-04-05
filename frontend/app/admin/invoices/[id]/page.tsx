@@ -20,6 +20,115 @@ import type { LineItemCarrierView } from "@/lib/types";
 import { ResolutionActions } from "@/lib/types";
 import { useToast } from "@/components/toast";
 
+// ── AI Processing Timeline ────────────────────────────────────────────────────
+
+function fmt(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+type StepVariant = "neutral" | "pass" | "warn" | "pending";
+
+function TimelineStep({
+  icon, label, detail, variant, emphasis,
+}: {
+  icon: string; label: string; detail: string; variant: StepVariant; emphasis?: boolean;
+}) {
+  const colors: Record<StepVariant, string> = {
+    neutral: "text-gray-500",
+    pass:    "text-green-700",
+    warn:    "text-amber-700",
+    pending: "text-gray-300",
+  };
+  const dotColors: Record<StepVariant, string> = {
+    neutral: "bg-gray-300",
+    pass:    "bg-green-400",
+    warn:    "bg-amber-400",
+    pending: "bg-gray-200",
+  };
+  return (
+    <div className={`flex flex-col items-center gap-1 flex-1 ${emphasis ? "relative" : ""}`}>
+      {emphasis && (
+        <div className="absolute -top-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 whitespace-nowrap">
+          KEY CHECK
+        </div>
+      )}
+      <div className={`mt-2 h-2 w-2 rounded-full ${dotColors[variant]}`} />
+      <span className="text-xs font-semibold text-gray-700 mt-0.5">{label}</span>
+      <span className={`text-[11px] ${colors[variant]}`}>{detail}</span>
+    </div>
+  );
+}
+
+function AIProcessingTimeline({
+  invoice,
+  summary,
+}: {
+  invoice: { submitted_at: string | null; processed_at?: string | null; status: string; triage_risk_level?: string | null };
+  summary: import("@/lib/types").ValidationSummary | null;
+}) {
+  const isProcessed = !!summary;
+  const total = summary?.total_lines ?? 0;
+  const rateExcs = summary?.rate_exceptions ?? 0;
+  const guideExcs = summary?.guideline_exceptions ?? 0;
+  const rateVariant: StepVariant = !isProcessed ? "pending" : rateExcs === 0 ? "pass" : "warn";
+  const guideVariant: StepVariant = !isProcessed ? "pending" : guideExcs === 0 ? "pass" : "warn";
+  const resultVariant: StepVariant = !isProcessed ? "pending" : invoice.status === "APPROVED" ? "pass" : "warn";
+  const triageVariant: StepVariant = invoice.triage_risk_level
+    ? invoice.triage_risk_level === "LOW" ? "pass" : "warn"
+    : "pending";
+
+  return (
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm px-6 py-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
+        ✦ AI Processing
+      </p>
+      <div className="relative flex items-start">
+        {/* Connector line */}
+        <div className="absolute top-3 left-0 right-0 h-px bg-gray-200 mx-4" />
+        <TimelineStep
+          icon="📥" label="Received"
+          detail={fmt(invoice.submitted_at)}
+          variant={invoice.submitted_at ? "neutral" : "pending"}
+        />
+        <TimelineStep
+          icon="🔍" label="Classified"
+          detail={isProcessed ? `${total} line${total !== 1 ? "s" : ""} mapped` : "Pending"}
+          variant={isProcessed ? "neutral" : "pending"}
+        />
+        <TimelineStep
+          icon="💲" label="Rate Check"
+          detail={isProcessed ? (rateExcs === 0 ? `${total} passed` : `${rateExcs} flagged`) : "Pending"}
+          variant={rateVariant}
+        />
+        <TimelineStep
+          icon="📋" label="Guideline Check"
+          detail={isProcessed ? (guideExcs === 0 ? `${total} passed` : `${guideExcs} flagged`) : "Pending"}
+          variant={guideVariant}
+          emphasis
+        />
+        <TimelineStep
+          icon="🤖" label="Risk Assessed"
+          detail={invoice.triage_risk_level ?? (isProcessed ? "—" : "Pending")}
+          variant={triageVariant}
+        />
+        <TimelineStep
+          icon={invoice.status === "APPROVED" ? "✅" : "🔴"}
+          label={invoice.status === "APPROVED" ? "Auto-Approved" : isProcessed ? "Flagged for Review" : "Pending"}
+          detail={
+            invoice.status === "APPROVED"
+              ? "No action needed"
+              : isProcessed
+              ? `${summary?.lines_with_exceptions ?? 0} line${(summary?.lines_with_exceptions ?? 0) !== 1 ? "s" : ""} need attention`
+              : "—"
+          }
+          variant={resultVariant}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Triage panel ──────────────────────────────────────────────────────────────
 
 const TRIAGE_COLORS: Record<string, { border: string; bg: string; badge: string; text: string }> = {
@@ -588,6 +697,12 @@ export default function AdminInvoiceDetailPage({
         </div>
       </div>
 
+      {/* AI Processing Timeline */}
+      <AIProcessingTimeline
+        invoice={invoice}
+        summary={invoice.validation_summary}
+      />
+
       {/* AI Triage panel */}
       {invoice.triage_risk_level && (
         <TriagePanel
@@ -629,7 +744,7 @@ export default function AdminInvoiceDetailPage({
                   Spend Classification
                 </th>
                 <th colSpan={3} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-b border-gray-200">
-                  Contract Audit
+                  Rate &amp; Guideline Audit
                 </th>
                 <th rowSpan={2} className="w-8" />
               </tr>
@@ -799,29 +914,73 @@ export default function AdminInvoiceDetailPage({
                                   </div>
                                 )}
 
-                                {/* ── Contract Audit panel ───────────────────── */}
-                                {auditExcs.length > 0 && (
-                                  <div className={needsClassification ? "opacity-60 pointer-events-none" : ""}>
-                                    {needsClassification && (
-                                      <p className="mb-2 text-xs italic text-gray-400">
-                                        Contract audit exceptions are shown below — resolve the spend
-                                        classification above before taking audit actions.
-                                      </p>
-                                    )}
-                                    <div className="space-y-3">
-                                      {auditExcs.map((exc) => (
-                                        <ExceptionRow
-                                          key={exc.exception_id}
-                                          exc={exc}
-                                          invoiceId={id}
-                                          lineClassificationSuggestion={
-                                            line.ai_classification_suggestion
-                                          }
-                                        />
-                                      ))}
+                                {/* ── Rate & Guideline Compliance panels ────── */}
+                                {auditExcs.length > 0 && (() => {
+                                  const rateExcs = auditExcs.filter(e => e.validation_type === "RATE");
+                                  const guidelineExcs = auditExcs.filter(e => e.validation_type === "GUIDELINE");
+                                  // Extract contract reference quote from guideline message
+                                  function extractContractRef(msg: string): string | null {
+                                    const m = msg.match(/Contract reference:\s*"([^"]+)"/);
+                                    return m ? m[1] : null;
+                                  }
+                                  return (
+                                    <div className={`space-y-3 ${needsClassification ? "opacity-60 pointer-events-none" : ""}`}>
+                                      {needsClassification && (
+                                        <p className="text-xs italic text-gray-400">
+                                          Resolve the spend classification above before taking audit actions.
+                                        </p>
+                                      )}
+
+                                      {/* Rate Compliance */}
+                                      {rateExcs.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                                            💲 Rate Compliance
+                                          </p>
+                                          <div className="space-y-2">
+                                            {rateExcs.map((exc) => (
+                                              <ExceptionRow
+                                                key={exc.exception_id}
+                                                exc={exc}
+                                                invoiceId={id}
+                                                lineClassificationSuggestion={line.ai_classification_suggestion}
+                                              />
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Guideline Compliance */}
+                                      {guidelineExcs.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 mb-1.5">
+                                            📋 Guideline Compliance
+                                          </p>
+                                          <div className="space-y-2">
+                                            {guidelineExcs.map((exc) => {
+                                              const contractRef = extractContractRef(exc.message);
+                                              return (
+                                                <div key={exc.exception_id}>
+                                                  {contractRef && (
+                                                    <blockquote className="mb-1.5 border-l-4 border-indigo-300 bg-indigo-50 pl-3 pr-2 py-1.5 text-xs text-indigo-800 rounded-r">
+                                                      <span className="font-semibold text-indigo-500 text-[10px] uppercase tracking-wide">Contract rule: </span>
+                                                      &ldquo;{contractRef}&rdquo;
+                                                    </blockquote>
+                                                  )}
+                                                  <ExceptionRow
+                                                    exc={exc}
+                                                    invoiceId={id}
+                                                    lineClassificationSuggestion={line.ai_classification_suggestion}
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
 
                                 {/* Lines flagged for review with no exceptions yet */}
                                 {needsClassification && auditExcs.length === 0 && classificationExcs.length === 0 && line.exceptions.length === 0 && (
