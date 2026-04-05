@@ -11,6 +11,8 @@ import {
   resolveAdminException,
   overrideMapping,
   downloadBlob,
+  originalInvoiceFileUrl,
+  downloadOriginalInvoiceFile,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
 import { ConfidenceBadge } from "@/components/confidence-badge";
@@ -689,6 +691,22 @@ export default function AdminInvoiceDetailPage({
     }
   }
 
+  async function handleViewOriginal() {
+    if (!invoice) return;
+    if (invoice.file_format === "pdf") {
+      // PDFs: open in new tab so the browser renders them inline
+      window.open(originalInvoiceFileUrl(id), "_blank", "noopener,noreferrer");
+    } else {
+      // CSVs: download
+      try {
+        const blob = await downloadOriginalInvoiceFile(id);
+        downloadBlob(blob, `${invoice.invoice_number}_original.csv`);
+      } catch (e) {
+        setExportError((e as Error).message);
+      }
+    }
+  }
+
   function toggleLine(lineId: string) {
     setExpandedLines((prev) => {
       const next = new Set(prev);
@@ -835,6 +853,11 @@ export default function AdminInvoiceDetailPage({
             <StatusBadge status={invoice.status} />
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            {invoice.file_format && (
+              <Button variant="ghost" onClick={handleViewOriginal}>
+                {invoice.file_format === "pdf" ? "↗ View Original PDF" : "↓ Original CSV"}
+              </Button>
+            )}
             {canApprove && (
               <Button onClick={() => setShowApproveConfirm(true)}>
                 ✓ Approve

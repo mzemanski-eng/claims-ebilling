@@ -877,6 +877,45 @@ def bulk_approve_invoices(
 # ── Export ────────────────────────────────────────────────────────────────────
 
 
+@router.get("/invoices/{invoice_id}/file")
+def download_original_invoice_file(
+    invoice_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> Response:
+    """
+    Stream the original uploaded invoice file (CSV or PDF) back to the caller.
+    PDFs are served inline so the browser can open them in a new tab.
+    CSVs are served as an attachment download.
+    """
+    from app.services.storage.base import get_storage
+
+    invoice = _get_invoice(invoice_id, db, current_user)
+
+    if not invoice.raw_file_path:
+        raise HTTPException(status_code=404, detail="No original file found for this invoice.")
+
+    storage = get_storage()
+    if not storage.exists(invoice.raw_file_path):
+        raise HTTPException(status_code=404, detail="Original file not found in storage.")
+
+    file_bytes = storage.load(invoice.raw_file_path)
+    fmt = (invoice.file_format or "").lower()
+
+    if fmt == "pdf":
+        media_type = "application/pdf"
+        disposition = f'inline; filename="{invoice.invoice_number}.pdf"'
+    else:
+        media_type = "text/csv"
+        disposition = f'attachment; filename="{invoice.invoice_number}_original.csv"'
+
+    return Response(
+        content=file_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": disposition},
+    )
+
+
 @router.get("/invoices/{invoice_id}/export")
 def export_invoice(
     invoice_id: uuid.UUID,

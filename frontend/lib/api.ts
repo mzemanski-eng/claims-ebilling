@@ -494,6 +494,21 @@ export async function exportAdminInvoice(id: string): Promise<Blob> {
   return res.blob();
 }
 
+/** Returns the URL to stream the original uploaded file (PDF opens inline, CSV downloads). */
+export function originalInvoiceFileUrl(id: string): string {
+  return `${BASE_URL}/admin/invoices/${id}/file`;
+}
+
+/** Fetches the original invoice file as a Blob (for CSV download). */
+export async function downloadOriginalInvoiceFile(id: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/admin/invoices/${id}/file`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError(res.status, "File not available");
+  return res.blob();
+}
+
 // ── Admin — exceptions ────────────────────────────────────────────────────────
 
 /**
