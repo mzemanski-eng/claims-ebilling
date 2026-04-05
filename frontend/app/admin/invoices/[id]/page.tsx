@@ -531,6 +531,7 @@ export default function AdminInvoiceDetailPage({
   const [exportError, setExportError] = useState<string | null>(null);
   const [triageExpanded, setTriageExpanded] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const toast = useToast();
 
   const { data: invoice, isLoading: loadingInvoice } = useQuery({
     queryKey: ["admin-invoice", id],
