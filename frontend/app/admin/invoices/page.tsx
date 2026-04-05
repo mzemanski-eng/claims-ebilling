@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bulkApproveInvoices, listAdminInvoices, listAdminSuppliers } from "@/lib/api";
@@ -60,6 +61,7 @@ export default function AdminInvoicesPage() {
 
 function AdminInvoicesContent() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   // ── Filter state — initialise from URL search params ──────────────────────
@@ -402,14 +404,15 @@ function AdminInvoicesContent() {
                 return (
                   <tr
                     key={inv.id}
-                    className={`transition-colors ${
+                    onClick={() => router.push(`/admin/invoices/${inv.id}`)}
+                    className={`cursor-pointer transition-colors ${
                       checked
-                        ? "bg-blue-50"
+                        ? "bg-blue-50 hover:bg-blue-100"
                         : "hover:bg-gray-50"
                     }`}
                   >
-                    {/* Per-row checkbox */}
-                    <td className="px-4 py-3">
+                    {/* Per-row checkbox — stop propagation so checkbox clicks don't navigate */}
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       {approvable ? (
                         <input
                           type="checkbox"
