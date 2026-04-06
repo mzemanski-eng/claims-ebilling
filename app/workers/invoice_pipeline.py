@@ -63,6 +63,7 @@ from app.services.notifications.email import (
 from app.services.validation.guideline_validator import GuidelineValidator
 from app.services.validation.rate_validator import RateValidator
 from app.settings import settings
+from app.schemas.carrier_settings import CarrierSettings
 
 logger = logging.getLogger(__name__)
 
@@ -221,10 +222,14 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
         )
         db.add(artifact)
 
-    # ── Load contract + guidelines ────────────────────────────────────────────
+    # ── Load contract + carrier settings ─────────────────────────────────────
     contract = invoice.contract
     if contract is None:
         return _fail_invoice(db, invoice, "Contract not found for invoice")
+
+    # Resolve effective per-carrier settings (falls back to platform defaults).
+    _raw_cs = (contract.carrier.settings or {}) if contract.carrier else {}
+    cs = CarrierSettings.model_validate(_raw_cs)
 
     # ── Verify the contract is active and currently effective ─────────────────
     today = date.today()
@@ -409,8 +414,9 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
         # Classification-only exceptions. Auto-resolve when every flagged line
         # has a HIGH or MEDIUM confidence AI suggestion — no billing dispute
         # exists and the AI is confident in the mapping, so human review adds no value.
+        # Suppressed when carrier has set ai_classification_mode = "supervised".
         _HIGH_CONF = {"HIGH", "MEDIUM"}
-        can_auto_resolve = all(
+        can_auto_resolve = cs.ai_classification_mode != "supervised" and all(
             line.status != LineItemStatus.EXCEPTION
             or (
                 isinstance(line.ai_classification_suggestion, dict)
@@ -492,10 +498,33 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     # ── Auto-approve fully clean invoices (if configured) ─────────────────────
     # Only applies when error_count == 0 (no classification or spend errors).
     # The high-confidence classification path above handles its own approval.
+    #
+    # Effective auto_approve is resolved in priority order:
+    #   1. carrier.settings.auto_approve_clean_invoices  (per-carrier override)
+    #   2. settings.auto_approve_clean_invoices          (platform default)
+    #
+    # Amount guards applied on top of the flag:
+    #   auto_approve_max_amount:      only auto-approve when total ≤ limit
+    #   require_review_above_amount:  always review when total > threshold
+    _eff_auto_approve = (
+        cs.auto_approve_clean_invoices
+        if cs.auto_approve_clean_invoices is not None
+        else settings.auto_approve_clean_invoices
+    )
+
+    if _eff_auto_approve and (cs.auto_approve_max_amount is not None or cs.require_review_above_amount is not None):
+        _invoice_total = float(
+            sum(line.raw_amount or 0 for line in processed_lines)
+        )
+        if cs.require_review_above_amount is not None and _invoice_total > cs.require_review_above_amount:
+            _eff_auto_approve = False
+        elif cs.auto_approve_max_amount is not None and _invoice_total > cs.auto_approve_max_amount:
+            _eff_auto_approve = False
+
     if (
         new_status == SubmissionStatus.PENDING_CARRIER_REVIEW
         and error_count == 0
-        and settings.auto_approve_clean_invoices
+        and _eff_auto_approve
     ):
         new_status = SubmissionStatus.APPROVED
         for line in processed_lines:

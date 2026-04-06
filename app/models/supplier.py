@@ -115,6 +115,17 @@ class Carrier(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Boolean, nullable=False, default=True, server_default="true"
     )
 
+    # Per-carrier pipeline and processing configuration.
+    # Keys documented in CarrierSettings schema (app/schemas/carrier_settings.py).
+    # NULL fields in the dict inherit the platform-level default from settings.py.
+    settings: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+        comment="Per-carrier pipeline config: auto_approve_clean_invoices, risk_tolerance, etc.",
+    )
+
     # Relationships
     users: Mapped[list["User"]] = relationship(
         "User", back_populates="carrier", foreign_keys="User.carrier_id"

@@ -58,6 +58,7 @@ import type {
   ReviewQueueGroup,
   MappingInsights,
   ValueSummary,
+  CarrierSettings,
 } from "./types";
 
 const BASE_URL =
@@ -737,4 +738,21 @@ export function runSeedDemo(clean: boolean): Promise<{ job_id: string; status: s
 /** Poll seed job status. */
 export function getSeedDemoStatus(jobId: string): Promise<SeedDemoJobStatus> {
   return apiFetch<SeedDemoJobStatus>(`/admin/seed-demo/${jobId}`);
+}
+
+// ── Carrier Settings ──────────────────────────────────────────────────────────
+
+/** Fetch the current per-carrier pipeline and processing settings. */
+export function getCarrierSettings(): Promise<CarrierSettings> {
+  return apiFetch<CarrierSettings>("/admin/carriers/settings");
+}
+
+/** Replace carrier settings (full replace, not patch). */
+export function updateCarrierSettings(
+  payload: CarrierSettings,
+): Promise<CarrierSettings> {
+  return apiFetch<CarrierSettings>("/admin/carriers/settings", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }

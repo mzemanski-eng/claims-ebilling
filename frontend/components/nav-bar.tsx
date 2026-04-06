@@ -24,6 +24,7 @@ const ADMIN_NAV: NavItem[] = [
     { href: "/admin/team",      label: "Team" },
   ]},
   { type: "link",  href: "/admin/analytics", label: "Analytics" },
+  { type: "link",  href: "/admin/settings",  label: "Settings"  },
 ];
 
 /** Focused auditor nav — CARRIER_REVIEWER only */

@@ -21,6 +21,8 @@ Workflow:
   GET  /admin/suppliers/{id}/users              → list user accounts for a supplier
   POST /admin/suppliers/{id}/users              → create a login for a supplier
   POST /admin/suppliers/{id}/audit              → AI audit report (on-demand, no DB write)
+  GET  /admin/carriers/settings                 → get per-carrier processing settings
+  PUT  /admin/carriers/settings                 → update per-carrier processing settings
   GET  /admin/contracts                         → list all contracts
   GET  /admin/contracts/{id}                    → contract detail with rate cards + guidelines
   POST /admin/contracts                         → create contract
@@ -53,7 +55,8 @@ from app.database import get_db
 from app.models.audit import ActorType
 from app.models.invoice import Invoice, LineItem, LineItemStatus, SubmissionStatus
 from app.models.mapping import ConfirmedBy
-from app.models.supplier import Contract, Guideline, RateCard, Supplier, User, UserRole
+from app.models.supplier import Carrier, Contract, Guideline, RateCard, Supplier, User, UserRole
+from app.schemas.carrier_settings import CarrierSettings
 from app.models.taxonomy import TaxonomyItem
 from app.schemas.contracts import (
     ContractCreate,
@@ -1757,6 +1760,50 @@ def delete_invoice(
     db.delete(invoice)
     db.commit()
     return {"message": f"Invoice '{invoice_number}' and all related data deleted."}
+
+
+# ── Carrier Settings ──────────────────────────────────────────────────────────
+
+
+@router.get("/carriers/settings", response_model=CarrierSettings)
+def get_carrier_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.CARRIER_ADMIN)),
+) -> CarrierSettings:
+    """
+    Return the current per-carrier pipeline and processing settings.
+
+    Omitted / null fields in the response inherit the platform default.
+    CARRIER_ADMIN only.
+    """
+    carrier = db.get(Carrier, current_user.carrier_id)
+    if carrier is None:
+        raise HTTPException(status_code=404, detail="Carrier not found")
+    return CarrierSettings.model_validate(carrier.settings or {})
+
+
+@router.put("/carriers/settings", response_model=CarrierSettings)
+def update_carrier_settings(
+    payload: CarrierSettings,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.CARRIER_ADMIN)),
+) -> CarrierSettings:
+    """
+    Update per-carrier pipeline and processing settings.
+
+    Performs a full replace of the settings object — send all fields you want
+    to preserve, not just the changed ones.  To reset a field to the platform
+    default, set it to null.
+
+    CARRIER_ADMIN only.
+    """
+    carrier = db.get(Carrier, current_user.carrier_id)
+    if carrier is None:
+        raise HTTPException(status_code=404, detail="Carrier not found")
+    carrier.settings = payload.model_dump(exclude_none=False)
+    db.commit()
+    db.refresh(carrier)
+    return CarrierSettings.model_validate(carrier.settings or {})
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────

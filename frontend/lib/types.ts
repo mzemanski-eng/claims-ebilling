@@ -742,3 +742,18 @@ export interface ValueSummary {
     identified_savings: number;
   }[];
 }
+
+// ── Carrier Settings ──────────────────────────────────────────────────────────
+
+export interface CarrierSettings {
+  /** null = inherit platform default (env var AUTO_APPROVE_CLEAN_INVOICES) */
+  auto_approve_clean_invoices: boolean | null;
+  /** null = no upper limit on auto-approval amount */
+  auto_approve_max_amount: number | null;
+  /** null = disabled; when set, always queue for review above this amount */
+  require_review_above_amount: number | null;
+  /** strict | standard | relaxed — controls exception severity thresholds */
+  risk_tolerance: "strict" | "standard" | "relaxed";
+  /** auto = AI resolves HIGH/MEDIUM classification exceptions; supervised = always queue */
+  ai_classification_mode: "auto" | "supervised";
+}
