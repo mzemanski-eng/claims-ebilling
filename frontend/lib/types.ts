@@ -366,6 +366,10 @@ export interface AnalyticsSummary {
   open_exceptions: number;
   total_exceptions: number;
   invoice_status_counts: { status: string; count: number }[];
+  /** recovered / identified; 0.0 if no savings identified yet */
+  recovery_rate?: number;
+  /** HIGH-confidence auto-classified lines / total classified lines */
+  auto_classification_rate?: number;
 }
 
 export interface SpendByDomain {
@@ -690,4 +694,51 @@ export interface SeedDemoJobStatus {
     line_items: number;
   };
   error?: string;
+}
+
+// ── Value Summary (executive performance report) ──────────────────────────────
+
+export interface ValueSummaryTotals {
+  invoices_processed: number;
+  total_billed: string;
+  identified_savings: string;
+  recovered_savings: string;
+  pending_savings: string;
+  recovery_rate: number;
+}
+
+export interface ValueSummaryEfficiency {
+  total_lines: number;
+  auto_classified_lines: number;
+  auto_classification_rate: number;
+  avg_exception_resolution_days: number;
+  ai_recommendation_acceptance_rate: number;
+  estimated_hours_saved: number;
+}
+
+export interface ValueSummaryByType {
+  flagged: number;
+  resolved: number;
+  identified_savings: string;
+  recovered_savings: string;
+  recovery_rate: number;
+}
+
+export interface ValueSummary {
+  period: { from: string; to: string; days: number };
+  totals: ValueSummaryTotals;
+  efficiency: ValueSummaryEfficiency;
+  by_type: {
+    RATE: ValueSummaryByType;
+    GUIDELINE: ValueSummaryByType;
+    CLASSIFICATION: ValueSummaryByType;
+  };
+  savings_trend: { period: string; identified: number; recovered: number }[];
+  top_suppliers_by_exception_rate: {
+    supplier_name: string;
+    total_lines: number;
+    exception_lines: number;
+    exception_rate: number;
+    identified_savings: number;
+  }[];
 }

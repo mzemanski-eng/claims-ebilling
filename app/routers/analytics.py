@@ -25,7 +25,7 @@ frontend global filter bar cascades across every section.
 import csv
 import io
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -186,6 +186,44 @@ def get_analytics_summary(
     )
     total_exceptions = exc_base.scalar() or 0
 
+    # Identified savings (ALL statuses, not just approved) — needed for recovery_rate
+    identified_savings = (
+        _f(
+            db.query(func.sum(LineItem.raw_amount - LineItem.expected_amount))
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .join(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+            .filter(
+                carrier_filter,
+                LineItem.expected_amount.isnot(None),
+                LineItem.raw_amount > LineItem.expected_amount,
+            )
+        )
+        .scalar()
+        or Decimal(0)
+    )
+    recovery_rate = (
+        round(float(total_savings) / float(identified_savings), 4)
+        if identified_savings > 0
+        else 0.0
+    )
+
+    # Auto-classification rate: HIGH-confidence classified lines / all classified lines
+    _line_base = (
+        lambda extra_filters: _f(
+            db.query(func.count(LineItem.id))
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .filter(carrier_filter, LineItem.taxonomy_code.isnot(None), *extra_filters)
+        ).scalar()
+        or 0
+    )
+    total_classified = _line_base([])
+    auto_classified = _line_base([LineItem.mapping_confidence == "HIGH"])
+    auto_classification_rate = (
+        round(auto_classified / total_classified, 4) if total_classified > 0 else 0.0
+    )
+
     return {
         "total_billed": str(total_billed),
         "total_approved": str(total_approved),
@@ -195,6 +233,8 @@ def get_analytics_summary(
         "invoice_status_counts": [
             {"status": row[0], "count": row[1]} for row in status_rows
         ],
+        "recovery_rate": recovery_rate,
+        "auto_classification_rate": auto_classification_rate,
     }
 
 
@@ -1501,3 +1541,385 @@ def get_rate_benchmarks(
 
     result.sort(key=lambda x: float(x["panel_avg_rate"]), reverse=True)
     return result
+
+
+# ── Value Summary (executive performance report) ────────────────────────────
+
+
+@router.get("/value-summary")
+def get_value_summary(
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+):
+    """
+    Single aggregated endpoint powering the executive Performance tab.
+
+    Returns totals, efficiency stats, per-exception-type savings breakdown,
+    a 12-month savings trend, and top suppliers by exception rate — all in
+    one round-trip so the tab loads instantly.
+    """
+    carrier_filter = Contract.carrier_id == current_user.carrier_id
+
+    def _date_filter(q):
+        if date_from:
+            q = q.filter(Invoice.invoice_date >= date_from)
+        if date_to:
+            q = q.filter(Invoice.invoice_date <= date_to)
+        return q
+
+    # ── Totals ────────────────────────────────────────────────────────────────
+
+    invoices_processed = (
+        _date_filter(
+            db.query(func.count(func.distinct(Invoice.id)))
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .filter(carrier_filter, Invoice.status.notin_(["DRAFT", "PROCESSING"]))
+        )
+        .scalar()
+        or 0
+    )
+
+    total_billed = (
+        _date_filter(
+            db.query(func.sum(LineItem.raw_amount))
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .filter(carrier_filter, Invoice.status.notin_(["DRAFT", "PROCESSING"]))
+        )
+        .scalar()
+        or Decimal(0)
+    )
+
+    identified_savings = (
+        _date_filter(
+            db.query(func.sum(LineItem.raw_amount - LineItem.expected_amount))
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .join(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+            .filter(
+                carrier_filter,
+                LineItem.expected_amount.isnot(None),
+                LineItem.raw_amount > LineItem.expected_amount,
+            )
+        )
+        .scalar()
+        or Decimal(0)
+    )
+
+    recovered_savings = (
+        _date_filter(
+            db.query(func.sum(LineItem.raw_amount - LineItem.expected_amount))
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .join(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+            .filter(
+                carrier_filter,
+                Invoice.status.in_(["APPROVED", "EXPORTED"]),
+                LineItem.expected_amount.isnot(None),
+                LineItem.raw_amount > LineItem.expected_amount,
+            )
+        )
+        .scalar()
+        or Decimal(0)
+    )
+
+    pending_savings = max(identified_savings - recovered_savings, Decimal(0))
+    recovery_rate = (
+        round(float(recovered_savings) / float(identified_savings), 4)
+        if identified_savings > 0
+        else 0.0
+    )
+
+    # ── Efficiency ────────────────────────────────────────────────────────────
+
+    total_lines = (
+        _date_filter(
+            db.query(func.count(LineItem.id))
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .filter(carrier_filter, LineItem.taxonomy_code.isnot(None))
+        )
+        .scalar()
+        or 0
+    )
+
+    auto_classified_lines = (
+        _date_filter(
+            db.query(func.count(LineItem.id))
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .filter(
+                carrier_filter,
+                LineItem.taxonomy_code.isnot(None),
+                LineItem.mapping_confidence == "HIGH",
+            )
+        )
+        .scalar()
+        or 0
+    )
+
+    auto_classification_rate = (
+        round(auto_classified_lines / total_lines, 4) if total_lines > 0 else 0.0
+    )
+    estimated_hours_saved = round(auto_classified_lines * (5 / 60), 1)
+
+    # Average exception resolution time (days)
+    avg_resolution_days_row = (
+        db.query(
+            func.avg(
+                func.extract(
+                    "epoch",
+                    ExceptionRecord.resolved_at - ExceptionRecord.created_at,
+                )
+                / 86400
+            )
+        )
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            carrier_filter,
+            ExceptionRecord.resolved_at.isnot(None),
+        )
+        .scalar()
+    )
+    avg_resolution_days = round(float(avg_resolution_days_row), 1) if avg_resolution_days_row else 0.0
+
+    # AI recommendation acceptance rate
+    ai_rows = (
+        db.query(
+            func.count(ExceptionRecord.id).label("resolved"),
+            func.sum(
+                case((ExceptionRecord.ai_recommendation_accepted == True, 1), else_=0)  # noqa: E712
+            ).label("accepted"),
+        )
+        .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .filter(
+            carrier_filter,
+            ExceptionRecord.ai_recommendation.isnot(None),
+            ExceptionRecord.ai_recommendation_accepted.isnot(None),
+        )
+        .one()
+    )
+    ai_recommendation_acceptance_rate = (
+        round(int(ai_rows.accepted or 0) / int(ai_rows.resolved), 4)
+        if ai_rows.resolved
+        else 0.0
+    )
+
+    # ── Savings by exception type ─────────────────────────────────────────────
+
+    by_type: dict = {
+        "RATE": {"flagged": 0, "resolved": 0, "identified_savings": Decimal(0), "recovered_savings": Decimal(0), "recovery_rate": 0.0},
+        "GUIDELINE": {"flagged": 0, "resolved": 0, "identified_savings": Decimal(0), "recovered_savings": Decimal(0), "recovery_rate": 0.0},
+        "CLASSIFICATION": {"flagged": 0, "resolved": 0, "identified_savings": Decimal(0), "recovered_savings": Decimal(0), "recovery_rate": 0.0},
+    }
+
+    type_rows = (
+        _date_filter(
+            db.query(
+                ValidationResult.validation_type,
+                func.count(ExceptionRecord.id).label("flagged"),
+                func.sum(
+                    case(
+                        (ExceptionRecord.status.in_(["RESOLVED", "WAIVED"]), 1),
+                        else_=0,
+                    )
+                ).label("resolved"),
+                func.sum(
+                    case(
+                        (
+                            (LineItem.raw_amount > LineItem.expected_amount)
+                            & LineItem.expected_amount.isnot(None),
+                            LineItem.raw_amount - LineItem.expected_amount,
+                        ),
+                        else_=Decimal(0),
+                    )
+                ).label("identified"),
+                func.sum(
+                    case(
+                        (
+                            (LineItem.raw_amount > LineItem.expected_amount)
+                            & LineItem.expected_amount.isnot(None)
+                            & Invoice.status.in_(["APPROVED", "EXPORTED"]),
+                            LineItem.raw_amount - LineItem.expected_amount,
+                        ),
+                        else_=Decimal(0),
+                    )
+                ).label("recovered"),
+            )
+            .join(ExceptionRecord, ExceptionRecord.validation_result_id == ValidationResult.id)
+            .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .filter(carrier_filter)
+        )
+        .group_by(ValidationResult.validation_type)
+        .all()
+    )
+
+    for row in type_rows:
+        vtype = row.validation_type
+        if vtype not in by_type:
+            continue
+        ident = row.identified or Decimal(0)
+        recov = row.recovered or Decimal(0)
+        by_type[vtype] = {
+            "flagged": row.flagged,
+            "resolved": row.resolved,
+            "identified_savings": str(ident),
+            "recovered_savings": str(recov),
+            "recovery_rate": round(float(recov) / float(ident), 4) if ident > 0 else 0.0,
+        }
+    # Ensure string format for any untouched types
+    for vtype, d in by_type.items():
+        if isinstance(d["identified_savings"], Decimal):
+            d["identified_savings"] = str(d["identified_savings"])
+            d["recovered_savings"] = str(d["recovered_savings"])
+
+    # ── Savings trend (last 12 months, monthly) ────────────────────────────────
+
+    trend_from = date_from or (date.today().replace(day=1) - timedelta(days=365))
+
+    trend_identified_rows = (
+        db.query(
+            func.date_trunc("month", Invoice.invoice_date).label("period"),
+            func.sum(LineItem.raw_amount - LineItem.expected_amount).label("identified"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .join(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+        .filter(
+            carrier_filter,
+            LineItem.expected_amount.isnot(None),
+            LineItem.raw_amount > LineItem.expected_amount,
+            Invoice.invoice_date >= trend_from,
+        )
+        .group_by(func.date_trunc("month", Invoice.invoice_date))
+        .order_by(func.date_trunc("month", Invoice.invoice_date))
+        .all()
+    )
+
+    trend_recovered_rows = (
+        db.query(
+            func.date_trunc("month", Invoice.invoice_date).label("period"),
+            func.sum(LineItem.raw_amount - LineItem.expected_amount).label("recovered"),
+        )
+        .join(Invoice, Invoice.id == LineItem.invoice_id)
+        .join(Contract, Contract.id == Invoice.contract_id)
+        .join(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+        .filter(
+            carrier_filter,
+            Invoice.status.in_(["APPROVED", "EXPORTED"]),
+            LineItem.expected_amount.isnot(None),
+            LineItem.raw_amount > LineItem.expected_amount,
+            Invoice.invoice_date >= trend_from,
+        )
+        .group_by(func.date_trunc("month", Invoice.invoice_date))
+        .order_by(func.date_trunc("month", Invoice.invoice_date))
+        .all()
+    )
+
+    identified_by_period = {
+        str(r.period)[:7]: float(r.identified or 0) for r in trend_identified_rows
+    }
+    recovered_by_period = {
+        str(r.period)[:7]: float(r.recovered or 0) for r in trend_recovered_rows
+    }
+    all_periods = sorted(set(identified_by_period) | set(recovered_by_period))
+    savings_trend = [
+        {
+            "period": p,
+            "identified": identified_by_period.get(p, 0.0),
+            "recovered": recovered_by_period.get(p, 0.0),
+        }
+        for p in all_periods
+    ]
+
+    # ── Top suppliers by exception rate ───────────────────────────────────────
+
+    supplier_stats_rows = (
+        _date_filter(
+            db.query(
+                Supplier.name.label("supplier_name"),
+                func.count(LineItem.id).label("total_lines"),
+                func.sum(
+                    case((ExceptionRecord.id.isnot(None), 1), else_=0)
+                ).label("exception_lines"),
+                func.sum(
+                    case(
+                        (
+                            (LineItem.raw_amount > LineItem.expected_amount)
+                            & LineItem.expected_amount.isnot(None),
+                            LineItem.raw_amount - LineItem.expected_amount,
+                        ),
+                        else_=Decimal(0),
+                    )
+                ).label("identified_savings"),
+            )
+            .join(Invoice, Invoice.id == LineItem.invoice_id)
+            .join(Contract, Contract.id == Invoice.contract_id)
+            .join(Supplier, Supplier.id == Invoice.supplier_id)
+            .outerjoin(ExceptionRecord, ExceptionRecord.line_item_id == LineItem.id)
+            .filter(carrier_filter, Invoice.status.notin_(["DRAFT", "PROCESSING"]))
+        )
+        .group_by(Supplier.name)
+        .order_by(func.count(LineItem.id).desc())
+        .limit(20)
+        .all()
+    )
+
+    top_suppliers = []
+    for row in supplier_stats_rows:
+        total = row.total_lines or 0
+        exc = int(row.exception_lines or 0)
+        if total == 0:
+            continue
+        top_suppliers.append(
+            {
+                "supplier_name": row.supplier_name,
+                "total_lines": total,
+                "exception_lines": exc,
+                "exception_rate": round(exc / total, 4),
+                "identified_savings": round(float(row.identified_savings or 0), 2),
+            }
+        )
+    top_suppliers.sort(key=lambda x: x["exception_rate"], reverse=True)
+    top_suppliers = top_suppliers[:6]
+
+    # ── Assemble response ─────────────────────────────────────────────────────
+
+    effective_from = date_from or trend_from
+    effective_to = date_to or date.today()
+    period_days = (effective_to - effective_from).days + 1
+
+    return {
+        "period": {
+            "from": str(effective_from),
+            "to": str(effective_to),
+            "days": period_days,
+        },
+        "totals": {
+            "invoices_processed": invoices_processed,
+            "total_billed": str(total_billed),
+            "identified_savings": str(identified_savings),
+            "recovered_savings": str(recovered_savings),
+            "pending_savings": str(pending_savings),
+            "recovery_rate": recovery_rate,
+        },
+        "efficiency": {
+            "total_lines": total_lines,
+            "auto_classified_lines": auto_classified_lines,
+            "auto_classification_rate": auto_classification_rate,
+            "avg_exception_resolution_days": avg_resolution_days,
+            "ai_recommendation_acceptance_rate": ai_recommendation_acceptance_rate,
+            "estimated_hours_saved": estimated_hours_saved,
+        },
+        "by_type": by_type,
+        "savings_trend": savings_trend,
+        "top_suppliers_by_exception_rate": top_suppliers,
+    }

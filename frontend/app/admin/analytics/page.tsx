@@ -38,6 +38,7 @@ import {
   getUtilization,
   getClaimStacking,
   getRateBenchmarks,
+  getValueSummary,
   downloadBlob,
 } from "@/lib/api";
 import type {
@@ -53,6 +54,7 @@ import type {
   SupplierComparisonRow,
   UtilizationRow,
   ClaimStackingRow,
+  ValueSummary,
 } from "@/lib/types";
 import { DOMAIN_LABELS } from "@/lib/taxonomy";
 
@@ -117,7 +119,7 @@ const EXCEPTION_COLORS: Record<string, string> = {
 
 // ── Tab and filter types ───────────────────────────────────────────────────────
 
-type TabId = "overview" | "spend" | "suppliers" | "utilization" | "geographic";
+type TabId = "performance" | "overview" | "spend" | "suppliers" | "utilization" | "geographic";
 
 interface FilterState {
   dateRange: "30d" | "90d" | "12mo" | "ytd";
@@ -135,6 +137,7 @@ const LS_TAB    = "analytics_tab";
 const LS_FILTER = "analytics_filters";
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: "performance",  label: "Performance" },
   { id: "overview",     label: "Overview" },
   { id: "spend",        label: "Spend & Rates" },
   { id: "suppliers",    label: "Suppliers" },
@@ -220,11 +223,223 @@ function SupplierTooltip({ active, payload, label }: any) {
   );
 }
 
+// ── Performance Tab ───────────────────────────────────────────────────────────
+
+function PerformanceTab({
+  valueSummary,
+  loading,
+  onExportCsv,
+  csvDownloading,
+}: {
+  valueSummary: ValueSummary | undefined;
+  loading: boolean;
+  onExportCsv: () => void;
+  csvDownloading: boolean;
+}) {
+  const fmt = (val: string | number | undefined) => {
+    const n = typeof val === "string" ? parseFloat(val) : Number(val ?? 0);
+    if (isNaN(n)) return "$0";
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+  };
+
+  const pct = (val: number | undefined) => `${Math.round((val ?? 0) * 100)}%`;
+
+  const recoveryAccent = (() => {
+    const r = (valueSummary?.totals.recovery_rate ?? 0);
+    if (r >= 0.7) return "green" as const;
+    if (r >= 0.4) return "amber" as const;
+    return "red" as const;
+  })();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  const hasSavings = parseFloat(valueSummary?.totals.identified_savings ?? "0") > 0;
+
+  return (
+    <div className="space-y-6 print:space-y-8">
+      {/* Print header — hidden on screen */}
+      <div className="hidden print:block mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Performance Report</h2>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {valueSummary?.period.from} → {valueSummary?.period.to}
+          {" "}· {valueSummary?.period.days} days
+          {" "}· Generated {new Date().toLocaleDateString()}
+        </p>
+      </div>
+
+      {/* Hero KPI row */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <MetricCard
+          label="Total Reviewed"
+          value={fmt(valueSummary?.totals.total_billed)}
+          sublabel={`${valueSummary?.totals.invoices_processed ?? 0} invoices processed`}
+          accent="blue"
+        />
+        <MetricCard
+          label="Billing Issues Found"
+          value={fmt(valueSummary?.totals.identified_savings)}
+          sublabel="Rate + guideline variances"
+          accent="amber"
+        />
+        <MetricCard
+          label="Recovered for You"
+          value={fmt(valueSummary?.totals.recovered_savings)}
+          sublabel={`${fmt(valueSummary?.totals.pending_savings)} still pending`}
+          accent="green"
+        />
+        <MetricCard
+          label="Recovery Rate"
+          value={pct(valueSummary?.totals.recovery_rate)}
+          sublabel="Recovered / identified"
+          accent={recoveryAccent}
+        />
+      </div>
+
+      {/* Empty state */}
+      {!hasSavings && (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-white py-16 text-center">
+          <p className="text-sm font-medium text-gray-500">No billing variances identified yet</p>
+          <p className="mt-1 text-xs text-gray-400">Process invoices with active contracts to see savings data</p>
+        </div>
+      )}
+
+      {hasSavings && (
+        <>
+          {/* Savings trend */}
+          {(valueSummary?.savings_trend?.length ?? 0) > 1 && (
+            <div className="rounded-xl border bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Savings Trend</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={valueSummary?.savings_trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={55} />
+                  <Tooltip formatter={(v: number) => fmt(v)} />
+                  <Legend />
+                  <Area type="monotone" dataKey="identified" name="Identified" stroke="#F59E0B" fill="#FEF3C7" strokeWidth={2} />
+                  <Area type="monotone" dataKey="recovered"  name="Recovered"  stroke="#10B981" fill="#D1FAE5" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Exception breakdown by type */}
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-700 mb-5">Where Savings Come From</h3>
+            <div className="space-y-4">
+              {(["RATE", "GUIDELINE", "CLASSIFICATION"] as const).map((type) => {
+                const d = valueSummary?.by_type?.[type];
+                const typeLabels = { RATE: "Rate violations", GUIDELINE: "Guideline issues", CLASSIFICATION: "Classification" };
+                const typeDesc = { RATE: "Billed above contracted rate", GUIDELINE: "Billing guideline breaches", CLASSIFICATION: "Unrecognized service codes" };
+                return (
+                  <div key={type} className="grid grid-cols-[7rem_5rem_7rem_7rem_1fr_2.5rem] items-center gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800">{typeLabels[type]}</p>
+                      <p className="text-[10px] text-gray-400 leading-tight">{typeDesc[type]}</p>
+                    </div>
+                    <span className="text-xs tabular-nums text-gray-500">{d?.flagged ?? 0} flagged</span>
+                    <span className="text-xs tabular-nums font-semibold text-amber-700">{fmt(d?.identified_savings ?? 0)} ID&apos;d</span>
+                    <span className="text-xs tabular-nums font-semibold text-green-700">{fmt(d?.recovered_savings ?? 0)} rec&apos;d</span>
+                    <div className="h-1.5 rounded-full bg-gray-100">
+                      <div
+                        className="h-1.5 rounded-full bg-green-500 transition-all"
+                        style={{ width: `${Math.round((d?.recovery_rate ?? 0) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs tabular-nums text-gray-400 text-right">{pct(d?.recovery_rate)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* AI Performance */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              {
+                value: pct(valueSummary?.efficiency.auto_classification_rate),
+                label: "AI Auto-Classified",
+                sub: `${valueSummary?.efficiency.auto_classified_lines ?? 0} of ${valueSummary?.efficiency.total_lines ?? 0} lines`,
+              },
+              {
+                value: pct(valueSummary?.efficiency.ai_recommendation_acceptance_rate),
+                label: "AI Recommendation Acceptance",
+                sub: "Carrier agreed with AI resolution",
+              },
+              {
+                value: `${Math.round(valueSummary?.efficiency.estimated_hours_saved ?? 0)}h`,
+                label: "Est. Hours Saved",
+                sub: valueSummary?.efficiency.avg_exception_resolution_days
+                  ? `~${valueSummary.efficiency.avg_exception_resolution_days.toFixed(1)}d avg exception resolution`
+                  : "Based on auto-classified lines",
+              },
+            ].map(({ value, label, sub }) => (
+              <div key={label} className="rounded-xl border bg-white p-5 shadow-sm text-center">
+                <p className="text-3xl font-bold text-gray-900 tabular-nums">{value}</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+                <p className="mt-0.5 text-xs text-gray-400">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Top suppliers by exception rate */}
+          {(valueSummary?.top_suppliers_by_exception_rate?.length ?? 0) > 0 && (
+            <div className="rounded-xl border bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Suppliers by Exception Rate</h3>
+              <ResponsiveContainer width="100%" height={Math.max(160, (valueSummary?.top_suppliers_by_exception_rate?.length ?? 3) * 44 + 30)}>
+                <BarChart
+                  data={valueSummary?.top_suppliers_by_exception_rate}
+                  layout="vertical"
+                  margin={{ left: 8, right: 32, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="supplier_name" width={140} tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    formatter={(v: number, _name: string, item: { payload?: { exception_lines?: number; total_lines?: number; identified_savings?: number } }) => [
+                      `${Math.round(v * 100)}% (${item.payload?.exception_lines ?? 0} of ${item.payload?.total_lines ?? 0} lines)`,
+                      "Exception Rate",
+                    ]}
+                  />
+                  <Bar dataKey="exception_rate" name="Exception Rate" fill="#EF4444" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Actions */}
+      <div className="flex justify-end gap-3 print:hidden">
+        <button
+          onClick={() => window.print()}
+          className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          Print / Save PDF
+        </button>
+        <button
+          onClick={onExportCsv}
+          disabled={csvDownloading}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+        >
+          {csvDownloading ? "Exporting…" : "Export CSV"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AdminAnalyticsPage() {
   // ── Persistent state ──────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("performance");
   const [filters, setFilters]     = useState<FilterState>(DEFAULT_FILTERS);
   const [initialized, setInitialized] = useState(false);
 
@@ -331,6 +546,10 @@ export default function AdminAnalyticsPage() {
   const { data: rateBenchmarks } = useQuery({
     queryKey: ["analytics-rate-benchmarks", ...fk],
     queryFn: () => getRateBenchmarks(apiFilters),
+  });
+  const { data: valueSummary, isLoading: loadingValue } = useQuery({
+    queryKey: ["analytics-value-summary", filters.dateRange],
+    queryFn: () => getValueSummary({ date_from: apiFilters.date_from, date_to: apiFilters.date_to }),
   });
 
   const isLoading = loadingSummary || loadingDomain || loadingSupplier || loadingTaxonomy || loadingEx;
@@ -547,6 +766,14 @@ export default function AdminAnalyticsPage() {
 
       {/* ── Tab content ───────────────────────────────────────────────────── */}
       <div className="p-6 space-y-8">
+
+        {/* ════════════════════════════════════════════════════════════
+            PERFORMANCE TAB
+        ════════════════════════════════════════════════════════════ */}
+        {activeTab === "performance" && (
+          <PerformanceTab valueSummary={valueSummary} loading={loadingValue} onExportCsv={handleCsvExport} csvDownloading={csvDownloading} />
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-24">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />

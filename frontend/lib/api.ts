@@ -57,6 +57,7 @@ import type {
   RateBenchmarkRow,
   ReviewQueueGroup,
   MappingInsights,
+  ValueSummary,
 } from "./types";
 
 const BASE_URL =
@@ -690,6 +691,14 @@ export function getClaimStacking(filters?: AnalyticsFilters): Promise<ClaimStack
 
 export function getRateBenchmarks(filters?: AnalyticsFilters): Promise<RateBenchmarkRow[]> {
   return apiFetch<RateBenchmarkRow[]>(`/admin/analytics/rate-benchmarks${_analyticsQs(filters)}`);
+}
+
+export function getValueSummary(filters?: Pick<AnalyticsFilters, "date_from" | "date_to">): Promise<ValueSummary> {
+  const params = new URLSearchParams();
+  if (filters?.date_from) params.set("date_from", filters.date_from);
+  if (filters?.date_to) params.set("date_to", filters.date_to);
+  const qs = params.toString();
+  return apiFetch<ValueSummary>(`/admin/analytics/value-summary${qs ? `?${qs}` : ""}`);
 }
 
 // ── Admin — Carrier Team ──────────────────────────────────────────────────────

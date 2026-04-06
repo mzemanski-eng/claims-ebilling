@@ -7,3 +7,37 @@
     font-family: system-ui, -apple-system, sans-serif;
   }
 }
+
+@media print {
+  /* Hide navigation and chrome when printing the Performance tab */
+  nav,
+  header,
+  [data-print-hide],
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Remove sticky/fixed positioning */
+  .sticky,
+  .fixed {
+    position: static !important;
+  }
+
+  /* Full width content */
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Ensure cards don't break across pages */
+  .rounded-xl {
+    break-inside: avoid;
+  }
+
+  /* Clean background */
+  body,
+  .min-h-screen {
+    background: white !important;
+  }
+}

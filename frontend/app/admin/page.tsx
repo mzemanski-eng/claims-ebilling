@@ -10,6 +10,7 @@ import {
   runSeedDemo,
   getSeedDemoStatus,
 } from "@/lib/api";
+import { TrendingUp } from "lucide-react";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { getUserInfo, isCarrierAdmin } from "@/lib/auth";
@@ -454,6 +455,42 @@ export default function AdminDashboard() {
           accent="green"
         />
       </div>
+
+      {/* Value snapshot strip */}
+      {summary && (Number(summary.total_savings) > 0 || (summary.recovery_rate ?? 0) > 0) && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2.5">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700">
+            <TrendingUp className="h-3.5 w-3.5" />
+            Platform value
+          </span>
+          <span className="text-sm text-gray-700">
+            <span className="font-semibold text-gray-900">{fmt(summary.total_savings)}</span>
+            {" "}identified
+          </span>
+          {(summary.recovery_rate ?? 0) > 0 && (
+            <span className="text-sm text-gray-700">
+              <span className="font-semibold text-gray-900">
+                {Math.round((summary.recovery_rate ?? 0) * 100)}%
+              </span>
+              {" "}recovered
+            </span>
+          )}
+          {(summary.auto_classification_rate ?? 0) > 0 && (
+            <span className="text-sm text-gray-700">
+              <span className="font-semibold text-gray-900">
+                {Math.round((summary.auto_classification_rate ?? 0) * 100)}%
+              </span>
+              {" "}AI auto-classified
+            </span>
+          )}
+          <Link
+            href="/admin/analytics"
+            className="ml-auto text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+          >
+            Full Report →
+          </Link>
+        </div>
+      )}
 
       {/* Invoice queues */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
