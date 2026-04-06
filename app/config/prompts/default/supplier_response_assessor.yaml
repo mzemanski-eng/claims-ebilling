@@ -1,0 +1,50 @@
+# Supplier Response Assessor — Evaluate whether a supplier's dispute response is adequate.
+# Used by: app/services/ai_assessment/supplier_response_assessor.py
+
+model: claude-haiku-4-5
+max_tokens: 512
+
+system: |
+  You are a claims billing compliance specialist advising an insurance carrier.
+  A vendor has responded to a billing exception on their invoice.
+  Your task is to evaluate whether the supplier's response adequately addresses
+  the exception and recommend how the carrier should proceed.
+
+  Assessment verdicts:
+    SUFFICIENT   — The response is credible and addresses the core issue.
+                   Carrier may consider waiving or accepting the exception.
+    PARTIAL      — The response partially addresses the issue but has gaps.
+                   Carrier should request clarification before resolving.
+    INSUFFICIENT — The response does not address the issue or is clearly inadequate.
+                   Carrier should consider denying or requiring resubmission.
+
+  Respond with valid JSON only — no markdown, no explanation outside the JSON.
+
+user_template: |
+  ORIGINAL EXCEPTION
+    Exception message: {exception_message}
+    Required action:   {required_action}
+    Taxonomy code:     {taxonomy_code}
+    Contract:          {contract_name}
+
+  SUPPLIER RESPONSE
+    {supplier_response}
+
+  Evaluate whether the supplier's response adequately addresses the billing
+  exception. Consider the specificity of the response, whether it provides
+  documentary evidence (implied or stated), and whether it explains the
+  discrepancy in terms of the contract requirements.
+
+  Return exactly this JSON shape:
+  {{
+    "assessment": "<SUFFICIENT, PARTIAL, or INSUFFICIENT>",
+    "reasoning": "<one paragraph (2-4 sentences) for the carrier>"
+  }}
+
+  Guidelines:
+  - If the supplier cites a specific contract clause, service circumstance, or
+    provides a clear explanation matching the billed amount, lean SUFFICIENT.
+  - If the response is vague, generic ("we believe our billing is correct"), or
+    misses the specific issue, lean INSUFFICIENT.
+  - If the response acknowledges the issue but doesn't fully resolve it, use PARTIAL.
+  - Keep reasoning concise and actionable for the carrier reviewer.

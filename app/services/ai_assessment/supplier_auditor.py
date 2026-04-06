@@ -25,12 +25,20 @@ import json
 import logging
 from typing import Optional
 
+from app.config.prompt_loader import load_prompt
+
 logger = logging.getLogger(__name__)
 
 _client = None
 
 _VALID_RATINGS = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 _VALID_SEVERITIES = {"INFO", "WARNING", "ERROR"}
+
+# Prompt config — loaded from YAML at module import, cached by prompt_loader.
+# Edit app/config/prompts/default/supplier_auditor.yaml to iterate without redeploy.
+_PROMPT = load_prompt("supplier_auditor")
+_SYSTEM_PROMPT = _PROMPT.get("system", "")
+_USER_TEMPLATE = _PROMPT["user_template"]
 
 
 def _get_client():
@@ -55,54 +63,6 @@ def _get_client():
         return None
 
 
-_SYSTEM_PROMPT = """\
-You are a claims billing audit specialist for an insurance carrier.
-Your task is to analyse a vendor supplier's billing history and produce a
-structured audit report with specific findings and actionable recommendations.
-
-Respond with valid JSON only — no markdown, no explanation outside the JSON.
-"""
-
-_USER_TEMPLATE = """\
-SUPPLIER: {supplier_name}
-
-INVOICE HISTORY (all-time)
-  Total invoices:          {total_invoices}
-  Approved:                {approved_count}
-  Flagged for review:      {review_required_count}
-  Pending approval:        {pending_count}
-  Exception rate:          {exception_rate}%
-
-TOP BILLED TAXONOMY CODES (by total amount)
-{top_codes_block}
-
-EXCEPTION PATTERNS (by taxonomy code and action required)
-{exception_block}
-
-Analyse this supplier's billing history and produce a structured audit report.
-
-Return exactly this JSON shape:
-{{
-  "risk_rating": "<LOW | MEDIUM | HIGH | CRITICAL>",
-  "findings": [
-    {{
-      "title": "<short finding title>",
-      "detail": "<1-2 sentence explanation>",
-      "severity": "<INFO | WARNING | ERROR>"
-    }}
-  ],
-  "recommendations": ["<actionable recommendation 1>", "<actionable recommendation 2>", ...]
-}}
-
-Guidelines:
-- Include 3-6 findings covering billing patterns, exception trends, and any anomalies.
-- Recommendations should be specific and actionable (e.g., "Add max_units guideline for
-  ENG.STRUCT.L1 — supplier has billed above contract maximum on 3 invoices").
-- Use ERROR severity for findings that indicate systematic billing violations.
-- Use WARNING for patterns that warrant closer monitoring.
-- Use INFO for neutral observations about billing behaviour.
-- Keep findings and recommendations concise and professional.
-"""
 
 
 def _format_top_codes(top_codes: list[dict]) -> str:
@@ -182,10 +142,10 @@ def audit_supplier(
     )
 
     try:
-        model = "claude-haiku-4-5"
+        model = _PROMPT["model"]
         message = _get_client().messages.create(
             model=model,
-            max_tokens=1024,
+            max_tokens=_PROMPT["max_tokens"],
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )

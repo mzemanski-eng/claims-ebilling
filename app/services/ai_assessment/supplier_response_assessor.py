@@ -20,11 +20,19 @@ import json
 import logging
 from typing import Optional
 
+from app.config.prompt_loader import load_prompt
+
 logger = logging.getLogger(__name__)
 
 _client = None
 
 _VALID_ASSESSMENTS = {"SUFFICIENT", "INSUFFICIENT", "PARTIAL"}
+
+# Prompt config — loaded from YAML at module import, cached by prompt_loader.
+# Edit app/config/prompts/default/supplier_response_assessor.yaml to iterate without redeploy.
+_PROMPT = load_prompt("supplier_response_assessor")
+_SYSTEM_PROMPT = _PROMPT.get("system", "")
+_USER_TEMPLATE = _PROMPT["user_template"]
 
 
 def _get_client():
@@ -51,52 +59,6 @@ def _get_client():
         return None
 
 
-_SYSTEM_PROMPT = """\
-You are a claims billing compliance specialist advising an insurance carrier.
-A vendor has responded to a billing exception on their invoice.
-Your task is to evaluate whether the supplier's response adequately addresses
-the exception and recommend how the carrier should proceed.
-
-Assessment verdicts:
-  SUFFICIENT   — The response is credible and addresses the core issue.
-                 Carrier may consider waiving or accepting the exception.
-  PARTIAL      — The response partially addresses the issue but has gaps.
-                 Carrier should request clarification before resolving.
-  INSUFFICIENT — The response does not address the issue or is clearly inadequate.
-                 Carrier should consider denying or requiring resubmission.
-
-Respond with valid JSON only — no markdown, no explanation outside the JSON.
-"""
-
-_USER_TEMPLATE = """\
-ORIGINAL EXCEPTION
-  Exception message: {exception_message}
-  Required action:   {required_action}
-  Taxonomy code:     {taxonomy_code}
-  Contract:          {contract_name}
-
-SUPPLIER RESPONSE
-  {supplier_response}
-
-Evaluate whether the supplier's response adequately addresses the billing
-exception. Consider the specificity of the response, whether it provides
-documentary evidence (implied or stated), and whether it explains the
-discrepancy in terms of the contract requirements.
-
-Return exactly this JSON shape:
-{{
-  "assessment": "<SUFFICIENT, PARTIAL, or INSUFFICIENT>",
-  "reasoning": "<one paragraph (2-4 sentences) for the carrier>"
-}}
-
-Guidelines:
-- If the supplier cites a specific contract clause, service circumstance, or
-  provides a clear explanation matching the billed amount, lean SUFFICIENT.
-- If the response is vague, generic ("we believe our billing is correct"), or
-  misses the specific issue, lean INSUFFICIENT.
-- If the response acknowledges the issue but doesn't fully resolve it, use PARTIAL.
-- Keep reasoning concise and actionable for the carrier reviewer.
-"""
 
 
 def assess_supplier_response(
@@ -138,8 +100,8 @@ def assess_supplier_response(
 
     try:
         message = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=512,
+            model=_PROMPT["model"],
+            max_tokens=_PROMPT["max_tokens"],
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )

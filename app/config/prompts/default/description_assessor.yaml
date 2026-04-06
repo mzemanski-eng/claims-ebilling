@@ -1,0 +1,33 @@
+# Description Assessor — Semantic alignment check: supplier description vs taxonomy.
+# Used by: app/services/ai_assessment/description_assessor.py
+
+model: claude-haiku-4-5
+max_tokens: 256
+
+system: |
+  You are an insurance claims billing auditor reviewing invoice line items.
+  Your task is to assess whether a supplier's invoice description is semantically
+  consistent with the contracted service type it was classified under.
+
+  Respond with valid JSON only — no markdown, no explanation outside the JSON.
+
+user_template: |
+  CONTRACT SERVICE
+    Label:       {taxonomy_label}
+    Description: {taxonomy_description}
+
+  SUPPLIER INVOICE LINE
+    Description: "{raw_description}"
+
+  Assess whether the supplier's description is consistent with the contracted service.
+
+  Return exactly this JSON shape:
+  {{
+    "score": "<ALIGNED | PARTIAL | MISALIGNED>",
+    "rationale": "<one concise sentence>"
+  }}
+
+  Scoring guide:
+    ALIGNED    — Description clearly refers to the same service type, even if worded differently.
+    PARTIAL    — Description is vague, ambiguous, or only partially describes the service.
+    MISALIGNED — Description appears to be a different type of service than contracted.

@@ -1,0 +1,75 @@
+# Contract Parser — Extract structured contract data from a supplier PDF.
+# Used by: app/services/ai_assessment/contract_parser.py
+#
+# Note: this service sends a native PDF document (base64) rather than plain text.
+# The user_template below is the text instruction sent alongside the document.
+# The {taxonomy_block} and {supplier_id} placeholders are filled at runtime.
+
+model: claude-sonnet-4-5
+max_tokens: 4096
+
+system: |
+  You are an insurance claims billing contract analyst.
+  Your task is to extract structured contract data from a vendor services agreement PDF.
+  Return ONLY valid JSON — no markdown fences, no explanation outside the JSON.
+
+user_template: |
+  Extract all contract data from the attached PDF and return it as JSON.
+
+  Available taxonomy codes (match each service price to the closest code):
+  {taxonomy_block}
+
+  Return exactly this JSON structure:
+  {{
+    "contract": {{
+      "supplier_id": "{supplier_id}",
+      "name": "<contract or agreement title, e.g. 'Field Adjuster Services Agreement 2025'>",
+      "effective_from": "<YYYY-MM-DD>",
+      "effective_to": "<YYYY-MM-DD or null>",
+      "geography_scope": "<national | regional | state>",
+      "state_codes": null,
+      "notes": "<any relevant notes or null>"
+    }},
+    "rate_cards": [
+      {{
+        "taxonomy_code": "<exact code from the list above>",
+        "rate_type": "<flat | tiered | hourly | mileage | per_diem>",
+        "contracted_rate": <number or null — use null only when rate_type is "tiered">,
+        "rate_tiers": [
+          {{"from_unit": <int>, "to_unit": <int or null>, "rate": <number>}}
+        ],
+        "max_units": <number or null>,
+        "is_all_inclusive": <true or false>,
+        "effective_from": "<YYYY-MM-DD>",
+        "effective_to": "<YYYY-MM-DD or null>"
+      }}
+    ],
+    "guidelines": [
+      {{
+        "taxonomy_code": "<exact code or null for domain-wide>",
+        "domain": "<e.g. IA or CR or null>",
+        "rule_type": "<max_units | cap_amount | billing_increment | bundling_prohibition | requires_auth>",
+        "rule_params": {{}},
+        "severity": "<ERROR | WARNING | INFO>",
+        "narrative_source": "<verbatim contract language this rule came from>"
+      }}
+    ],
+    "extraction_notes": "<1-2 sentence summary of confidence level, any ambiguities or missing data>"
+  }}
+
+  Important:
+  - Only use taxonomy_codes from the list above — never invent new codes.
+  - If you cannot find a clear match for a service, omit that rate card rather than guess.
+  - For rate_type: use "flat" for fixed fees, "hourly" for per-hour billing, "mileage" for
+    per-mile billing, "per_diem" for daily rates, and "tiered" when the contract specifies
+    different rates for different quantity ranges (e.g. pages 1–20 @ $0.85, then 21+ @ $0.55).
+    Tiered pricing is common in record retrieval (per-page) contracts.
+  - For tiered rate cards: set contracted_rate to null and populate rate_tiers with all bands.
+    Leave to_unit as null on the final band (meaning "all remaining units").
+  - For non-tiered rate cards: set rate_tiers to null (or []) and use contracted_rate.
+  - For rule_params, use appropriate keys:
+    - max_units: {{"max": <number>, "period": "per_claim | per_day | per_visit"}}
+    - cap_amount: {{"max_amount": <number>}}
+    - billing_increment: {{"min_increment": <number>, "unit": "hour | 15min"}}
+    - bundling_prohibition: {{"prohibited_with": ["<code1>", "<code2>"]}}
+    - requires_auth: {{}}

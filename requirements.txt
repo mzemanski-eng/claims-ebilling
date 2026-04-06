@@ -35,3 +35,6 @@ structlog==24.4.0
 
 # AI / LLM
 anthropic>=0.40.0
+
+# Config
+PyYAML==6.0.2         # prompt configs + future vertical config files

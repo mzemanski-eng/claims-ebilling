@@ -25,11 +25,19 @@ import json
 import logging
 from typing import Optional
 
+from app.config.prompt_loader import load_prompt
+
 logger = logging.getLogger(__name__)
 
 _client = None
 
 _VALID_LEVELS = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+
+# Prompt config — loaded from YAML at module import, cached by prompt_loader.
+# Edit app/config/prompts/default/invoice_triage.yaml to iterate without redeploy.
+_PROMPT = load_prompt("invoice_triage")
+_SYSTEM_PROMPT = _PROMPT.get("system", "")
+_USER_TEMPLATE = _PROMPT["user_template"]
 
 
 def _get_client():
@@ -54,46 +62,6 @@ def _get_client():
         return None
 
 
-_SYSTEM_PROMPT = """\
-You are a claims billing risk analyst for an insurance carrier.
-Your task is to assess the risk level of an incoming vendor invoice before
-it is processed, based on the supplier's history and invoice characteristics.
-
-Respond with valid JSON only — no markdown, no explanation outside the JSON.
-"""
-
-_USER_TEMPLATE = """\
-INVOICE DETAILS
-  Supplier:          {supplier_name}
-  Invoice number:    {invoice_number}
-  Invoice date:      {invoice_date}
-  Line items:        {line_item_count}
-  Estimated total:   ${estimated_total:,.2f}
-
-SUPPLIER HISTORY (past 90 days)
-  Invoices flagged for review: {prior_review_required_count}
-
-Assess the risk level of this invoice and identify 2-4 specific risk factors.
-
-Return exactly this JSON shape:
-{{
-  "risk_level": "<LOW | MEDIUM | HIGH | CRITICAL>",
-  "risk_factors": ["<factor 1>", "<factor 2>", ...]
-}}
-
-Risk level guide:
-  LOW      — Established supplier, normal invoice pattern, no recent flags.
-  MEDIUM   — 1-2 recent flagged invoices, or invoice amount 20-50% above typical.
-  HIGH     — 3+ recent flagged invoices, new supplier, or unusually large invoice.
-  CRITICAL — Pattern of repeated flags, very large amount, or other serious concerns.
-
-Risk factor examples:
-  - "Supplier has 4 invoices flagged for review in the past 90 days"
-  - "Invoice total of $8,500 is above the typical range for this service type"
-  - "High line item count may indicate unbundled charges"
-  - "First invoice from this supplier — no billing history to benchmark against"
-Keep each factor concise (1 sentence).
-"""
 
 
 def triage_invoice(
@@ -135,10 +103,10 @@ def triage_invoice(
     )
 
     try:
-        model = "claude-haiku-4-5"
+        model = _PROMPT["model"]
         message = _get_client().messages.create(
             model=model,
-            max_tokens=512,
+            max_tokens=_PROMPT["max_tokens"],
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )

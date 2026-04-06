@@ -19,6 +19,8 @@ import json
 import logging
 from typing import Optional
 
+from app.config.prompt_loader import load_prompt
+
 logger = logging.getLogger(__name__)
 
 _client = None
@@ -30,6 +32,12 @@ _VALID_ACTIONS = {
     "RECLASSIFIED",
     "DENIED",
 }
+
+# Prompt config — loaded from YAML at module import, cached by prompt_loader.
+# Edit app/config/prompts/default/exception_resolver.yaml to iterate without redeploy.
+_PROMPT = load_prompt("exception_resolver")
+_SYSTEM_PROMPT = _PROMPT.get("system", "")
+_USER_TEMPLATE = _PROMPT["user_template"]
 
 
 def _get_client():
@@ -54,58 +62,6 @@ def _get_client():
         return None
 
 
-_SYSTEM_PROMPT = """\
-You are drafting a short message FROM an insurance carrier billing team TO a supplier
-to explain a billing exception and what happens next.
-
-Resolution actions available (internal — do not mention in the message):
-  WAIVED            — Accept the line as billed; no action needed from supplier.
-  ACCEPTED_REDUCTION — Payment will be reduced to the contracted amount.
-  HELD_CONTRACT_RATE — Payment capped at the contracted rate.
-  RECLASSIFIED      — Line reclassified; payment processed at corrected rate.
-  DENIED            — Line rejected; supplier must correct and resubmit.
-
-Writing style for the supplier message:
-- Write directly to the supplier ("we", "your", "this line").
-- 1-2 short sentences only.
-- Plain English — no legal or insurance jargon.
-- Tell them: (1) what the issue was, and (2) what will happen or what they need to do.
-- Good example: "This service wasn't covered at the rate billed under your contract —
-  we'll process it at the contracted amount of $X instead."
-- Good example: "We couldn't find a contracted rate for this service code, so the line
-  has been removed. Please resubmit with a corrected billing code."
-- Bad example: "The taxonomy code lacks an established contracted rate, creating an
-  uncontrolled billing situation requiring contract amendment procedures."
-
-Respond with valid JSON only — no markdown, no explanation outside the JSON.
-"""
-
-_USER_TEMPLATE = """\
-EXCEPTION DETAILS
-  Exception message: {exception_message}
-  Required action:   {required_action}
-  Taxonomy code:     {taxonomy_code}
-  Contract:          {contract_name}
-  Supplier:          {supplier_name}
-  Prior exceptions on this code (last 90 days): {prior_exception_count}
-
-Choose the best resolution action and write a 1-2 sentence plain-English message
-to send to the supplier explaining the issue and outcome.
-
-Return exactly this JSON shape:
-{{
-  "recommendation": "<one of the five resolution actions above>",
-  "reasoning": "<1-2 sentence supplier-facing message>"
-}}
-
-Guidelines:
-- If the billed amount exceeds the contracted rate, prefer HELD_CONTRACT_RATE.
-- If the supplier has repeatedly had the same issue (prior_exceptions > 2),
-  prefer DENIED.
-- If documentation is missing, prefer DENIED with a clear resubmit instruction.
-- If the taxonomy code is out of scope for this supplier, prefer DENIED.
-- If the exception is minor or a first occurrence, consider WAIVED.
-"""
 
 
 def assess_exception(
@@ -147,10 +103,10 @@ def assess_exception(
     )
 
     try:
-        model = "claude-haiku-4-5"
+        model = _PROMPT["model"]
         message = _get_client().messages.create(
             model=model,
-            max_tokens=512,
+            max_tokens=_PROMPT["max_tokens"],
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )

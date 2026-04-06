@@ -17,7 +17,15 @@ import json
 import logging
 from datetime import date
 
+from app.config.prompt_loader import load_prompt
+
 logger = logging.getLogger(__name__)
+
+# Prompt config — loaded from YAML at module import, cached by prompt_loader.
+# Edit app/config/prompts/default/contract_parser.yaml to iterate without redeploy.
+_PROMPT = load_prompt("contract_parser")
+_SYSTEM_PROMPT = _PROMPT.get("system", "")
+_USER_TEMPLATE = _PROMPT["user_template"]
 
 # Lazy-loaded client — only imported when actually needed
 _client = None
@@ -67,73 +75,6 @@ def _build_taxonomy_block() -> str:
         return "  (taxonomy unavailable)"
 
 
-_SYSTEM_PROMPT = """\
-You are an insurance claims billing contract analyst.
-Your task is to extract structured contract data from a vendor services agreement PDF.
-Return ONLY valid JSON — no markdown fences, no explanation outside the JSON.
-"""
-
-_USER_TEMPLATE = """\
-Extract all contract data from the attached PDF and return it as JSON.
-
-Available taxonomy codes (match each service price to the closest code):
-{taxonomy_block}
-
-Return exactly this JSON structure:
-{{
-  "contract": {{
-    "supplier_id": "{supplier_id}",
-    "name": "<contract or agreement title, e.g. 'Field Adjuster Services Agreement 2025'>",
-    "effective_from": "<YYYY-MM-DD>",
-    "effective_to": "<YYYY-MM-DD or null>",
-    "geography_scope": "<national | regional | state>",
-    "state_codes": null,
-    "notes": "<any relevant notes or null>"
-  }},
-  "rate_cards": [
-    {{
-      "taxonomy_code": "<exact code from the list above>",
-      "rate_type": "<flat | tiered | hourly | mileage | per_diem>",
-      "contracted_rate": <number or null — use null only when rate_type is "tiered">,
-      "rate_tiers": [
-        {{"from_unit": <int>, "to_unit": <int or null>, "rate": <number>}}
-      ],
-      "max_units": <number or null>,
-      "is_all_inclusive": <true or false>,
-      "effective_from": "<YYYY-MM-DD>",
-      "effective_to": "<YYYY-MM-DD or null>"
-    }}
-  ],
-  "guidelines": [
-    {{
-      "taxonomy_code": "<exact code or null for domain-wide>",
-      "domain": "<e.g. IA or CR or null>",
-      "rule_type": "<max_units | cap_amount | billing_increment | bundling_prohibition | requires_auth>",
-      "rule_params": {{}},
-      "severity": "<ERROR | WARNING | INFO>",
-      "narrative_source": "<verbatim contract language this rule came from>"
-    }}
-  ],
-  "extraction_notes": "<1-2 sentence summary of confidence level, any ambiguities or missing data>"
-}}
-
-Important:
-- Only use taxonomy_codes from the list above — never invent new codes.
-- If you cannot find a clear match for a service, omit that rate card rather than guess.
-- For rate_type: use "flat" for fixed fees, "hourly" for per-hour billing, "mileage" for
-  per-mile billing, "per_diem" for daily rates, and "tiered" when the contract specifies
-  different rates for different quantity ranges (e.g. pages 1–20 @ $0.85, then 21+ @ $0.55).
-  Tiered pricing is common in record retrieval (per-page) contracts.
-- For tiered rate cards: set contracted_rate to null and populate rate_tiers with all bands.
-  Leave to_unit as null on the final band (meaning "all remaining units").
-- For non-tiered rate cards: set rate_tiers to null (or []) and use contracted_rate.
-- For rule_params, use appropriate keys:
-  - max_units: {{"max": <number>, "period": "per_claim | per_day | per_visit"}}
-  - cap_amount: {{"max_amount": <number>}}
-  - billing_increment: {{"min_increment": <number>, "unit": "hour | 15min"}}
-  - bundling_prohibition: {{"prohibited_with": ["<code1>", "<code2>"]}}
-  - requires_auth: {{}}
-"""
 
 
 def _empty_result(supplier_id: str, notes: str) -> dict:
@@ -205,10 +146,10 @@ def parse_contract(pdf_bytes: bytes, supplier_id: str, db) -> dict:
     pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
 
     try:
-        model = "claude-sonnet-4-5"
+        model = _PROMPT["model"]
         message = client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=_PROMPT["max_tokens"],
             system=_SYSTEM_PROMPT,
             messages=[
                 {

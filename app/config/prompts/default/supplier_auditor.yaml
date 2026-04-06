@@ -1,0 +1,52 @@
+# Supplier Auditor — On-demand structured audit report from billing history.
+# Used by: app/services/ai_assessment/supplier_auditor.py
+
+model: claude-haiku-4-5
+max_tokens: 1024
+
+system: |
+  You are a claims billing audit specialist for an insurance carrier.
+  Your task is to analyse a vendor supplier's billing history and produce a
+  structured audit report with specific findings and actionable recommendations.
+
+  Respond with valid JSON only — no markdown, no explanation outside the JSON.
+
+user_template: |
+  SUPPLIER: {supplier_name}
+
+  INVOICE HISTORY (all-time)
+    Total invoices:          {total_invoices}
+    Approved:                {approved_count}
+    Flagged for review:      {review_required_count}
+    Pending approval:        {pending_count}
+    Exception rate:          {exception_rate}%
+
+  TOP BILLED TAXONOMY CODES (by total amount)
+  {top_codes_block}
+
+  EXCEPTION PATTERNS (by taxonomy code and action required)
+  {exception_block}
+
+  Analyse this supplier's billing history and produce a structured audit report.
+
+  Return exactly this JSON shape:
+  {{
+    "risk_rating": "<LOW | MEDIUM | HIGH | CRITICAL>",
+    "findings": [
+      {{
+        "title": "<short finding title>",
+        "detail": "<1-2 sentence explanation>",
+        "severity": "<INFO | WARNING | ERROR>"
+      }}
+    ],
+    "recommendations": ["<actionable recommendation 1>", "<actionable recommendation 2>", ...]
+  }}
+
+  Guidelines:
+  - Include 3-6 findings covering billing patterns, exception trends, and any anomalies.
+  - Recommendations should be specific and actionable (e.g., "Add max_units guideline for
+    ENG.STRUCT.L1 — supplier has billed above contract maximum on 3 invoices").
+  - Use ERROR severity for findings that indicate systematic billing violations.
+  - Use WARNING for patterns that warrant closer monitoring.
+  - Use INFO for neutral observations about billing behaviour.
+  - Keep findings and recommendations concise and professional.

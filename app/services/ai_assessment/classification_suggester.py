@@ -31,10 +31,16 @@ import json
 import logging
 from typing import Optional
 
+from app.config.prompt_loader import load_prompt
+
 logger = logging.getLogger(__name__)
 
 # Lazy-loaded client — only imported when actually needed
 _client = None
+
+# Prompt config — loaded from YAML at module import, cached by prompt_loader.
+# Edit app/config/prompts/default/classification_suggester.yaml to iterate without redeploy.
+_PROMPT = load_prompt("classification_suggester")
 
 # Build a set of valid codes and a compact taxonomy block for prompting.
 # Constructed once at import time; both are derived from the canonical list.
@@ -108,39 +114,17 @@ def suggest_classification(
         f"  Billed code:  {raw_code}" if raw_code else "  Billed code:  (none provided)"
     )
 
-    prompt = f"""You are a billing auditor reviewing an insurance claims invoice line item that could not be automatically classified against the contracted service taxonomy.
-
-Available taxonomy codes:
-{taxonomy_block}
-
-Line item to assess:
-  Description: {raw_description}
-{billed_code_line}
-
-Return ONLY valid JSON (no markdown fences, no extra text) with this exact shape:
-{{
-  "verdict": "SUGGESTED" | "TAXONOMY_GAP" | "OUT_OF_SCOPE",
-  "suggested_code": "<taxonomy code from the list above, or null>",
-  "confidence": "HIGH" | "MEDIUM" | "LOW" | null,
-  "rationale": "<one concise sentence explaining your verdict>"
-}}
-
-Rules:
-- SUGGESTED: The charge is a legitimate billable service that maps cleanly to one of
-  the listed taxonomy codes. Set suggested_code to the EXACT code from the list above
-  (copy it verbatim). Set confidence to HIGH, MEDIUM, or LOW.
-- TAXONOMY_GAP: The charge appears to be a legitimate billable service but none of
-  the listed codes cover it. Set suggested_code and confidence to null.
-- OUT_OF_SCOPE: The charge is not a legitimate billable service
-  (e.g. meals not tied to physician travel, personal expenses, unrelated items).
-  Set suggested_code and confidence to null.
-"""
+    prompt = _PROMPT["user_template"].format(
+        taxonomy_block=taxonomy_block,
+        raw_description=raw_description,
+        billed_code_line=billed_code_line,
+    )
 
     try:
-        model = "claude-haiku-4-5"
+        model = _PROMPT["model"]
         message = client.messages.create(
             model=model,
-            max_tokens=512,
+            max_tokens=_PROMPT["max_tokens"],
             messages=[{"role": "user", "content": prompt}],
         )
         raw_text = message.content[0].text.strip()

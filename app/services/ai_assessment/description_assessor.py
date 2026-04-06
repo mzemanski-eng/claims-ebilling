@@ -29,10 +29,18 @@ import json
 import logging
 from typing import Optional
 
+from app.config.prompt_loader import load_prompt
+
 logger = logging.getLogger(__name__)
 
 # Lazy-loaded client — only imported when actually needed
 _client = None
+
+# Prompt config — loaded from YAML at module import, cached by prompt_loader.
+# Edit app/config/prompts/default/description_assessor.yaml to iterate without redeploy.
+_PROMPT = load_prompt("description_assessor")
+_SYSTEM_PROMPT = _PROMPT.get("system", "")
+_USER_TEMPLATE = _PROMPT["user_template"]
 
 
 def _get_client():
@@ -61,35 +69,6 @@ def _get_client():
         return None
 
 
-_SYSTEM_PROMPT = """\
-You are an insurance claims billing auditor reviewing invoice line items.
-Your task is to assess whether a supplier's invoice description is semantically
-consistent with the contracted service type it was classified under.
-
-Respond with valid JSON only — no markdown, no explanation outside the JSON.
-"""
-
-_USER_TEMPLATE = """\
-CONTRACT SERVICE
-  Label:       {taxonomy_label}
-  Description: {taxonomy_description}
-
-SUPPLIER INVOICE LINE
-  Description: "{raw_description}"
-
-Assess whether the supplier's description is consistent with the contracted service.
-
-Return exactly this JSON shape:
-{{
-  "score": "<ALIGNED | PARTIAL | MISALIGNED>",
-  "rationale": "<one concise sentence>"
-}}
-
-Scoring guide:
-  ALIGNED    — Description clearly refers to the same service type, even if worded differently.
-  PARTIAL    — Description is vague, ambiguous, or only partially describes the service.
-  MISALIGNED — Description appears to be a different type of service than contracted.
-"""
 
 
 def assess_description_alignment(
@@ -125,10 +104,10 @@ def assess_description_alignment(
     )
 
     try:
-        model = "claude-haiku-4-5"
+        model = _PROMPT["model"]
         message = client.messages.create(
             model=model,
-            max_tokens=256,
+            max_tokens=_PROMPT["max_tokens"],
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )
