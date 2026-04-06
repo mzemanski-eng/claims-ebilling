@@ -59,6 +59,10 @@ import type {
   MappingInsights,
   ValueSummary,
   CarrierSettings,
+  SupplierProfile,
+  SupplierProfileUpdate,
+  SupplierDocument,
+  TaxonomyImportResult,
 } from "./types";
 
 const BASE_URL =
@@ -639,6 +643,129 @@ export function runSupplierAudit(supplierId: string): Promise<SupplierAuditResul
   return apiFetch<SupplierAuditResult>(`/admin/suppliers/${supplierId}/audit`, {
     method: "POST",
   });
+}
+
+// ── Admin — Supplier Profile ──────────────────────────────────────────────────
+
+export function getSupplierProfile(supplierId: string): Promise<SupplierProfile> {
+  return apiFetch<SupplierProfile>(`/admin/suppliers/${supplierId}/profile`);
+}
+
+export function updateSupplierProfile(
+  supplierId: string,
+  payload: SupplierProfileUpdate,
+): Promise<SupplierProfile> {
+  return apiFetch<SupplierProfile>(`/admin/suppliers/${supplierId}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ── Admin — Supplier State Machine ────────────────────────────────────────────
+
+export function submitSupplierForReview(
+  supplierId: string,
+): Promise<{ message: string; status: string }> {
+  return apiFetch(`/admin/suppliers/${supplierId}/submit`, { method: "POST" });
+}
+
+export function approveSupplier(
+  supplierId: string,
+): Promise<{ message: string; status: string }> {
+  return apiFetch(`/admin/suppliers/${supplierId}/approve`, { method: "POST" });
+}
+
+export function rejectSupplier(
+  supplierId: string,
+  notes?: string,
+): Promise<{ message: string; status: string }> {
+  const qs = notes ? `?notes=${encodeURIComponent(notes)}` : "";
+  return apiFetch(`/admin/suppliers/${supplierId}/reject${qs}`, { method: "POST" });
+}
+
+export function suspendSupplier(
+  supplierId: string,
+  notes?: string,
+): Promise<{ message: string; status: string }> {
+  const qs = notes ? `?notes=${encodeURIComponent(notes)}` : "";
+  return apiFetch(`/admin/suppliers/${supplierId}/suspend${qs}`, { method: "POST" });
+}
+
+export function reinstateSupplier(
+  supplierId: string,
+): Promise<{ message: string; status: string }> {
+  return apiFetch(`/admin/suppliers/${supplierId}/reinstate`, { method: "POST" });
+}
+
+// ── Admin — Supplier Documents ────────────────────────────────────────────────
+
+export function listSupplierDocuments(supplierId: string): Promise<SupplierDocument[]> {
+  return apiFetch<SupplierDocument[]>(`/admin/suppliers/${supplierId}/documents`);
+}
+
+export async function uploadSupplierDocument(
+  supplierId: string,
+  documentType: "W9" | "COI" | "MSA" | "OTHER",
+  file: File,
+  expiresAt?: string,
+  notes?: string,
+): Promise<SupplierDocument> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  form.append("document_type", documentType);
+  if (expiresAt) form.append("expires_at", expiresAt);
+  if (notes) form.append("notes", notes);
+
+  const res = await fetch(`${BASE_URL}/admin/suppliers/${supplierId}/documents`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired — please log in again.");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    const detail = typeof body.detail === "string" ? body.detail : "Upload failed";
+    throw new ApiError(res.status, detail);
+  }
+  return res.json() as Promise<SupplierDocument>;
+}
+
+// ── Admin — Taxonomy Import ───────────────────────────────────────────────────
+
+export async function importSupplierTaxonomy(
+  supplierId: string,
+  file: File,
+): Promise<TaxonomyImportResult> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(
+    `${BASE_URL}/admin/suppliers/${supplierId}/taxonomy-import`,
+    {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    },
+  );
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new ApiError(401, "Session expired — please log in again.");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    const detail = typeof body.detail === "string" ? body.detail : "Import failed";
+    throw new ApiError(res.status, detail);
+  }
+  return res.json() as Promise<TaxonomyImportResult>;
 }
 
 /** Fetch the supplier comparison as a CSV blob for download. */

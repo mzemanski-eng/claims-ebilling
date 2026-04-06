@@ -3,18 +3,21 @@ Supplier-side entities: User, Carrier, Supplier, Contract, RateCard, Guideline.
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
     Date,
+    DateTime,
     ForeignKey,
+    Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -41,6 +44,20 @@ class GeographyScope:
     NATIONAL = "national"
     STATE = "state"
     REGIONAL = "regional"
+
+
+class OnboardingStatus:
+    DRAFT = "DRAFT"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
+
+
+class DocumentType:
+    W9 = "W9"
+    COI = "COI"
+    MSA = "MSA"
+    OTHER = "OTHER"
 
 
 # ── Models ──────────────────────────────────────────────────────────────────
@@ -147,8 +164,55 @@ class Supplier(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tax_id: Mapped[Optional[str]] = mapped_column(
         String(32), nullable=True, comment="EIN or SSN (masked in UI)"
     )
+
+    # is_active: kept for backward compat (classifier, analytics, invoice pipeline).
+    # Derived from onboarding_status: ACTIVE → True, all others → False.
+    # All state transition endpoints keep this in sync.
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default="true"
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    # ── Onboarding state machine ────────────────────────────────────────────
+    # Transitions: DRAFT → PENDING_REVIEW → ACTIVE ↔ SUSPENDED
+    # ACTIVE → SUSPENDED (suspend); SUSPENDED → ACTIVE (reinstate)
+    # PENDING_REVIEW → DRAFT (reject)
+    onboarding_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=OnboardingStatus.DRAFT,
+        server_default=OnboardingStatus.DRAFT,
+        comment="DRAFT | PENDING_REVIEW | ACTIVE | SUSPENDED",
+    )
+
+    # ── Profile fields ──────────────────────────────────────────────────────
+    primary_contact_name: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )
+    primary_contact_email: Mapped[Optional[str]] = mapped_column(
+        String(256), nullable=True
+    )
+    primary_contact_phone: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True
+    )
+    address_line1: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    address_line2: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    state_code: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+    zip_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    website: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # ── Onboarding timestamps / approver ────────────────────────────────────
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    approved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    approved_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     # Relationships
@@ -164,9 +228,72 @@ class Supplier(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     mapping_rules: Mapped[list["MappingRule"]] = relationship(
         "MappingRule", back_populates="supplier"
     )
+    documents: Mapped[list["SupplierDocument"]] = relationship(
+        "SupplierDocument",
+        back_populates="supplier",
+        cascade="all, delete-orphan",
+    )
+    approved_by: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[approved_by_id]
+    )
 
     def __repr__(self) -> str:
-        return f"<Supplier name={self.name!r}>"
+        return f"<Supplier name={self.name!r} status={self.onboarding_status!r}>"
+
+
+class SupplierDocument(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """
+    Compliance document uploaded for a supplier during onboarding.
+
+    Storage path convention: supplier_docs/{supplier_id}/{document_type}/{filename}
+    Mirrors invoice storage: invoices/{invoice_id}/v{version}/{filename}
+
+    Always use get_storage() factory — never import LocalDiskStorage directly.
+    """
+
+    __tablename__ = "supplier_documents"
+
+    supplier_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("suppliers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_type: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        comment="W9 | COI | MSA | OTHER",
+    )
+    filename: Mapped[str] = mapped_column(String(256), nullable=False)
+    storage_path: Mapped[str] = mapped_column(
+        String(512),
+        nullable=False,
+        comment="Path/key relative to storage root, e.g. supplier_docs/{id}/W9/w9_2024.pdf",
+    )
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    uploaded_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    expires_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    supplier: Mapped["Supplier"] = relationship(
+        "Supplier", back_populates="documents"
+    )
+    uploaded_by: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[uploaded_by_id]
+    )
+
+    def __repr__(self) -> str:
+        return f"<SupplierDocument type={self.document_type!r} supplier={self.supplier_id}>"
 
 
 class Contract(Base, UUIDPrimaryKeyMixin, TimestampMixin):

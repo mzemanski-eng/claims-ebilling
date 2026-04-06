@@ -54,9 +54,27 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.audit import ActorType
 from app.models.invoice import Invoice, LineItem, LineItemStatus, SubmissionStatus
-from app.models.mapping import ConfirmedBy
-from app.models.supplier import Carrier, Contract, Guideline, RateCard, Supplier, User, UserRole
+from app.models.mapping import ConfirmedBy, MappingRule, MatchType
+from app.models.supplier import (
+    Carrier,
+    Contract,
+    DocumentType,
+    Guideline,
+    OnboardingStatus,
+    RateCard,
+    Supplier,
+    SupplierDocument,
+    User,
+    UserRole,
+)
 from app.schemas.carrier_settings import CarrierSettings
+from app.schemas.supplier import (
+    SupplierDocumentResponse,
+    SupplierProfileResponse,
+    SupplierProfileUpdate,
+    TaxonomyImportResult,
+    TaxonomyImportRowResult,
+)
 from app.models.taxonomy import TaxonomyItem
 from app.schemas.contracts import (
     ContractCreate,
@@ -1027,6 +1045,7 @@ def list_suppliers(
             "name": s.name,
             "tax_id": s.tax_id,
             "is_active": s.is_active,
+            "onboarding_status": s.onboarding_status,
             "contract_count": len(s.contracts),
             "invoice_count": len(s.invoices),
             "user_count": sum(
@@ -1063,7 +1082,8 @@ def create_supplier(
     supplier = Supplier(
         name=name,
         tax_id=(payload.get("tax_id") or "").strip() or None,
-        is_active=True,
+        is_active=False,
+        onboarding_status=OnboardingStatus.DRAFT,
     )
     db.add(supplier)
     db.commit()
@@ -1074,6 +1094,7 @@ def create_supplier(
         "name": supplier.name,
         "tax_id": supplier.tax_id,
         "is_active": supplier.is_active,
+        "onboarding_status": supplier.onboarding_status,
         "contract_count": 0,
         "invoice_count": 0,
     }
@@ -1401,6 +1422,449 @@ def run_supplier_audit(
         )
 
     return result
+
+
+# ── Supplier Profile & Onboarding ─────────────────────────────────────────────
+
+
+@router.get("/suppliers/{supplier_id}/profile", response_model=SupplierProfileResponse)
+def get_supplier_profile(
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> SupplierProfileResponse:
+    """
+    Return full supplier profile including onboarding status and contact details.
+    Scoped to the current carrier via Contract.
+    """
+    supplier = _get_supplier_for_carrier(supplier_id, db, current_user)
+    return _to_supplier_profile_response(supplier, db)
+
+
+@router.patch("/suppliers/{supplier_id}/profile", response_model=SupplierProfileResponse)
+def update_supplier_profile(
+    supplier_id: uuid.UUID,
+    payload: SupplierProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> SupplierProfileResponse:
+    """
+    Update supplier profile fields. Partial update — only provided fields are changed.
+    Does not change onboarding_status.
+    """
+    supplier = _get_supplier_for_carrier(supplier_id, db, current_user)
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(supplier, field, value)
+
+    db.commit()
+    db.refresh(supplier)
+    return _to_supplier_profile_response(supplier, db)
+
+
+@router.post("/suppliers/{supplier_id}/submit", status_code=200)
+def submit_supplier_for_review(
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """DRAFT → PENDING_REVIEW. Submit supplier profile for carrier review."""
+    supplier = _get_supplier_for_carrier(supplier_id, db, current_user)
+    _assert_onboarding_status(supplier, OnboardingStatus.DRAFT, "submit")
+    supplier.onboarding_status = OnboardingStatus.PENDING_REVIEW
+    supplier.submitted_at = datetime.now(timezone.utc)
+    supplier.is_active = False
+    db.commit()
+    return {
+        "message": f"Supplier '{supplier.name}' submitted for review.",
+        "status": supplier.onboarding_status,
+    }
+
+
+@router.post("/suppliers/{supplier_id}/approve", status_code=200)
+def approve_supplier(
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """PENDING_REVIEW → ACTIVE. Approve the supplier; sets is_active=True."""
+    supplier = _get_supplier_for_carrier(supplier_id, db, current_user)
+    _assert_onboarding_status(supplier, OnboardingStatus.PENDING_REVIEW, "approve")
+    supplier.onboarding_status = OnboardingStatus.ACTIVE
+    supplier.is_active = True
+    supplier.approved_at = datetime.now(timezone.utc)
+    supplier.approved_by_id = current_user.id
+    db.commit()
+    return {
+        "message": f"Supplier '{supplier.name}' approved.",
+        "status": supplier.onboarding_status,
+    }
+
+
+@router.post("/suppliers/{supplier_id}/reject", status_code=200)
+def reject_supplier(
+    supplier_id: uuid.UUID,
+    notes: str = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """PENDING_REVIEW → DRAFT. Send supplier back to draft with optional rejection notes."""
+    supplier = _get_supplier_for_carrier(supplier_id, db, current_user)
+    _assert_onboarding_status(supplier, OnboardingStatus.PENDING_REVIEW, "reject")
+    supplier.onboarding_status = OnboardingStatus.DRAFT
+    supplier.is_active = False
+    if notes:
+        supplier.notes = notes
+    db.commit()
+    return {
+        "message": f"Supplier '{supplier.name}' sent back to DRAFT.",
+        "status": supplier.onboarding_status,
+    }
+
+
+@router.post("/suppliers/{supplier_id}/suspend", status_code=200)
+def suspend_supplier(
+    supplier_id: uuid.UUID,
+    notes: str = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """ACTIVE → SUSPENDED. Suspend supplier; sets is_active=False."""
+    supplier = _get_supplier_for_carrier(supplier_id, db, current_user)
+    _assert_onboarding_status(supplier, OnboardingStatus.ACTIVE, "suspend")
+    supplier.onboarding_status = OnboardingStatus.SUSPENDED
+    supplier.is_active = False
+    if notes:
+        supplier.notes = notes
+    db.commit()
+    return {
+        "message": f"Supplier '{supplier.name}' suspended.",
+        "status": supplier.onboarding_status,
+    }
+
+
+@router.post("/suppliers/{supplier_id}/reinstate", status_code=200)
+def reinstate_supplier(
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """SUSPENDED → ACTIVE. Reinstate suspended supplier."""
+    supplier = _get_supplier_for_carrier(supplier_id, db, current_user)
+    _assert_onboarding_status(supplier, OnboardingStatus.SUSPENDED, "reinstate")
+    supplier.onboarding_status = OnboardingStatus.ACTIVE
+    supplier.is_active = True
+    supplier.approved_at = datetime.now(timezone.utc)
+    supplier.approved_by_id = current_user.id
+    db.commit()
+    return {
+        "message": f"Supplier '{supplier.name}' reinstated.",
+        "status": supplier.onboarding_status,
+    }
+
+
+# ── Supplier Documents ────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/suppliers/{supplier_id}/documents",
+    response_model=list[SupplierDocumentResponse],
+)
+def list_supplier_documents(
+    supplier_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> list[SupplierDocumentResponse]:
+    """List all compliance documents for a supplier."""
+    _get_supplier_for_carrier(supplier_id, db, current_user)
+    docs = (
+        db.query(SupplierDocument)
+        .filter(SupplierDocument.supplier_id == supplier_id)
+        .order_by(SupplierDocument.uploaded_at.desc())
+        .all()
+    )
+    return docs
+
+
+@router.post(
+    "/suppliers/{supplier_id}/documents",
+    response_model=SupplierDocumentResponse,
+    status_code=201,
+)
+async def upload_supplier_document(
+    supplier_id: uuid.UUID,
+    document_type: str = Form(...),
+    expires_at: str | None = Form(default=None),
+    notes: str | None = Form(default=None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> SupplierDocumentResponse:
+    """
+    Upload a compliance document for a supplier.
+    Accepted document_type values: W9 | COI | MSA | OTHER
+    Storage path: supplier_docs/{supplier_id}/{document_type}/{filename}
+    """
+    from app.services.storage.base import get_storage
+
+    _get_supplier_for_carrier(supplier_id, db, current_user)
+
+    valid_doc_types = {DocumentType.W9, DocumentType.COI, DocumentType.MSA, DocumentType.OTHER}
+    doc_type_upper = (document_type or "").upper()
+    if doc_type_upper not in valid_doc_types:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid document_type. Must be one of: {sorted(valid_doc_types)}",
+        )
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=422, detail="Uploaded file is empty.")
+
+    storage = get_storage()
+    subfolder = f"supplier_docs/{supplier_id}/{doc_type_upper}"
+    storage_path = storage.save(
+        data=file_bytes,
+        filename=file.filename,
+        subfolder=subfolder,
+    )
+
+    expires_date = None
+    if expires_at:
+        try:
+            expires_date = date_type.fromisoformat(expires_at)
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="expires_at must be a valid ISO date (YYYY-MM-DD).",
+            )
+
+    doc = SupplierDocument(
+        supplier_id=supplier_id,
+        document_type=doc_type_upper,
+        filename=file.filename,
+        storage_path=storage_path,
+        file_size_bytes=len(file_bytes),
+        uploaded_by_id=current_user.id,
+        uploaded_at=datetime.now(timezone.utc),
+        expires_at=expires_date,
+        notes=notes or None,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
+# ── Bulk Taxonomy Import ───────────────────────────────────────────────────────
+
+
+@router.post(
+    "/suppliers/{supplier_id}/taxonomy-import",
+    response_model=TaxonomyImportResult,
+    status_code=200,
+)
+async def bulk_taxonomy_import(
+    supplier_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> TaxonomyImportResult:
+    """
+    Upload a CSV of supplier billing codes for AI taxonomy matching.
+
+    CSV format (with header row):
+        supplier_code,description
+
+    Processing:
+    - Each row is sent to Claude (claude-haiku-4-5) with the full active taxonomy list.
+    - Creates MappingRule entries (match_type=KEYWORD_SET, confirmed_by=SYSTEM).
+    - Skips rows where an active rule already exists for this supplier + description.
+    - Max 200 rows per import.
+
+    Returns: { processed, mapped, skipped, unmapped, results: [...] }
+    """
+    from app.services.ai_assessment.taxonomy_mapper import (
+        match_supplier_code,
+        confidence_to_weight,
+    )
+
+    _get_supplier_for_carrier(supplier_id, db, current_user)
+
+    # ── Parse CSV ──────────────────────────────────────────────────────────────
+    raw_bytes = await file.read()
+    try:
+        content = raw_bytes.decode("utf-8-sig")  # handles BOM from Excel exports
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=422, detail="File must be UTF-8 encoded.")
+
+    reader = csv.DictReader(io.StringIO(content))
+    fieldnames = set(reader.fieldnames or [])
+    if not {"supplier_code", "description"}.issubset(fieldnames):
+        raise HTTPException(
+            status_code=422,
+            detail="CSV must have columns: supplier_code, description",
+        )
+
+    rows = list(reader)
+    if len(rows) > 200:
+        raise HTTPException(
+            status_code=422,
+            detail=f"CSV exceeds 200-row limit ({len(rows)} rows). Split into multiple uploads.",
+        )
+
+    # ── Pre-fetch all active taxonomy items (avoid N+1 on every AI call) ──────
+    taxonomy_items = [
+        {
+            "code": t.code,
+            "label": t.label,
+            "domain": t.domain,
+            "description": t.description or "",
+        }
+        for t in db.query(TaxonomyItem).filter(TaxonomyItem.is_active == True).all()
+    ]
+
+    # ── Pre-fetch existing active KEYWORD_SET rules for this supplier ─────────
+    existing_patterns = {
+        r.match_pattern
+        for r in db.query(MappingRule)
+        .filter(
+            MappingRule.supplier_id == supplier_id,
+            MappingRule.match_type == MatchType.KEYWORD_SET,
+            MappingRule.effective_to.is_(None),
+        )
+        .all()
+    }
+
+    # ── Process rows ──────────────────────────────────────────────────────────
+    now = datetime.now(timezone.utc)
+    results: list[TaxonomyImportRowResult] = []
+    processed = 0
+    mapped = 0
+    skipped = 0
+    unmapped = 0
+
+    for row_idx, row in enumerate(rows, start=2):  # row 1 = header
+        supplier_code = (row.get("supplier_code") or "").strip()
+        description = (row.get("description") or "").strip()
+        processed += 1
+
+        if not supplier_code or not description:
+            results.append(
+                TaxonomyImportRowResult(
+                    row=row_idx,
+                    supplier_code=supplier_code,
+                    description=description,
+                    matched_taxonomy_code=None,
+                    confidence=None,
+                    skipped=False,
+                    error="supplier_code and description are both required",
+                )
+            )
+            unmapped += 1
+            continue
+
+        # Skip if an active KEYWORD_SET rule already covers this description
+        if description in existing_patterns:
+            results.append(
+                TaxonomyImportRowResult(
+                    row=row_idx,
+                    supplier_code=supplier_code,
+                    description=description,
+                    matched_taxonomy_code=None,
+                    confidence=None,
+                    skipped=True,
+                    error=None,
+                )
+            )
+            skipped += 1
+            continue
+
+        # AI match
+        match = match_supplier_code(supplier_code, description, taxonomy_items)
+
+        if match is None or match.get("taxonomy_code") is None:
+            error_msg = (
+                "No AI match found"
+                if match is not None
+                else "AI service unavailable"
+            )
+            results.append(
+                TaxonomyImportRowResult(
+                    row=row_idx,
+                    supplier_code=supplier_code,
+                    description=description,
+                    matched_taxonomy_code=None,
+                    confidence=None,
+                    skipped=False,
+                    error=error_msg,
+                )
+            )
+            unmapped += 1
+            continue
+
+        taxonomy_code = match["taxonomy_code"]
+        confidence = match["confidence"]
+
+        # Derive billing_component from the last segment of the taxonomy code
+        billing_component = taxonomy_code.rsplit(".", 1)[-1] if taxonomy_code else ""
+
+        rule = MappingRule(
+            supplier_id=supplier_id,
+            match_type=MatchType.KEYWORD_SET,
+            match_pattern=description,
+            taxonomy_code=taxonomy_code,
+            billing_component=billing_component,
+            confidence_weight=confidence_to_weight(confidence),
+            confidence_label=confidence or "LOW",
+            confirmed_by=ConfirmedBy.SYSTEM,
+            confirmed_by_user_id=None,
+            confirmed_at=now,
+            effective_from=now,
+            version=1,
+        )
+        db.add(rule)
+        existing_patterns.add(description)  # prevent same-import duplicates
+
+        results.append(
+            TaxonomyImportRowResult(
+                row=row_idx,
+                supplier_code=supplier_code,
+                description=description,
+                matched_taxonomy_code=taxonomy_code,
+                confidence=confidence,
+                skipped=False,
+                error=None,
+            )
+        )
+        mapped += 1
+
+    db.commit()
+
+    return TaxonomyImportResult(
+        processed=processed,
+        mapped=mapped,
+        skipped=skipped,
+        unmapped=unmapped,
+        results=results,
+    )
 
 
 # ── Contracts ─────────────────────────────────────────────────────────────────
@@ -1968,4 +2432,84 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
         mapped_rate=li.mapped_rate,
         ai_description_assessment=li.ai_description_assessment,
         ai_classification_suggestion=li.ai_classification_suggestion,
+    )
+
+
+# ── Supplier helper functions ─────────────────────────────────────────────────
+
+
+def _get_supplier_for_carrier(
+    supplier_id: uuid.UUID,
+    db: Session,
+    current_user: User,
+) -> Supplier:
+    """
+    Load a supplier and verify it belongs to the current carrier.
+
+    Raises:
+        404 if supplier not found
+        403 if supplier has no contract with current_user's carrier
+    """
+    supplier = db.get(Supplier, supplier_id)
+    if supplier is None:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    # Multi-tenant guard: supplier must have at least one contract with this carrier
+    contract_exists = (
+        db.query(Contract)
+        .filter(
+            Contract.supplier_id == supplier_id,
+            Contract.carrier_id == current_user.carrier_id,
+        )
+        .first()
+    )
+    if contract_exists is None:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return supplier
+
+
+def _assert_onboarding_status(
+    supplier: Supplier, required_status: str, action: str
+) -> None:
+    """Raise 409 Conflict if supplier is not in the required onboarding status."""
+    if supplier.onboarding_status != required_status:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Cannot {action} supplier in status '{supplier.onboarding_status}'. "
+                f"Required: '{required_status}'."
+            ),
+        )
+
+
+def _to_supplier_profile_response(
+    supplier: Supplier, db: Session
+) -> SupplierProfileResponse:
+    """Build a SupplierProfileResponse with computed count fields."""
+    return SupplierProfileResponse(
+        id=supplier.id,
+        name=supplier.name,
+        tax_id=supplier.tax_id,
+        onboarding_status=supplier.onboarding_status,
+        is_active=supplier.is_active,
+        primary_contact_name=supplier.primary_contact_name,
+        primary_contact_email=supplier.primary_contact_email,
+        primary_contact_phone=supplier.primary_contact_phone,
+        address_line1=supplier.address_line1,
+        address_line2=supplier.address_line2,
+        city=supplier.city,
+        state_code=supplier.state_code,
+        zip_code=supplier.zip_code,
+        website=supplier.website,
+        notes=supplier.notes,
+        submitted_at=supplier.submitted_at,
+        approved_at=supplier.approved_at,
+        approved_by_id=supplier.approved_by_id,
+        contract_count=len(supplier.contracts),
+        invoice_count=len(supplier.invoices),
+        user_count=sum(
+            1 for u in supplier.users
+            if u.role == UserRole.SUPPLIER and u.is_active
+        ),
     )

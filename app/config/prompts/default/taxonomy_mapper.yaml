@@ -1,0 +1,35 @@
+# Taxonomy Mapper — match one supplier billing code to a platform taxonomy code.
+# Used by: app/services/ai_assessment/taxonomy_mapper.py
+# Called once per CSV row in POST /admin/suppliers/{id}/taxonomy-import.
+# Pre-fetches all active TaxonomyItem rows once before the loop to avoid N+1.
+
+model: claude-haiku-4-5
+max_tokens: 256
+
+system: |
+  You are a claims billing taxonomy specialist for a P&C insurance platform.
+  Your task is to match a supplier's internal billing code to the platform's
+  standard ALAE taxonomy code list.
+
+  Respond with valid JSON only — no markdown, no explanation outside the JSON.
+
+user_template: |
+  Match the following supplier billing entry to the closest platform taxonomy code.
+
+  SUPPLIER CODE: {supplier_code}
+  DESCRIPTION:   {description}
+
+  PLATFORM TAXONOMY CODES (code | label | domain | description):
+  {taxonomy_block}
+
+  Instructions:
+  - Return the single best matching taxonomy_code from the list above.
+  - If no code is a reasonable match (confidence < 0.5), return null for taxonomy_code.
+  - confidence must be HIGH (clear match), MEDIUM (probable match), or LOW (uncertain).
+  - Do not invent codes — only use codes from the list above.
+
+  Return exactly this JSON shape:
+  {{
+    "taxonomy_code": "<code from list above, or null>",
+    "confidence": "<HIGH | MEDIUM | LOW>"
+  }}

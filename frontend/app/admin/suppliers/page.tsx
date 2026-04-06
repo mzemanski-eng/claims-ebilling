@@ -9,8 +9,23 @@ import {
   listAdminSuppliers,
   listSupplierUsers,
   runSupplierAudit,
+  getSupplierProfile,
+  listSupplierDocuments,
+  uploadSupplierDocument,
+  importSupplierTaxonomy,
+  submitSupplierForReview,
+  approveSupplier,
+  rejectSupplier,
+  suspendSupplier,
+  reinstateSupplier,
 } from "@/lib/api";
-import type { AdminSupplier, SupplierAuditResult } from "@/lib/types";
+import type {
+  AdminSupplier,
+  SupplierAuditResult,
+  SupplierDocument,
+  TaxonomyImportResult,
+  OnboardingStatusType,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -28,6 +43,353 @@ const FINDING_SEVERITY_COLORS: Record<string, string> = {
   INFO:    "text-blue-700 bg-blue-50 border-blue-100",
 };
 
+// ── Onboarding status badge ───────────────────────────────────────────────────
+
+const ONBOARDING_STATUS_STYLES: Record<string, string> = {
+  DRAFT:          "bg-gray-100 text-gray-600",
+  PENDING_REVIEW: "bg-amber-100 text-amber-700",
+  ACTIVE:         "bg-green-100 text-green-700",
+  SUSPENDED:      "bg-red-100 text-red-700",
+};
+
+function OnboardingStatusBadge({ status }: { status: string }) {
+  const style = ONBOARDING_STATUS_STYLES[status] ?? ONBOARDING_STATUS_STYLES.DRAFT;
+  const label = status.replace(/_/g, " ");
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${style}`}>
+      {label}
+    </span>
+  );
+}
+
+// ── Supplier Detail Panel (Profile / Documents / Taxonomy Import tabs) ─────────
+
+function SupplierDetailPanel({
+  supplier,
+}: {
+  supplier: AdminSupplier;
+}) {
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"profile" | "documents" | "import">("profile");
+  const [importResult, setImportResult] = useState<TaxonomyImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+
+  // Profile query
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ["supplier-profile", supplier.id],
+    queryFn: () => getSupplierProfile(supplier.id),
+  });
+
+  // Documents query — only fire when tab is active
+  const { data: documents, isLoading: docsLoading } = useQuery({
+    queryKey: ["supplier-documents", supplier.id],
+    queryFn: () => listSupplierDocuments(supplier.id),
+    enabled: activeTab === "documents",
+  });
+
+  // State machine mutations
+  const submitMutation = useMutation({
+    mutationFn: () => submitSupplierForReview(supplier.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suppliers"] }),
+  });
+  const approveMutation = useMutation({
+    mutationFn: () => approveSupplier(supplier.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suppliers"] }),
+  });
+  const rejectMutation = useMutation({
+    mutationFn: () => rejectSupplier(supplier.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suppliers"] }),
+  });
+  const suspendMutation = useMutation({
+    mutationFn: () => suspendSupplier(supplier.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suppliers"] }),
+  });
+  const reinstateMutation = useMutation({
+    mutationFn: () => reinstateSupplier(supplier.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suppliers"] }),
+  });
+
+  // Document upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: ({ docType, file }: { docType: "W9" | "COI" | "MSA" | "OTHER"; file: File }) =>
+      uploadSupplierDocument(supplier.id, docType, file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["supplier-documents", supplier.id] }),
+  });
+
+  // Taxonomy import handler
+  async function handleImport(file: File) {
+    setImportError(null);
+    setImportResult(null);
+    setImportLoading(true);
+    try {
+      const result = await importSupplierTaxonomy(supplier.id, file);
+      setImportResult(result);
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  const status = supplier.onboarding_status;
+
+  return (
+    <tr>
+      <td colSpan={8} className="px-4 pb-4 pt-0">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+
+          {/* Tab bar + state machine actions */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2">
+            {(["profile", "documents", "import"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeTab === tab
+                    ? "bg-white text-blue-700 shadow-sm border border-gray-200"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                {tab === "profile" ? "Profile" : tab === "documents" ? "Documents" : "Taxonomy Import"}
+              </button>
+            ))}
+
+            {/* State machine action buttons — conditional on current status */}
+            <div className="ml-auto flex items-center gap-2">
+              {status === "DRAFT" && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={submitMutation.isPending}
+                  onClick={() => submitMutation.mutate()}
+                >
+                  Submit for Review
+                </Button>
+              )}
+              {status === "PENDING_REVIEW" && (
+                <>
+                  <Button
+                    size="sm"
+                    loading={approveMutation.isPending}
+                    onClick={() => approveMutation.mutate()}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={rejectMutation.isPending}
+                    onClick={() => rejectMutation.mutate()}
+                  >
+                    Reject
+                  </Button>
+                </>
+              )}
+              {status === "ACTIVE" && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  loading={suspendMutation.isPending}
+                  onClick={() => suspendMutation.mutate()}
+                >
+                  Suspend
+                </Button>
+              )}
+              {status === "SUSPENDED" && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={reinstateMutation.isPending}
+                  onClick={() => reinstateMutation.mutate()}
+                >
+                  Reinstate
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Profile tab */}
+          {activeTab === "profile" && (
+            profileLoading ? (
+              <p className="text-xs text-gray-400">Loading profile…</p>
+            ) : profile ? (
+              <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-xs">
+                {([
+                  ["Contact Name",  profile.primary_contact_name],
+                  ["Contact Email", profile.primary_contact_email],
+                  ["Phone",         profile.primary_contact_phone],
+                  ["Address",       [profile.address_line1, profile.address_line2, profile.city, profile.state_code, profile.zip_code].filter(Boolean).join(", ")],
+                  ["Website",       profile.website],
+                  ["Notes",         profile.notes],
+                  ["Submitted",     profile.submitted_at ? new Date(profile.submitted_at).toLocaleDateString() : null],
+                  ["Approved",      profile.approved_at  ? new Date(profile.approved_at).toLocaleDateString()  : null],
+                ] as [string, string | null][]).map(([label, value]) => (
+                  <div key={label} className="flex gap-2">
+                    <span className="w-28 shrink-0 font-medium text-gray-500">{label}:</span>
+                    <span className="text-gray-800 break-all">{value || "—"}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">No profile data yet.</p>
+            )
+          )}
+
+          {/* Documents tab */}
+          {activeTab === "documents" && (
+            <div className="space-y-3">
+              {docsLoading ? (
+                <p className="text-xs text-gray-400">Loading documents…</p>
+              ) : documents && documents.length > 0 ? (
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-500 font-semibold">
+                      <th className="pb-1 pr-4">Type</th>
+                      <th className="pb-1 pr-4">Filename</th>
+                      <th className="pb-1 pr-4">Uploaded</th>
+                      <th className="pb-1">Expires</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {documents.map((d: SupplierDocument) => (
+                      <tr key={d.id} className="text-gray-700">
+                        <td className="py-1 pr-4 font-mono font-semibold">{d.document_type}</td>
+                        <td className="py-1 pr-4">{d.filename}</td>
+                        <td className="py-1 pr-4">{new Date(d.uploaded_at).toLocaleDateString()}</td>
+                        <td className={`py-1 ${d.expires_at ? "text-amber-700" : "text-gray-400"}`}>
+                          {d.expires_at ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No documents uploaded yet.</p>
+              )}
+
+              {/* Upload form */}
+              <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-200">
+                <select
+                  id={`doc-type-${supplier.id}`}
+                  className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  defaultValue="W9"
+                >
+                  {["W9", "COI", "MSA", "OTHER"].map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <label className="cursor-pointer text-xs text-blue-600 hover:text-blue-800 font-medium">
+                  {uploadMutation.isPending ? "Uploading…" : "Choose file to upload"}
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      const select = document.getElementById(`doc-type-${supplier.id}`) as HTMLSelectElement;
+                      const docType = select?.value as "W9" | "COI" | "MSA" | "OTHER";
+                      if (file && docType) uploadMutation.mutate({ docType, file });
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {uploadMutation.isError && (
+                  <span className="text-xs text-red-600">
+                    Upload failed — {(uploadMutation.error as Error)?.message ?? "unknown error"}
+                  </span>
+                )}
+                {uploadMutation.isSuccess && (
+                  <span className="text-xs text-green-600">✓ Uploaded</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Taxonomy Import tab */}
+          {activeTab === "import" && (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">
+                Upload a CSV with columns{" "}
+                <code className="bg-gray-100 px-1 rounded font-mono">supplier_code,description</code>{" "}
+                (max 200 rows). Claude will match each row to a platform taxonomy code and create mapping rules.
+              </p>
+              <label className="cursor-pointer text-xs text-blue-600 hover:text-blue-800 font-medium">
+                {importLoading ? "Processing…" : "Choose CSV file"}
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  disabled={importLoading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImport(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+
+              {importError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {importError}
+                </div>
+              )}
+
+              {importResult && (
+                <div className="space-y-2">
+                  {/* Summary counts */}
+                  <div className="flex flex-wrap gap-4 text-xs font-medium">
+                    <span className="text-gray-600">Processed: <strong>{importResult.processed}</strong></span>
+                    <span className="text-green-700">Mapped: <strong>{importResult.mapped}</strong></span>
+                    <span className="text-amber-700">Skipped: <strong>{importResult.skipped}</strong></span>
+                    <span className="text-red-700">Unmapped: <strong>{importResult.unmapped}</strong></span>
+                  </div>
+
+                  {/* Per-row result table */}
+                  <div className="max-h-48 overflow-y-auto rounded border border-gray-200 text-xs">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-2 py-1 text-left text-gray-500 font-semibold">#</th>
+                          <th className="px-2 py-1 text-left text-gray-500 font-semibold">Supplier Code</th>
+                          <th className="px-2 py-1 text-left text-gray-500 font-semibold">Matched To</th>
+                          <th className="px-2 py-1 text-left text-gray-500 font-semibold">Confidence</th>
+                          <th className="px-2 py-1 text-left text-gray-500 font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {importResult.results.map((r) => (
+                          <tr key={r.row} className={r.error && !r.skipped ? "bg-red-50" : ""}>
+                            <td className="px-2 py-1 text-gray-400">{r.row}</td>
+                            <td className="px-2 py-1 font-mono text-gray-700">{r.supplier_code}</td>
+                            <td className="px-2 py-1 font-mono text-blue-700">
+                              {r.matched_taxonomy_code ?? "—"}
+                            </td>
+                            <td className="px-2 py-1 text-gray-600">{r.confidence ?? "—"}</td>
+                            <td className="px-2 py-1">
+                              {r.skipped ? (
+                                <span className="text-gray-400">Skipped (duplicate)</span>
+                              ) : r.error ? (
+                                <span className="text-red-600">{r.error}</span>
+                              ) : (
+                                <span className="text-green-600 font-medium">✓ Mapped</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // ── AI Audit panel ────────────────────────────────────────────────────────────
 
 function AuditResultPanel({
@@ -42,7 +404,7 @@ function AuditResultPanel({
   const c = RISK_COLORS[result.risk_rating] ?? RISK_COLORS.MEDIUM;
   return (
     <tr>
-      <td colSpan={7} className="px-4 pb-4 pt-0">
+      <td colSpan={8} className="px-4 pb-4 pt-0">
         <div className={`rounded-xl border ${c.border} ${c.bg} p-4 space-y-4`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -130,9 +492,10 @@ function NewSupplierModal({ onClose }: { onClose: () => void }) {
           <Input id="supplier-name" label="Supplier Name" placeholder="Acme Engineering Inc." required value={name} onChange={(e) => setName(e.target.value)} />
           <Input id="supplier-tax-id" label="Tax ID (optional)" placeholder="XX-0000000" value={taxId} onChange={(e) => setTaxId(e.target.value)} />
           <p className="text-xs text-gray-400">
-            After creating the supplier, use{" "}
+            New suppliers start in <span className="font-medium text-gray-600">DRAFT</span> status.
+            Use{" "}
             <span className="font-medium text-gray-600">Create Login</span>{" "}
-            to give them portal access, then set up their contract and rate cards.
+            to give them portal access, then set up their contract, rate cards, and submit for review.
           </p>
           <div className="flex justify-end gap-3 pt-1">
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
@@ -301,6 +664,7 @@ function CreateLoginModal({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminSuppliersPage() {
+  const queryClient = useQueryClient();
   const { data: suppliers, isLoading } = useQuery({
     queryKey: ["admin-suppliers"],
     queryFn: listAdminSuppliers,
@@ -308,6 +672,7 @@ export default function AdminSuppliersPage() {
 
   const [auditResults, setAuditResults] = useState<Record<string, SupplierAuditResult>>({});
   const [expandedAudit, setExpandedAudit] = useState<string | null>(null);
+  const [expandedProfile, setExpandedProfile] = useState<string | null>(null);
   const [loadingAuditId, setLoadingAuditId] = useState<string | null>(null);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [showNewSupplier, setShowNewSupplier] = useState(false);
@@ -333,6 +698,10 @@ export default function AdminSuppliersPage() {
     } else {
       auditMutation.mutate(supplierId);
     }
+  }
+
+  function toggleProfile(supplierId: string) {
+    setExpandedProfile((prev) => (prev === supplierId ? null : supplierId));
   }
 
   return (
@@ -380,6 +749,7 @@ export default function AdminSuppliersPage() {
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Logins</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Contracts</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Invoices</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Onboarding</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
               </tr>
@@ -451,7 +821,12 @@ export default function AdminSuppliersPage() {
                     {/* Invoices */}
                     <td className="px-4 py-3 text-center text-sm text-gray-700">{s.invoice_count}</td>
 
-                    {/* Status */}
+                    {/* Onboarding status badge */}
+                    <td className="px-4 py-3 text-center">
+                      <OnboardingStatusBadge status={s.onboarding_status} />
+                    </td>
+
+                    {/* Active/Inactive status pill */}
                     <td className="px-4 py-3 text-center">
                       {s.is_active ? (
                         <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
@@ -462,7 +837,15 @@ export default function AdminSuppliersPage() {
 
                     {/* Actions */}
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleProfile(s.id)}
+                          className="text-xs"
+                        >
+                          {expandedProfile === s.id ? "Hide" : "Profile"}
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -491,6 +874,15 @@ export default function AdminSuppliersPage() {
                     </td>
                   </tr>
 
+                  {/* Profile detail panel */}
+                  {expandedProfile === s.id && (
+                    <SupplierDetailPanel
+                      key={`${s.id}-profile`}
+                      supplier={s}
+                    />
+                  )}
+
+                  {/* AI Audit panel */}
                   {expandedAudit === s.id && auditResults[s.id] && (
                     <AuditResultPanel
                       key={`${s.id}-audit`}

@@ -145,15 +145,110 @@ export interface MappingInsights {
   suggestions: MappingInsightSuggestion[];
 }
 
-/** Admin supplier row */
+// ── Vertical ──────────────────────────────────────────────────────────────────
+
+export interface Vertical {
+  id: string;
+  slug: string;
+  name: string;
+  is_active: boolean;
+}
+
+// ── Supplier Onboarding ───────────────────────────────────────────────────────
+
+export const OnboardingStatus = {
+  DRAFT: "DRAFT",
+  PENDING_REVIEW: "PENDING_REVIEW",
+  ACTIVE: "ACTIVE",
+  SUSPENDED: "SUSPENDED",
+} as const;
+
+export type OnboardingStatusType =
+  (typeof OnboardingStatus)[keyof typeof OnboardingStatus];
+
+/** Admin supplier list row (extended with onboarding_status) */
 export interface AdminSupplier {
   id: string;
   name: string;
   tax_id: string | null;
   is_active: boolean;
+  onboarding_status: OnboardingStatusType;
   contract_count: number;
   invoice_count: number;
   user_count: number;
+}
+
+/** Full supplier profile returned by GET /admin/suppliers/{id}/profile */
+export interface SupplierProfile {
+  id: string;
+  name: string;
+  tax_id: string | null;
+  onboarding_status: OnboardingStatusType;
+  is_active: boolean;
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  primary_contact_phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state_code: string | null;
+  zip_code: string | null;
+  website: string | null;
+  notes: string | null;
+  submitted_at: string | null;  // ISO datetime
+  approved_at: string | null;   // ISO datetime
+  approved_by_id: string | null;
+  contract_count: number;
+  invoice_count: number;
+  user_count: number;
+}
+
+/** Fields that can be PATCHed on a supplier profile */
+export interface SupplierProfileUpdate {
+  primary_contact_name?: string | null;
+  primary_contact_email?: string | null;
+  primary_contact_phone?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state_code?: string | null;
+  zip_code?: string | null;
+  website?: string | null;
+  notes?: string | null;
+}
+
+/** Compliance document row */
+export interface SupplierDocument {
+  id: string;
+  supplier_id: string;
+  document_type: "W9" | "COI" | "MSA" | "OTHER";
+  filename: string;
+  storage_path: string;
+  file_size_bytes: number | null;
+  uploaded_by_id: string | null;
+  uploaded_at: string;        // ISO datetime
+  expires_at: string | null;  // ISO date
+  notes: string | null;
+}
+
+/** Per-row result from bulk taxonomy import */
+export interface TaxonomyImportRowResult {
+  row: number;
+  supplier_code: string;
+  description: string;
+  matched_taxonomy_code: string | null;
+  confidence: "HIGH" | "MEDIUM" | "LOW" | null;
+  skipped: boolean;
+  error: string | null;
+}
+
+/** Summary response from POST /admin/suppliers/{id}/taxonomy-import */
+export interface TaxonomyImportResult {
+  processed: number;
+  mapped: number;
+  skipped: number;
+  unmapped: number;
+  results: TaxonomyImportRowResult[];
 }
 
 /** Admin contract row */
