@@ -75,8 +75,6 @@ def _build_taxonomy_block() -> str:
         return "  (taxonomy unavailable)"
 
 
-
-
 def _empty_result(supplier_id: str, notes: str) -> dict:
     """Return an empty (but valid) ParsedContractResult when parsing fails."""
     today = date.today().isoformat()

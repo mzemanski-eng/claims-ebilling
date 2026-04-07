@@ -236,7 +236,13 @@ BUILTIN_RULES: list[tuple[str, str, str, str, float]] = [
         0.88,
     ),
     ("keyword_set", "ai,scope", "VIRT.AI_SCOPE.FLAT_FEE", "FLAT_FEE", 0.85),
-    ("keyword_set", "aerial,analysis", "VIRT.AERIAL_ANALYSIS.FLAT_FEE", "FLAT_FEE", 0.88),
+    (
+        "keyword_set",
+        "aerial,analysis",
+        "VIRT.AERIAL_ANALYSIS.FLAT_FEE",
+        "FLAT_FEE",
+        0.88,
+    ),
     (
         "keyword_set",
         "satellite,image",
@@ -359,7 +365,13 @@ BUILTIN_RULES: list[tuple[str, str, str, str, float]] = [
     # Generic no-show / cancellation fallback when no domain context is available.
     ("keyword_set", "no.show,fee", "CR.NO_SHOW.NO_SHOW_FEE", "NO_SHOW_FEE", 0.70),
     ("regex_pattern", r"no.?show", "CR.NO_SHOW.NO_SHOW_FEE", "NO_SHOW_FEE", 0.68),
-    ("keyword_set", "cancellation,fee", "XDOMAIN.ADMIN_MISC.ADMIN_FEE", "ADMIN_FEE", 0.50),
+    (
+        "keyword_set",
+        "cancellation,fee",
+        "XDOMAIN.ADMIN_MISC.ADMIN_FEE",
+        "ADMIN_FEE",
+        0.50,
+    ),
     ("regex_pattern", r"\bcancel", "XDOMAIN.ADMIN_MISC.ADMIN_FEE", "ADMIN_FEE", 0.45),
     # Generic travel fallbacks — point to IA (most common travel domain).
     ("regex_pattern", r"\bmileage\b", "IA.FIELD_ASSIGN.MILEAGE", "MILEAGE", 0.55),
@@ -371,7 +383,13 @@ BUILTIN_RULES: list[tuple[str, str, str, str, float]] = [
         "TRAVEL_TRANSPORT",
         0.55,
     ),
-    ("keyword_set", "lodging", "IA.FIELD_ASSIGN.TRAVEL_LODGING", "TRAVEL_LODGING", 0.55),
+    (
+        "keyword_set",
+        "lodging",
+        "IA.FIELD_ASSIGN.TRAVEL_LODGING",
+        "TRAVEL_LODGING",
+        0.55,
+    ),
     ("keyword_set", "hotel", "IA.FIELD_ASSIGN.TRAVEL_LODGING", "TRAVEL_LODGING", 0.52),
     (
         "keyword_set",

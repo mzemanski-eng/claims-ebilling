@@ -63,8 +63,6 @@ def _get_client():
         return None
 
 
-
-
 def _format_top_codes(top_codes: list[dict]) -> str:
     if not top_codes:
         return "  No billing data available."

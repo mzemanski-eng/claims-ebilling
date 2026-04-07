@@ -285,9 +285,7 @@ class SupplierDocument(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
-    supplier: Mapped["Supplier"] = relationship(
-        "Supplier", back_populates="documents"
-    )
+    supplier: Mapped["Supplier"] = relationship("Supplier", back_populates="documents")
     uploaded_by: Mapped[Optional["User"]] = relationship(
         "User", foreign_keys=[uploaded_by_id]
     )
@@ -323,7 +321,9 @@ class Contract(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     name: Mapped[str] = mapped_column(
-        String(256), nullable=False, comment="e.g. 'ACME Field Adjuster Services Agreement 2024'"
+        String(256),
+        nullable=False,
+        comment="e.g. 'ACME Field Adjuster Services Agreement 2024'",
     )
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     effective_to: Mapped[Optional[date]] = mapped_column(
@@ -407,7 +407,9 @@ class RateCard(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     # Contracted rate per unit (NULL for tiered rate cards — rate lives in rate_tiers)
-    contracted_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+    contracted_rate: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(12, 4), nullable=True
+    )
 
     # Tiered rate bands — used only when rate_type = 'tiered'
     # Format: [{"from_unit": 1, "to_unit": 20, "rate": "0.85"}, ...]

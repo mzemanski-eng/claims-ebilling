@@ -31,8 +31,8 @@ class RawLineItem:
     raw_code: Optional[str]  # Supplier's own billing code, if present
     claim_number: Optional[str]
     service_date: Optional[date]
-    service_state: Optional[str] = None   # 2-char state code e.g. "CA"
-    service_zip: Optional[str] = None     # 5-digit ZIP e.g. "90210"
+    service_state: Optional[str] = None  # 2-char state code e.g. "CA"
+    service_zip: Optional[str] = None  # 5-digit ZIP e.g. "90210"
     extraction_notes: list[str] = field(default_factory=list)  # Parser warnings
 
 

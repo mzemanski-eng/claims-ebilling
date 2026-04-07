@@ -270,11 +270,15 @@ class LineItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # Geographic context (supplied by the vendor in their CSV)
     service_state: Mapped[Optional[str]] = mapped_column(
-        String(2), nullable=True, index=True,
+        String(2),
+        nullable=True,
+        index=True,
         comment="2-char US state code where the service was performed, e.g. 'CA'",
     )
     service_zip: Mapped[Optional[str]] = mapped_column(
-        String(10), nullable=True, index=True,
+        String(10),
+        nullable=True,
+        index=True,
         comment="ZIP / postal code where the service was performed",
     )
 

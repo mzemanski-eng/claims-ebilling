@@ -38,7 +38,9 @@ def _load_raw() -> tuple[dict[str, Any], ...]:
         data = yaml.safe_load(f)
 
     if not isinstance(data, list):
-        raise ValueError(f"taxonomy.yaml must be a YAML list; got {type(data).__name__}")
+        raise ValueError(
+            f"taxonomy.yaml must be a YAML list; got {type(data).__name__}"
+        )
 
     return tuple(data)
 
@@ -58,6 +60,5 @@ def load_with_vertical() -> list[dict[str, Any]]:
 # with all existing consumers (Classifier, ContractParser, etc.).
 
 TAXONOMY: list[dict[str, Any]] = [
-    {k: v for k, v in item.items() if k != "vertical"}
-    for item in _load_raw()
+    {k: v for k, v in item.items() if k != "vertical"} for item in _load_raw()
 ]

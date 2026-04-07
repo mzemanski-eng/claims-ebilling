@@ -4,6 +4,7 @@ RQ background job — runs the synthetic data seeder.
 Called by enqueue_seed_demo(); carrier_id is passed explicitly so the job
 doesn't need to discover the carrier at runtime.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,13 +27,15 @@ def run_seed(carrier_id: str, clean: bool = False) -> dict:
         Summary dict stored as the RQ job result.
     """
     # Ensure app root is on path (worker process may not have it)
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    repo_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
 
     from app.database import SessionLocal
     from app.models.supplier import Carrier, Supplier
-    from scripts.agents import AuditManager, Biller, ContractFabricator, SeniorLeader
+    from scripts.agents import Biller, ContractFabricator
     from scripts.agents.base import RunContext
 
     db = SessionLocal()
@@ -43,14 +46,10 @@ def run_seed(carrier_id: str, clean: bool = False) -> dict:
             return {"error": f"Carrier {carrier_id} not found"}
 
         if clean:
-            count = (
-                db.query(Supplier)
-                .filter(Supplier.tax_id.like("SEED-%"))
-                .count()
+            count = db.query(Supplier).filter(Supplier.tax_id.like("SEED-%")).count()
+            db.query(Supplier).filter(Supplier.tax_id.like("SEED-%")).delete(
+                synchronize_session="fetch"
             )
-            db.query(Supplier).filter(
-                Supplier.tax_id.like("SEED-%")
-            ).delete(synchronize_session="fetch")
             db.flush()
             logger.info("Deleted %d SEED-* supplier(s)", count)
 

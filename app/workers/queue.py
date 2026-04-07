@@ -82,9 +82,9 @@ def enqueue_invoice_processing(
     job = get_queue(priority).enqueue(
         process_invoice,
         args=(invoice_id, file_bytes, filename),
-        job_timeout=300,              # 5 minutes max per invoice
-        result_ttl=3_600,             # keep successful result 1 hour
-        failure_ttl=7 * 86_400,       # keep failed job info 7 days for DLQ review
+        job_timeout=300,  # 5 minutes max per invoice
+        result_ttl=3_600,  # keep successful result 1 hour
+        failure_ttl=7 * 86_400,  # keep failed job info 7 days for DLQ review
         retry=Retry(max=3, interval=[30, 60, 300]),
     )
     return job.id
@@ -103,7 +103,7 @@ def enqueue_seed_demo(carrier_id: str, clean: bool = False) -> str:
     job = get_queue(QUEUE_LOW).enqueue(
         run_seed,
         kwargs={"carrier_id": carrier_id, "clean": clean},
-        job_timeout=600,    # 10 minutes — seeder makes ~56 Claude calls
+        job_timeout=600,  # 10 minutes — seeder makes ~56 Claude calls
         result_ttl=3_600,
         failure_ttl=86_400,
     )

@@ -108,7 +108,7 @@ def _cta_button(label: str, url: str, color: str = "#2563EB") -> str:
     return (
         f'<p style="margin:20px 0">'
         f'<a href="{url}" style="display:inline-block;padding:10px 20px;'
-        f'background:{color};color:#fff;text-decoration:none;border-radius:6px;'
+        f"background:{color};color:#fff;text-decoration:none;border-radius:6px;"
         f'font-weight:bold;font-size:14px">{label}</a></p>'
         f'<p style="font-size:11px;color:#9CA3AF">Or copy this link: '
         f'<a href="{url}" style="color:#6B7280">{url}</a></p>'

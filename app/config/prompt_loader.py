@@ -91,7 +91,9 @@ def load_prompt(name: str, vertical: str = "default") -> dict[str, Any]:
                 f"Prompt config '{path}' is missing required key '{required_key}'"
             )
 
-    logger.debug("Loaded prompt config '%s' (vertical=%s) from %s", name, vertical, path)
+    logger.debug(
+        "Loaded prompt config '%s' (vertical=%s) from %s", name, vertical, path
+    )
     return config
 
 

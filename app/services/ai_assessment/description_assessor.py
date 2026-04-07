@@ -67,8 +67,6 @@ def _get_client():
         return None
 
 
-
-
 def assess_description_alignment(
     raw_description: str,
     taxonomy_label: str,

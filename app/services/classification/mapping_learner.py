@@ -20,7 +20,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.models.invoice import Invoice, LineItem
-from app.models.mapping import ConfirmedBy, MatchType, MappingRule
+from app.models.mapping import MatchType, MappingRule
 
 logger = logging.getLogger(__name__)
 

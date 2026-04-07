@@ -447,7 +447,9 @@ def batch_override_mappings(
     from app.services.classification.mapping_learner import record_confirmed_mapping
 
     source = (
-        ConfirmedBy.CARRIER_CONFIRMED if payload.is_confirm else ConfirmedBy.CARRIER_OVERRIDE
+        ConfirmedBy.CARRIER_CONFIRMED
+        if payload.is_confirm
+        else ConfirmedBy.CARRIER_OVERRIDE
     )
     updated = 0
     skipped = 0
@@ -510,7 +512,9 @@ def batch_override_mappings(
                     notes=payload.notes,
                 )
                 if rule:
-                    audit.log_mapping_overridden(db, rule, old_taxonomy, current_user.id)
+                    audit.log_mapping_overridden(
+                        db, rule, old_taxonomy, current_user.id
+                    )
                     rules_created += 1
                 seen_patterns.add(pattern_key)
 
@@ -851,7 +855,10 @@ def bulk_approve_invoices(
 
         # Carrier isolation check
         _bulk_contract = db.get(Contract, invoice.contract_id)
-        if _bulk_contract is None or _bulk_contract.carrier_id != current_user.carrier_id:
+        if (
+            _bulk_contract is None
+            or _bulk_contract.carrier_id != current_user.carrier_id
+        ):
             skipped += 1
             continue
 
@@ -914,11 +921,15 @@ def download_original_invoice_file(
     invoice = _get_invoice(invoice_id, db, current_user)
 
     if not invoice.raw_file_path:
-        raise HTTPException(status_code=404, detail="No original file found for this invoice.")
+        raise HTTPException(
+            status_code=404, detail="No original file found for this invoice."
+        )
 
     storage = get_storage()
     if not storage.exists(invoice.raw_file_path):
-        raise HTTPException(status_code=404, detail="Original file not found in storage.")
+        raise HTTPException(
+            status_code=404, detail="Original file not found in storage."
+        )
 
     file_bytes = storage.load(invoice.raw_file_path)
     fmt = (invoice.file_format or "").lower()
@@ -1441,7 +1452,9 @@ def get_supplier_profile(
     return _to_supplier_profile_response(supplier, db)
 
 
-@router.patch("/suppliers/{supplier_id}/profile", response_model=SupplierProfileResponse)
+@router.patch(
+    "/suppliers/{supplier_id}/profile", response_model=SupplierProfileResponse
+)
 def update_supplier_profile(
     supplier_id: uuid.UUID,
     payload: SupplierProfileUpdate,
@@ -1624,7 +1637,12 @@ async def upload_supplier_document(
 
     _get_supplier_for_carrier(supplier_id, db, current_user)
 
-    valid_doc_types = {DocumentType.W9, DocumentType.COI, DocumentType.MSA, DocumentType.OTHER}
+    valid_doc_types = {
+        DocumentType.W9,
+        DocumentType.COI,
+        DocumentType.MSA,
+        DocumentType.OTHER,
+    }
     doc_type_upper = (document_type or "").upper()
     if doc_type_upper not in valid_doc_types:
         raise HTTPException(
@@ -1738,7 +1756,7 @@ async def bulk_taxonomy_import(
             "domain": t.domain,
             "description": t.description or "",
         }
-        for t in db.query(TaxonomyItem).filter(TaxonomyItem.is_active == True).all()
+        for t in db.query(TaxonomyItem).filter(TaxonomyItem.is_active.is_(True)).all()
     ]
 
     # ── Pre-fetch existing active KEYWORD_SET rules for this supplier ─────────
@@ -1802,9 +1820,7 @@ async def bulk_taxonomy_import(
 
         if match is None or match.get("taxonomy_code") is None:
             error_msg = (
-                "No AI match found"
-                if match is not None
-                else "AI service unavailable"
+                "No AI match found" if match is not None else "AI service unavailable"
             )
             results.append(
                 TaxonomyImportRowResult(
@@ -1881,7 +1897,12 @@ def list_verticals(
     """
     from app.models.taxonomy import Vertical
 
-    rows = db.query(Vertical).filter(Vertical.is_active.is_(True)).order_by(Vertical.name).all()
+    rows = (
+        db.query(Vertical)
+        .filter(Vertical.is_active.is_(True))
+        .order_by(Vertical.name)
+        .all()
+    )
     return [{"id": str(v.id), "slug": v.slug, "name": v.name} for v in rows]
 
 
@@ -2032,7 +2053,9 @@ def add_rate_card(
         taxonomy_code=payload.taxonomy_code,
         rate_type=payload.rate_type,
         contracted_rate=payload.contracted_rate,
-        rate_tiers=[t.model_dump() for t in payload.rate_tiers] if payload.rate_tiers else None,
+        rate_tiers=[t.model_dump() for t in payload.rate_tiers]
+        if payload.rate_tiers
+        else None,
         max_units=payload.max_units,
         is_all_inclusive=payload.is_all_inclusive,
         effective_from=payload.effective_from,
@@ -2213,7 +2236,9 @@ def get_seed_demo_status(
         job = Job.fetch(job_id, connection=get_redis())
         raw_status = job.get_status()
         # rq ≥ 1.16 returns a JobStatus enum; older returns a string
-        status_str = raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+        status_str = (
+            raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+        )
         payload: dict = {"job_id": job_id, "status": status_str}
         if status_str == "finished":
             payload["result"] = job.result
@@ -2229,7 +2254,7 @@ def get_seed_demo_status(
 
 @router.get("/queue/failed")
 def list_failed_jobs(
-    current_user: User = Depends(require_carrier_role),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> list[dict]:
     """
     Return all jobs currently in the dead-letter queue (FailedJobRegistry).
@@ -2249,7 +2274,7 @@ def list_failed_jobs(
 def retry_failed_job_endpoint(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_carrier_role),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
 ) -> dict:
     """
     Re-enqueue a failed job from the dead-letter queue.
@@ -2372,7 +2397,7 @@ def _to_rate_card_detail(rc: RateCard, db: Session) -> RateCardDetail:
         taxonomy_label=item.label if item else None,
         rate_type=rc.rate_type,
         contracted_rate=rc.contracted_rate,
-        rate_tiers=rc.rate_tiers,   # JSONB list[dict] → Pydantic coerces to list[RateTier]
+        rate_tiers=rc.rate_tiers,  # JSONB list[dict] → Pydantic coerces to list[RateTier]
         max_units=rc.max_units,
         is_all_inclusive=rc.is_all_inclusive,
         effective_from=rc.effective_from,
@@ -2591,7 +2616,6 @@ def _to_supplier_profile_response(
         contract_count=len(supplier.contracts),
         invoice_count=len(supplier.invoices),
         user_count=sum(
-            1 for u in supplier.users
-            if u.role == UserRole.SUPPLIER and u.is_active
+            1 for u in supplier.users if u.role == UserRole.SUPPLIER and u.is_active
         ),
     )

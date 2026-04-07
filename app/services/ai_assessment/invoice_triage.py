@@ -60,8 +60,6 @@ def _get_client():
         return None
 
 
-
-
 def triage_invoice(
     supplier_name: str,
     invoice_number: str,

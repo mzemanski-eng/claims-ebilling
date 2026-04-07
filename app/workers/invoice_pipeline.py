@@ -54,7 +54,6 @@ from app.services.audit import logger as audit
 from app.services.classification.classifier import Classifier
 from app.services.ingestion.base import ParseError, RawLineItem
 from app.services.ingestion.dispatcher import detect_format, get_parser
-from app.services.storage.base import get_storage
 from app.services.ai_assessment.exception_resolver import assess_exception
 from app.services.ai_assessment.invoice_triage import triage_invoice
 from app.services.notifications.email import (
@@ -307,16 +306,18 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     processed_lines: list = []
 
     for raw_item in parse_result.line_items:
-        line_item, item_errors, item_spend_errors, item_warnings, item_expected = _process_line(
-            db=db,
-            raw_item=raw_item,
-            invoice=invoice,
-            contract=contract,
-            guidelines=guidelines,
-            classifier=classifier,
-            rate_validator=rate_validator,
-            guideline_validator=guideline_validator,
-            vertical=vertical,
+        line_item, item_errors, item_spend_errors, item_warnings, item_expected = (
+            _process_line(
+                db=db,
+                raw_item=raw_item,
+                invoice=invoice,
+                contract=contract,
+                guidelines=guidelines,
+                classifier=classifier,
+                rate_validator=rate_validator,
+                guideline_validator=guideline_validator,
+                vertical=vertical,
+            )
         )
         processed_lines.append(line_item)
         error_count += item_errors
@@ -463,7 +464,9 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             # ── Write confirmed mappings to the MappingRule corpus ────────────
             # Classifier checks MappingRule first, so these rules immediately
             # improve accuracy for future invoices from the same supplier.
-            from app.services.classification.mapping_learner import record_confirmed_mapping
+            from app.services.classification.mapping_learner import (
+                record_confirmed_mapping,
+            )
             from app.models.mapping import ConfirmedBy
 
             for line in processed_lines:
@@ -478,7 +481,8 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
                             db=db,
                             line_item=line,
                             taxonomy_code=sug["suggested_code"],
-                            billing_component=sug.get("suggested_billing_component") or "",
+                            billing_component=sug.get("suggested_billing_component")
+                            or "",
                             source=ConfirmedBy.SYSTEM,
                             scope="this_supplier",
                         )
@@ -517,13 +521,20 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
         else settings.auto_approve_clean_invoices
     )
 
-    if _eff_auto_approve and (cs.auto_approve_max_amount is not None or cs.require_review_above_amount is not None):
-        _invoice_total = float(
-            sum(line.raw_amount or 0 for line in processed_lines)
-        )
-        if cs.require_review_above_amount is not None and _invoice_total > cs.require_review_above_amount:
+    if _eff_auto_approve and (
+        cs.auto_approve_max_amount is not None
+        or cs.require_review_above_amount is not None
+    ):
+        _invoice_total = float(sum(line.raw_amount or 0 for line in processed_lines))
+        if (
+            cs.require_review_above_amount is not None
+            and _invoice_total > cs.require_review_above_amount
+        ):
             _eff_auto_approve = False
-        elif cs.auto_approve_max_amount is not None and _invoice_total > cs.auto_approve_max_amount:
+        elif (
+            cs.auto_approve_max_amount is not None
+            and _invoice_total > cs.auto_approve_max_amount
+        ):
             _eff_auto_approve = False
 
     if (
@@ -693,7 +704,8 @@ def _process_line(
                         db=db,
                         line_item=line_item,
                         taxonomy_code=suggestion["suggested_code"],  # type: ignore[index]
-                        billing_component=suggestion.get("suggested_billing_component") or "",  # type: ignore[union-attr]
+                        billing_component=suggestion.get("suggested_billing_component")
+                        or "",  # type: ignore[union-attr]
                         source=ConfirmedBy.SYSTEM,
                         scope="this_supplier",
                     )
@@ -791,7 +803,9 @@ def _process_line(
             )
             db.add(exc_record)
             db.flush()
-            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract, vertical=vertical)
+            _attach_ai_recommendation(
+                db, exc_record, val, line_item, invoice, contract, vertical=vertical
+            )
             audit.log_line_item_exception_opened(db, line_item, rate_result)
             error_count += 1
             spend_error_count += 1
@@ -833,7 +847,9 @@ def _process_line(
             )
             db.add(exc_record)
             db.flush()
-            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract, vertical=vertical)
+            _attach_ai_recommendation(
+                db, exc_record, val, line_item, invoice, contract, vertical=vertical
+            )
             audit.log_line_item_exception_opened(db, line_item, guide_result)
             error_count += 1
             spend_error_count += 1

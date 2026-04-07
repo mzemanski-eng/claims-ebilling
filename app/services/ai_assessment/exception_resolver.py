@@ -60,8 +60,6 @@ def _get_client():
         return None
 
 
-
-
 def assess_exception(
     exception_message: str,
     required_action: str,

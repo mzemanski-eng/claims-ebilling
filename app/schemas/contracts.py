@@ -21,6 +21,7 @@ class RateTier(BaseSchema):
     A single band in a tiered rate schedule.
     Example: pages 1–20 at $0.85, pages 21+ at $0.55.
     """
+
     from_unit: int
     to_unit: Optional[int] = None  # None = unlimited / all remaining units
     rate: Decimal
@@ -43,7 +44,9 @@ class RateCardCreate(BaseSchema):
                 raise ValueError("rate_tiers is required when rate_type is 'tiered'")
         else:
             if self.contracted_rate is None:
-                raise ValueError("contracted_rate is required when rate_type is not 'tiered'")
+                raise ValueError(
+                    "contracted_rate is required when rate_type is not 'tiered'"
+                )
         return self
 
 
@@ -95,8 +98,10 @@ class ContractDetail(BaseSchema):
     state_codes: Optional[list[str]]
     notes: Optional[str]
     is_active: bool
-    vertical_id: Optional[uuid.UUID] = None   # Phase 3
-    vertical_slug: Optional[str] = None       # Phase 3: "ale" | "restoration" | "legal" | null
+    vertical_id: Optional[uuid.UUID] = None  # Phase 3
+    vertical_slug: Optional[str] = (
+        None  # Phase 3: "ale" | "restoration" | "legal" | null
+    )
     rate_cards: list[RateCardDetail]
     guidelines: list[GuidelineDetail]
 

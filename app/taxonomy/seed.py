@@ -66,13 +66,13 @@ def seed_taxonomy(session=None) -> int:
         stmt = stmt.on_conflict_do_update(
             index_elements=["code"],
             set_={
-                "domain":            stmt.excluded.domain,
-                "service_item":      stmt.excluded.service_item,
+                "domain": stmt.excluded.domain,
+                "service_item": stmt.excluded.service_item,
                 "billing_component": stmt.excluded.billing_component,
-                "unit_model":        stmt.excluded.unit_model,
-                "label":             stmt.excluded.label,
-                "description":       stmt.excluded.description,
-                "vertical_id":       stmt.excluded.vertical_id,
+                "unit_model": stmt.excluded.unit_model,
+                "label": stmt.excluded.label,
+                "description": stmt.excluded.description,
+                "vertical_id": stmt.excluded.vertical_id,
                 # is_active intentionally not overwritten (carrier may deactivate codes)
             },
         )

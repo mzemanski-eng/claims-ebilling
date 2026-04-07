@@ -216,7 +216,11 @@ class RateValidator:
             if remaining <= 0:
                 break
             from_u = Decimal(str(tier["from_unit"]))
-            to_u = Decimal(str(tier["to_unit"])) if tier.get("to_unit") is not None else None
+            to_u = (
+                Decimal(str(tier["to_unit"]))
+                if tier.get("to_unit") is not None
+                else None
+            )
             tier_rate = Decimal(str(tier["rate"]))
 
             if to_u is not None:
@@ -230,9 +234,7 @@ class RateValidator:
 
         return total.quantize(Decimal("0.01"))
 
-    def _calculate_expected(
-        self, line_item: LineItem, rate_card: RateCard
-    ) -> Decimal:
+    def _calculate_expected(self, line_item: LineItem, rate_card: RateCard) -> Decimal:
         """
         Calculate the expected amount for a line item based on rate card type.
         Dispatches to tiered or flat calculation.
@@ -262,9 +264,7 @@ class RateValidator:
                     f"({tier_count} bands) = ${expected}"
                 )
             else:
-                calc_desc = (
-                    f"${rate_card.contracted_rate} × {line_item.raw_quantity} {units} = ${expected}"
-                )
+                calc_desc = f"${rate_card.contracted_rate} × {line_item.raw_quantity} {units} = ${expected}"
             return RateValidationResult(
                 rate_card_id=str(rate_card.id),
                 status=ValidationStatus.PASS,
@@ -309,9 +309,7 @@ class RateValidator:
                     f"{line_item.raw_quantity} {units} = ${expected}"
                 )
             else:
-                calc_desc = (
-                    f"${rate_card.contracted_rate} × {line_item.raw_quantity} {units} = ${expected}"
-                )
+                calc_desc = f"${rate_card.contracted_rate} × {line_item.raw_quantity} {units} = ${expected}"
             return RateValidationResult(
                 rate_card_id=str(rate_card.id),
                 status=ValidationStatus.WARNING,
@@ -332,13 +330,17 @@ class RateValidator:
         units = line_item.raw_unit or "units"
         if line_item.raw_quantity > rate_card.max_units:
             # Calculate capped expected amount using the same rate logic
-            capped_line = type("_Stub", (), {
-                "raw_quantity": rate_card.max_units,
-                "raw_unit": line_item.raw_unit,
-                "service_date": line_item.service_date,
-                "taxonomy_code": line_item.taxonomy_code,
-                "billing_component": getattr(line_item, "billing_component", None),
-            })()
+            capped_line = type(
+                "_Stub",
+                (),
+                {
+                    "raw_quantity": rate_card.max_units,
+                    "raw_unit": line_item.raw_unit,
+                    "service_date": line_item.service_date,
+                    "taxonomy_code": line_item.taxonomy_code,
+                    "billing_component": getattr(line_item, "billing_component", None),
+                },
+            )()
             capped_amount = self._calculate_expected(capped_line, rate_card)
             return RateValidationResult(
                 rate_card_id=str(rate_card.id),
