@@ -5,6 +5,36 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { listAdminContracts, listAdminSuppliers } from "@/lib/api";
 
+// ── Expiry helpers ────────────────────────────────────────────────────────────
+
+function getExpiryStatus(effectiveTo: string | null): "EXPIRED" | "EXPIRING_SOON" | "ACTIVE" | null {
+  if (!effectiveTo) return null; // ongoing
+  const msToExpiry = new Date(effectiveTo).getTime() - Date.now();
+  const daysToExpiry = msToExpiry / 86_400_000;
+  if (daysToExpiry < 0) return "EXPIRED";
+  if (daysToExpiry <= 30) return "EXPIRING_SOON";
+  return "ACTIVE";
+}
+
+function ExpiryBadge({ effectiveTo }: { effectiveTo: string | null }) {
+  const status = getExpiryStatus(effectiveTo);
+  if (!status || status === "ACTIVE") return null;
+  if (status === "EXPIRED") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-700 border border-red-200">
+        Expired
+      </span>
+    );
+  }
+  // EXPIRING_SOON
+  const days = Math.ceil((new Date(effectiveTo!).getTime() - Date.now()) / 86_400_000);
+  return (
+    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 border border-amber-200">
+      ⚠ {days}d left
+    </span>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminContractsPage() {
@@ -39,6 +69,34 @@ export default function AdminContractsPage() {
           + New Contract
         </Link>
       </div>
+
+      {/* Expiry alert — shown when any active contracts are expiring or expired */}
+      {contracts && (() => {
+        const expiring = contracts.filter(
+          (c) => c.is_active && getExpiryStatus(c.effective_to ?? null) === "EXPIRING_SOON"
+        );
+        const expired = contracts.filter(
+          (c) => c.is_active && getExpiryStatus(c.effective_to ?? null) === "EXPIRED"
+        );
+        if (expiring.length === 0 && expired.length === 0) return null;
+        return (
+          <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5">
+            <span className="mt-0.5 text-amber-500 text-base shrink-0">⚠</span>
+            <div className="text-sm text-amber-900">
+              {expired.length > 0 && (
+                <p className="font-semibold">
+                  {expired.length} contract{expired.length !== 1 ? "s have" : " has"} expired — invoices from these suppliers may generate NO_ACTIVE_CONTRACT exceptions.
+                </p>
+              )}
+              {expiring.length > 0 && (
+                <p className={expired.length > 0 ? "mt-1 text-amber-800" : "font-semibold"}>
+                  {expiring.length} contract{expiring.length !== 1 ? "s are" : " is"} expiring within 30 days — renew to avoid billing disruptions.
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Filter bar */}
       <div className="flex items-end gap-3 rounded-xl border bg-white p-4 shadow-sm">
@@ -126,12 +184,17 @@ export default function AdminContractsPage() {
                     {c.supplier_name ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
-                    {c.effective_from}
-                    {c.effective_to ? (
-                      <span className="text-gray-400"> → {c.effective_to}</span>
-                    ) : (
-                      <span className="text-gray-400"> → ongoing</span>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      <span>
+                        {c.effective_from}
+                        {c.effective_to ? (
+                          <span className="text-gray-400"> → {c.effective_to}</span>
+                        ) : (
+                          <span className="text-gray-400"> → ongoing</span>
+                        )}
+                      </span>
+                      <ExpiryBadge effectiveTo={c.effective_to ?? null} />
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 capitalize">
                     {c.geography_scope}

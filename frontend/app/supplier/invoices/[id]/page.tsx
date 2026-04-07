@@ -90,12 +90,12 @@ export default function SupplierInvoiceDetailPage({
         <div className="flex items-center gap-3">
           <StatusBadge status={invoice.status} className="text-sm px-3 py-1" />
           {invoice.status === "REVIEW_REQUIRED" && (
-            <Link
-              href={`/supplier/invoices/${id}/resubmit`}
+            <a
+              href="#exceptions"
               className="rounded-md bg-orange-100 px-3 py-1.5 text-sm font-medium text-orange-700 hover:bg-orange-200"
             >
-              Resubmit →
-            </Link>
+              See What Needs Fixing →
+            </a>
           )}
         </div>
       </div>
@@ -115,6 +115,36 @@ export default function SupplierInvoiceDetailPage({
 
       {/* Status banner — always rendered, status-specific guidance */}
       <InvoiceStatusBanner status={invoice.status} invoiceId={id} />
+
+      {/* Jump-to-exceptions banner — shown when supplier needs to act */}
+      {invoice.status === "REVIEW_REQUIRED" && (() => {
+        const openCount = lines
+          ? lines.reduce(
+              (acc, li) => acc + li.exceptions.filter((e) => e.status === "OPEN").length,
+              0
+            )
+          : null; // null = lines not loaded yet; show banner without count
+        return (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-orange-200 bg-orange-50 px-5 py-3.5">
+            <div>
+              <p className="text-sm font-semibold text-orange-900">
+                {openCount !== null
+                  ? `${openCount} exception${openCount !== 1 ? "s" : ""} need${openCount === 1 ? "s" : ""} your response`
+                  : "Exceptions need your response"}
+              </p>
+              <p className="mt-0.5 text-xs text-orange-700">
+                Review each flagged line below and submit your response before resubmitting.
+              </p>
+            </div>
+            <a
+              href="#exceptions"
+              className="shrink-0 rounded-md bg-orange-600 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-700 transition-colors"
+            >
+              Jump to Issues ↓
+            </a>
+          </div>
+        );
+      })()}
 
       {/* Approved payment summary box */}
       {invoice.status === "APPROVED" && summary && (

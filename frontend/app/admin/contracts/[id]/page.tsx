@@ -24,6 +24,47 @@ const RULE_TYPES = [
   { value: "invoice_codes_exclusive", label: "Service Hierarchy (Exclusive Codes)" },
 ];
 
+// ── Plain-English description of guideline rule_params ───────────────────────
+
+function describeRuleParams(ruleType: string, params: Record<string, unknown>): string {
+  switch (ruleType) {
+    case "max_units": {
+      const max = params.max;
+      const period = params.period ?? "per claim";
+      return max != null ? `Max ${max} units ${String(period).replace(/_/g, " ")}` : "";
+    }
+    case "cap_amount": {
+      const cap = params.max_amount;
+      return cap != null ? `Capped at $${Number(cap).toFixed(2)}` : "";
+    }
+    case "billing_increment": {
+      const inc = params.min_increment;
+      const unit = params.unit ?? "hour";
+      return inc != null ? `Min billing increment: ${inc} ${unit}` : "";
+    }
+    case "bundling_prohibition": {
+      const codes = (params.prohibited_with as string[]) ?? [];
+      return codes.length > 0 ? `Cannot bill with: ${codes.join(", ")}` : "Bundling prohibited";
+    }
+    case "max_pct_of_invoice": {
+      const pct = params.max_pct;
+      const desc = params.description;
+      return pct != null
+        ? `${desc ? String(desc) + ": " : ""}max ${pct}% of invoice`
+        : "";
+    }
+    case "invoice_codes_exclusive": {
+      const codes = (params.exclusive_codes as string[]) ?? [];
+      const desc = params.description;
+      return `Mutually exclusive${desc ? " (" + String(desc) + ")" : ""}: ${codes.join(", ")}`;
+    }
+    case "requires_auth":
+      return "Requires prior authorization";
+    default:
+      return "";
+  }
+}
+
 // ── Blank form state ──────────────────────────────────────────────────────────
 
 function blankRateCard(effectiveFrom = ""): RateCardCreate {
@@ -389,6 +430,9 @@ export default function ContractDetailPage() {
   const [formError, setFormError] = useState<string | null>(null);
   // Which tiered rate card row is expanded (by id)
   const [expandedRcId, setExpandedRcId] = useState<string | null>(null);
+  // Inline delete confirmation — stores the id pending deletion
+  const [confirmDeleteRcId, setConfirmDeleteRcId] = useState<string | null>(null);
+  const [confirmDeleteGlId, setConfirmDeleteGlId] = useState<string | null>(null);
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const {
@@ -639,17 +683,33 @@ export default function ContractDetailPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => {
-                                if (confirm("Delete this rate card?")) {
-                                  deleteRcMutation.mutate(rc.id);
-                                }
-                              }}
-                              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                              title="Delete rate card"
-                            >
-                              ✕
-                            </button>
+                            {confirmDeleteRcId === rc.id ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => {
+                                    setConfirmDeleteRcId(null);
+                                    deleteRcMutation.mutate(rc.id);
+                                  }}
+                                  className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-700"
+                                >
+                                  Delete
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteRcId(null)}
+                                  className="rounded border border-gray-300 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-50"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteRcId(rc.id)}
+                                className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                title="Delete rate card"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </td>
                         </tr>
                         {/* Expanded tier bands row */}
@@ -944,81 +1004,116 @@ export default function ContractDetailPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {contract.guidelines.map((g) => (
-                  <div
-                    key={g.id}
-                    className={`rounded-xl border bg-white p-4 shadow-sm transition-opacity ${
-                      !g.is_active ? "opacity-50" : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
-                            {g.rule_type}
-                          </span>
-                          {g.taxonomy_code && (
-                            <span className="font-mono text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                              {g.taxonomy_code}
+                {contract.guidelines.map((g) => {
+                  const ruleDescription = describeRuleParams(g.rule_type, g.rule_params as Record<string, unknown>);
+                  return (
+                    <div
+                      key={g.id}
+                      className={`rounded-xl border bg-white p-4 shadow-sm ${
+                        !g.is_active ? "opacity-60" : ""
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                              {RULE_TYPES.find((r) => r.value === g.rule_type)?.label ?? g.rule_type}
                             </span>
-                          )}
-                          {g.domain && !g.taxonomy_code && (
-                            <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                              Domain: {g.domain}
+                            {g.taxonomy_code && (
+                              <span className="font-mono text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                                {g.taxonomy_code}
+                              </span>
+                            )}
+                            {g.domain && !g.taxonomy_code && (
+                              <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                Domain: {g.domain}
+                              </span>
+                            )}
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                                g.severity === "ERROR"
+                                  ? "bg-red-100 text-red-700"
+                                  : g.severity === "WARNING"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                            >
+                              {g.severity}
                             </span>
+                            {!g.is_active && (
+                              <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                          {/* Human-readable rule description */}
+                          {ruleDescription && (
+                            <p className="text-xs text-gray-700 font-medium">
+                              {ruleDescription}
+                            </p>
                           )}
-                          <span
-                            className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                              g.severity === "ERROR"
-                                ? "bg-red-100 text-red-700"
-                                : g.severity === "WARNING"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-blue-100 text-blue-700"
-                            }`}
-                          >
-                            {g.severity}
-                          </span>
-                          {!g.is_active && (
-                            <span className="text-xs text-gray-400">(inactive)</span>
+                          {g.narrative_source && (
+                            <p className="text-xs text-gray-500 line-clamp-2 italic">
+                              &ldquo;{g.narrative_source}&rdquo;
+                            </p>
                           )}
                         </div>
-                        {Object.keys(g.rule_params).length > 0 && (
-                          <p className="text-xs text-gray-500 font-mono">
-                            {JSON.stringify(g.rule_params)}
-                          </p>
-                        )}
-                        {g.narrative_source && (
-                          <p className="text-xs text-gray-500 line-clamp-2 italic">
-                            "{g.narrative_source}"
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() =>
-                            toggleGlMutation.mutate({ gId: g.id, isActive: !g.is_active })
-                          }
-                          disabled={toggleGlMutation.isPending}
-                          className="text-xs text-gray-400 hover:text-blue-600 transition-colors"
-                          title={g.is_active ? "Deactivate" : "Activate"}
-                        >
-                          {g.is_active ? "⏸ Disable" : "▶ Enable"}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm("Delete this guideline?")) {
-                              deleteGlMutation.mutate(g.id);
-                            }
-                          }}
-                          className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                          title="Delete guideline"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!g.is_active ? (
+                            <button
+                              onClick={() =>
+                                toggleGlMutation.mutate({ gId: g.id, isActive: true })
+                              }
+                              disabled={toggleGlMutation.isPending}
+                              className="rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                              title="Re-enable this guideline"
+                            >
+                              ▶ Enable
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                toggleGlMutation.mutate({ gId: g.id, isActive: false })
+                              }
+                              disabled={toggleGlMutation.isPending}
+                              className="text-xs text-gray-400 hover:text-blue-600 transition-colors"
+                              title="Deactivate guideline"
+                            >
+                              ⏸ Disable
+                            </button>
+                          )}
+                          {confirmDeleteGlId === g.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  setConfirmDeleteGlId(null);
+                                  deleteGlMutation.mutate(g.id);
+                                }}
+                                className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteGlId(null)}
+                                className="rounded border border-gray-300 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteGlId(g.id)}
+                              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                              title="Delete guideline"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

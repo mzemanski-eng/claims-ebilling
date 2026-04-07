@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { listCarrierInvoices } from "@/lib/api";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { listCarrierInvoices, approveCarrierInvoice } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
+import { useToast } from "@/components/toast";
 
 // ── Risk badge — shown for HIGH / CRITICAL triage ─────────────────────────────
 const RISK_BADGE: Record<string, string> = {
@@ -26,7 +27,27 @@ function formatMoney(val: string | null) {
   return `$${parseFloat(val).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
 }
 
+function formatAge(iso: string | null): { label: string; colorClass: string } | null {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days === 0) return { label: "today", colorClass: "text-gray-400" };
+  if (days === 1) return { label: "1d ago", colorClass: "text-gray-400" };
+  if (days < 3)  return { label: `${days}d ago`, colorClass: "text-gray-400" };
+  if (days < 7)  return { label: `${days}d ago`, colorClass: "text-amber-500" };
+  return { label: `${days}d ago`, colorClass: "text-red-500 font-semibold" };
+}
+
+type SortKey = "submitted_at" | "exception_count" | "total_billed";
+type SortDir = "asc" | "desc";
+
 export default function CarrierQueuePage() {
+  const qc = useQueryClient();
+  const toast = useToast();
+
+  const [sortKey, setSortKey] = useState<SortKey>("submitted_at");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
   // Fetch both PENDING_CARRIER_REVIEW and CARRIER_REVIEWING — invoices stay
   // visible while a reviewer is actively working on them.
   const { data: pendingInvoices, isLoading: loadingPending } = useQuery({
@@ -43,15 +64,47 @@ export default function CarrierQueuePage() {
 
   const isLoading = loadingPending || loadingReviewing;
 
-  // Merge and sort: oldest submitted first (soonest deadline)
+  const approveMut = useMutation({
+    mutationFn: (invoiceId: string) => approveCarrierInvoice(invoiceId),
+    onSuccess: () => {
+      setApprovingId(null);
+      qc.invalidateQueries({ queryKey: ["carrier-queue"] });
+      toast.success("Invoice approved");
+    },
+    onError: (err: Error) => {
+      setApprovingId(null);
+      toast.error("Could not approve invoice", err.message);
+    },
+  });
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "submitted_at" ? "asc" : "desc");
+    }
+  }
+
+  const sortIndicator = (key: SortKey) =>
+    sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
   const invoices = useMemo(() => {
     const all = [...(pendingInvoices ?? []), ...(reviewingInvoices ?? [])];
     return all.sort((a, b) => {
-      const aDate = a.submitted_at ? new Date(a.submitted_at).getTime() : 0;
-      const bDate = b.submitted_at ? new Date(b.submitted_at).getTime() : 0;
-      return aDate - bDate;
+      let diff = 0;
+      if (sortKey === "submitted_at") {
+        const aDate = a.submitted_at ? new Date(a.submitted_at).getTime() : 0;
+        const bDate = b.submitted_at ? new Date(b.submitted_at).getTime() : 0;
+        diff = aDate - bDate;
+      } else if (sortKey === "exception_count") {
+        diff = (a.exception_count ?? 0) - (b.exception_count ?? 0);
+      } else if (sortKey === "total_billed") {
+        diff = parseFloat(a.total_billed ?? "0") - parseFloat(b.total_billed ?? "0");
+      }
+      return sortDir === "asc" ? diff : -diff;
     });
-  }, [pendingInvoices, reviewingInvoices]);
+  }, [pendingInvoices, reviewingInvoices, sortKey, sortDir]);
 
   return (
     <div>
@@ -59,7 +112,8 @@ export default function CarrierQueuePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Review Queue</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Invoices awaiting or currently under carrier review · oldest first
+          Invoices awaiting or currently under carrier review
+          {invoices.length > 0 && ` · ${invoices.length} invoice${invoices.length !== 1 ? "s" : ""}`}
         </p>
       </div>
 
@@ -96,83 +150,123 @@ export default function CarrierQueuePage() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">
                   Status
                 </th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">
-                  Total Billed
+                <th
+                  className="px-4 py-3 text-right font-semibold text-gray-600 cursor-pointer select-none hover:text-blue-600"
+                  onClick={() => toggleSort("total_billed")}
+                  title="Click to sort by billed amount"
+                >
+                  Total Billed{sortIndicator("total_billed")}
                 </th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-600">
-                  Exceptions
+                <th
+                  className="px-4 py-3 text-center font-semibold text-gray-600 cursor-pointer select-none hover:text-blue-600"
+                  onClick={() => toggleSort("exception_count")}
+                  title="Click to sort by exception count"
+                >
+                  Exceptions{sortIndicator("exception_count")}
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">
-                  Submitted
+                <th
+                  className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer select-none hover:text-blue-600"
+                  onClick={() => toggleSort("submitted_at")}
+                  title="Click to sort by submission date"
+                >
+                  Submitted{sortIndicator("submitted_at")}
                 </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {inv.invoice_number}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {inv.supplier_name ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {formatDate(inv.invoice_date)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {inv.triage_risk_level && RISK_BADGE[inv.triage_risk_level] && (
-                        <span
-                          className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide shrink-0 ${RISK_BADGE[inv.triage_risk_level]}`}
-                          title={`AI triage risk: ${inv.triage_risk_level}`}
-                        >
-                          {inv.triage_risk_level}
-                        </span>
-                      )}
-                      <StatusBadge status={inv.status} />
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-700">
-                    {formatMoney(inv.total_billed)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {inv.exception_count > 0 ? (
-                      <div className="inline-flex flex-col items-center gap-0.5">
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
-                          {inv.exception_count}
-                        </span>
-                        <span className={`text-[10px] font-medium ${
-                          inv.status === "REVIEW_REQUIRED" ||
-                          inv.status === "SUPPLIER_RESPONDED" ||
-                          inv.status === "CARRIER_REVIEWING"
-                            ? "text-red-400"
-                            : "text-amber-400"
-                        }`}>
-                          {inv.status === "REVIEW_REQUIRED" ||
-                          inv.status === "SUPPLIER_RESPONDED" ||
-                          inv.status === "CARRIER_REVIEWING"
-                            ? "spend"
-                            : "classif."}
-                        </span>
+              {invoices.map((inv) => {
+                const age = formatAge(inv.submitted_at);
+                const canQuickApprove =
+                  inv.exception_count === 0 &&
+                  inv.status === "PENDING_CARRIER_REVIEW";
+                const isApproving = approvingId === inv.id && approveMut.isPending;
+                return (
+                  <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      {inv.invoice_number}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {inv.supplier_name ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {formatDate(inv.invoice_date)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {inv.triage_risk_level && RISK_BADGE[inv.triage_risk_level] && (
+                          <span
+                            className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide shrink-0 ${RISK_BADGE[inv.triage_risk_level]}`}
+                            title={`AI triage risk: ${inv.triage_risk_level}`}
+                          >
+                            {inv.triage_risk_level}
+                          </span>
+                        )}
+                        <StatusBadge status={inv.status} />
                       </div>
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {formatDate(inv.submitted_at)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/carrier/invoices/${inv.id}`}
-                      className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
-                    >
-                      Review →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-700">
+                      {formatMoney(inv.total_billed)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {inv.exception_count > 0 ? (
+                        <div className="inline-flex flex-col items-center gap-0.5">
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
+                            {inv.exception_count}
+                          </span>
+                          <span className={`text-[10px] font-medium ${
+                            inv.status === "REVIEW_REQUIRED" ||
+                            inv.status === "SUPPLIER_RESPONDED" ||
+                            inv.status === "CARRIER_REVIEWING"
+                              ? "text-red-400"
+                              : "text-amber-400"
+                          }`}>
+                            {inv.status === "REVIEW_REQUIRED" ||
+                            inv.status === "SUPPLIER_RESPONDED" ||
+                            inv.status === "CARRIER_REVIEWING"
+                              ? "spend"
+                              : "classif."}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <span className="text-gray-500">{formatDate(inv.submitted_at)}</span>
+                        {age && (
+                          <span className={`text-[11px] ${age.colorClass}`}>
+                            {age.label}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {canQuickApprove && (
+                          <button
+                            disabled={approveMut.isPending}
+                            onClick={() => {
+                              setApprovingId(inv.id);
+                              approveMut.mutate(inv.id);
+                            }}
+                            className="rounded-md border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                          >
+                            {isApproving ? "…" : "✓ Approve"}
+                          </button>
+                        )}
+                        <Link
+                          href={`/carrier/invoices/${inv.id}`}
+                          className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                        >
+                          Review →
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

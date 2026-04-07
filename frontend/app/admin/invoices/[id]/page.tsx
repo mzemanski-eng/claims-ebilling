@@ -225,7 +225,6 @@ function AIProcessingTimeline({
       {/* Outcome stats — spend audit perspective only; classification handled in mapping queue */}
       {isProcessed && (
         <div className="mt-6 pt-5 border-t border-gray-100 flex gap-3">
-          <StatCard label="Clean Lines" value={String(total - linesWithSpendExcs)} />
           <StatCard
             label="Spend Exceptions"
             value={
@@ -238,6 +237,20 @@ function AIProcessingTimeline({
           />
           <StatCard label="Submitted" value={fmtMoney(summary?.total_billed)} />
           <StatCard label="Payable" value={fmtMoney(summary?.total_payable)} green />
+          {(() => {
+            const billed = parseFloat(summary?.total_billed ?? "0");
+            const payable = parseFloat(summary?.total_payable ?? "0");
+            const saved = billed - payable;
+            if (isNaN(saved) || saved <= 0) return null;
+            const pct = billed > 0 ? Math.round((saved / billed) * 100) : 0;
+            return (
+              <StatCard
+                label="Identified Savings"
+                value={`${fmtMoney(String(saved))} (${pct}%)`}
+                green
+              />
+            );
+          })()}
           {denied > 0 && (
             <StatCard label="Denied" value={String(denied)} highlight />
           )}
@@ -450,7 +463,9 @@ function ExceptionRow({
       if (data?.invoice_status === "APPROVED") {
         toast.success("Invoice auto-approved", "All exceptions resolved — invoice is ready for export.");
       } else if (data?.invoice_status === "PENDING_CARRIER_REVIEW") {
-        toast.success("All exceptions resolved", "Invoice is ready to approve.");
+        // Scroll to sticky header so the Approve button is immediately visible
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        toast.success("All exceptions resolved", "Invoice is ready to approve — scroll up to confirm.");
       } else if (action === "DENIED" && exc.required_action === "OUT_OF_SCOPE") {
         toast.warning("Line denied — out of scope", "Supplier billed outside their contracted service domain.");
       } else if (action === "DENIED" && exc.required_action === "NO_ACTIVE_CONTRACT") {
@@ -854,45 +869,72 @@ export default function AdminInvoiceDetailPage({
         title="Approve Invoice"
         onClose={() => setShowApproveConfirm(false)}
       >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Approving{" "}
-            <strong className="font-mono">{invoice.invoice_number}</strong> will
-            mark it ready for export. Any remaining open exceptions will be
-            recorded.
-          </p>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Approval notes (optional)
-            </label>
-            <textarea
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              rows={3}
-              value={approvalNotes}
-              onChange={(e) => setApprovalNotes(e.target.value)}
-              placeholder="Any notes for the record…"
-            />
-          </div>
-          {approveMut.isError && (
-            <p className="text-sm text-red-600">
-              {(approveMut.error as Error).message}
-            </p>
-          )}
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="ghost"
-              onClick={() => setShowApproveConfirm(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              loading={approveMut.isPending}
-              onClick={() => approveMut.mutate()}
-            >
-              Confirm Approval
-            </Button>
-          </div>
-        </div>
+        {(() => {
+          // Count open spend exceptions at dialog-render time
+          const openSpendExcCount = (lines ?? []).reduce(
+            (acc, line) =>
+              acc +
+              line.exceptions.filter(
+                (e) =>
+                  ["OPEN", "SUPPLIER_RESPONDED", "CARRIER_REVIEWING"].includes(e.status) &&
+                  e.required_action !== "REQUEST_RECLASSIFICATION"
+              ).length,
+            0
+          );
+          return (
+            <div className="space-y-4">
+              {openSpendExcCount > 0 && (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <span className="mt-0.5 text-amber-500 text-base shrink-0">⚠</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">
+                      {openSpendExcCount} open exception{openSpendExcCount !== 1 ? "s" : ""} will be bypassed
+                    </p>
+                    <p className="mt-0.5 text-xs text-amber-700">
+                      These exceptions will be recorded but not resolved. Consider resolving them first for a clean audit trail.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm text-gray-600">
+                Approving{" "}
+                <strong className="font-mono">{invoice.invoice_number}</strong> will
+                mark it ready for export.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Approval notes (optional)
+                </label>
+                <textarea
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  rows={3}
+                  value={approvalNotes}
+                  onChange={(e) => setApprovalNotes(e.target.value)}
+                  placeholder="Any notes for the record…"
+                />
+              </div>
+              {approveMut.isError && (
+                <p className="text-sm text-red-600">
+                  {(approveMut.error as Error).message}
+                </p>
+              )}
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowApproveConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  loading={approveMut.isPending}
+                  onClick={() => approveMut.mutate()}
+                >
+                  Confirm Approval
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </Dialog>
 
       {/* Sticky action bar */}
@@ -911,11 +953,14 @@ export default function AdminInvoiceDetailPage({
             </h1>
             <StatusBadge status={invoice.status} />
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-4">
             {invoice.file_format && (
-              <Button variant="ghost" onClick={handleViewOriginal}>
-                {invoice.file_format === "pdf" ? "↗ View Original PDF" : "↓ Original CSV"}
-              </Button>
+              <button
+                onClick={handleViewOriginal}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1"
+              >
+                {invoice.file_format === "pdf" ? "↗ Original PDF" : "↓ Original CSV"}
+              </button>
             )}
             {canApprove && (
               <Button onClick={() => setShowApproveConfirm(true)}>
@@ -1042,11 +1087,16 @@ export default function AdminInvoiceDetailPage({
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Taxonomy
                 </th>
-                <th
-                  className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500 cursor-help"
-                  title="AI confidence in spend-bucket classification. LOW = needs manual review."
-                >
-                  AI Match
+                <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
+                  <span className="flex items-center gap-1">
+                    AI Match
+                    <span
+                      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-200 text-[9px] font-bold text-gray-500 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                      title={"AI confidence in spend-bucket classification:\n• HIGH — AI is confident; safe to bulk-accept\n• MEDIUM — Moderate confidence; verify if unsure\n• LOW — AI is uncertain; manual review recommended before approving"}
+                    >
+                      ?
+                    </span>
+                  </span>
                 </th>
                 <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-gray-500">
                   Billed
@@ -1358,10 +1408,13 @@ export default function AdminInvoiceDetailPage({
                                     </p>
                                     <a
                                       href="/admin/mappings"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
                                     >
-                                      → Go to Classification Review
+                                      ↗ Open Classification Review
                                     </a>
+                                    <span className="ml-2 text-xs text-blue-500 italic">Opens in a new tab — your place here is saved</span>
                                     {/* AI suggestion shown informational only */}
                                     {line.ai_classification_suggestion && (
                                       <div className="mt-3">

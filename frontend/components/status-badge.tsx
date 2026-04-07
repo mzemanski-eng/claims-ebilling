@@ -24,19 +24,44 @@ const STATUS_STYLES: Record<string, string> = {
   WAIVED: "bg-gray-100 text-gray-500",
 };
 
+// Human-readable labels — used as defaults so every screen shows friendly text
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  SUBMITTED: "Submitted",
+  PROCESSING: "Processing",
+  REVIEW_REQUIRED: "Needs Response",
+  PENDING_CARRIER_REVIEW: "Pending Review",
+  CARRIER_REVIEWING: "Under Review",
+  APPROVED: "Approved",
+  DISPUTED: "Disputed",
+  EXPORTED: "Exported",
+  WITHDRAWN: "Withdrawn",
+  PENDING: "Pending",
+  CLASSIFIED: "Classified",
+  VALIDATED: "Validated",
+  EXCEPTION: "Exception",
+  DENIED: "Denied",
+  OVERRIDE: "Overridden",
+  RESOLVED: "Resolved",
+  OPEN: "Open",
+  SUPPLIER_RESPONDED: "Supplier Responded",
+  WAIVED: "Waived",
+};
+
 interface StatusBadgeProps {
   status: string;
-  label?: string; // optional human-readable override; defaults to status with underscores replaced
+  label?: string; // optional human-readable override
   className?: string;
 }
 
 export function StatusBadge({ status, label, className = "" }: StatusBadgeProps) {
   const style = STATUS_STYLES[status] ?? "bg-gray-100 text-gray-600";
+  const displayLabel = label ?? STATUS_LABELS[status] ?? status.replace(/_/g, " ");
   return (
     <span
       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${style} ${className}`}
     >
-      {label ?? status.replace(/_/g, " ")}
+      {displayLabel}
     </span>
   );
 }

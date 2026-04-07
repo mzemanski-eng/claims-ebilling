@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   getAnalyticsSummary,
   listAdminInvoices,
@@ -375,8 +375,27 @@ export default function AdminDashboard() {
   })();
 
   const flaggedCount  = flaggedInvoices?.length ?? 0;
-  const mappingCount  = mappingQueue?.length ?? 0;
-  const hasAlerts     = flaggedCount > 0 || mappingCount > 0;
+
+  // Mapping count: number of *distinct invoices* that have lines needing review,
+  // not raw line count — avoids inflating the alert for large invoices.
+  const mappingCount = useMemo(() => {
+    if (!mappingQueue || mappingQueue.length === 0) return 0;
+    return new Set(mappingQueue.map((item) => item.invoice_id)).size;
+  }, [mappingQueue]);
+
+  const mappingLineCount = mappingQueue?.length ?? 0;
+
+  // Aging alert: PENDING_CARRIER_REVIEW invoices sitting for 7+ days
+  const sevenDaysAgo = Date.now() - 7 * 86_400_000;
+  const agedCount = useMemo(() => {
+    if (!pendingInvoices) return 0;
+    return pendingInvoices.filter(
+      (inv) => inv.submitted_at && new Date(inv.submitted_at).getTime() < sevenDaysAgo,
+    ).length;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingInvoices]);
+
+  const hasAlerts = flaggedCount > 0 || mappingCount > 0 || agedCount > 0;
 
   return (
     <div className="space-y-8">
@@ -394,37 +413,61 @@ export default function AdminDashboard() {
 
       {/* Alert strip */}
       {hasAlerts && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          {flaggedCount > 0 && (
+        <div className="flex flex-col gap-2">
+          {agedCount > 0 && (
             <Link
-              href="/admin/invoices?status=REVIEW_REQUIRED"
-              className="flex flex-1 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors"
+              href="/admin/invoices?status=PENDING_CARRIER_REVIEW"
+              className="flex items-center gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors"
             >
-              <span className="text-lg">🚨</span>
+              <span className="text-lg">⏰</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-red-800">
-                  {flaggedCount} invoice{flaggedCount !== 1 ? "s" : ""} flagged for review
+                  {agedCount} invoice{agedCount !== 1 ? "s" : ""} waiting 7+ days for approval
                 </p>
-                <p className="text-xs text-red-500">Unresolved validation exceptions · click to open queue</p>
+                <p className="text-xs text-red-500">
+                  Stale items in the pending queue · review to avoid supplier delays
+                </p>
               </div>
-              <span className="shrink-0 text-xs font-semibold text-red-600">View →</span>
+              <span className="shrink-0 text-xs font-semibold text-red-600">Review →</span>
             </Link>
           )}
-          {mappingCount > 0 && (
-            <Link
-              href="/admin/mappings"
-              className="flex flex-1 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors"
-            >
-              <span className="text-lg">🗂</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-800">
-                  {mappingCount} line{mappingCount !== 1 ? "s" : ""} awaiting classification
-                </p>
-                <p className="text-xs text-amber-500">Service lines without an assigned spend bucket · click to review</p>
-              </div>
-              <span className="shrink-0 text-xs font-semibold text-amber-600">Review →</span>
-            </Link>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            {flaggedCount > 0 && (
+              <Link
+                href="/admin/invoices?status=REVIEW_REQUIRED"
+                className="flex flex-1 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors"
+              >
+                <span className="text-lg">🚨</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-800">
+                    {flaggedCount} invoice{flaggedCount !== 1 ? "s" : ""} flagged for review
+                  </p>
+                  <p className="text-xs text-red-500">Unresolved validation exceptions · click to open queue</p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-red-600">View →</span>
+              </Link>
+            )}
+            {mappingCount > 0 && (
+              <Link
+                href="/admin/mappings"
+                className="flex flex-1 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors"
+              >
+                <span className="text-lg">🗂</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-800">
+                    {mappingCount} invoice{mappingCount !== 1 ? "s" : ""} need classification
+                    {mappingLineCount > mappingCount && (
+                      <span className="ml-1 font-normal text-amber-700">
+                        ({mappingLineCount} lines)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-amber-500">Service lines without an assigned spend bucket · click to review</p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-amber-600">Review →</span>
+              </Link>
+            )}
+          </div>
         </div>
       )}
 

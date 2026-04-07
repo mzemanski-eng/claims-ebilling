@@ -185,9 +185,20 @@ export default function SupplierInvoicesPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       {inv.exception_count > 0 ? (
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
-                          {inv.exception_count}
-                        </span>
+                        inv.status === "REVIEW_REQUIRED" ? (
+                          // Actionable — supplier needs to respond
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                            {inv.exception_count} — Needs response
+                          </span>
+                        ) : (
+                          // Informational — ball is in carrier's court
+                          <span
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-500"
+                            title="Under carrier review — no action needed from you"
+                          >
+                            {inv.exception_count}
+                          </span>
+                        )
                       ) : (
                         <span className="text-gray-300">—</span>
                       )}

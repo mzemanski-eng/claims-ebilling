@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
@@ -132,6 +132,30 @@ function AdminInvoicesContent() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Background query used only for tab counts — always fetches ALL statuses so
+  // every tab can show a badge, regardless of which tab is currently active.
+  const { data: allForCounts } = useQuery({
+    queryKey: ["admin-invoices-counts", debouncedSearch, supplierId, dateFrom, dateTo],
+    queryFn: () =>
+      listAdminInvoices({
+        search:     debouncedSearch || undefined,
+        supplierId: supplierId      || undefined,
+        dateFrom:   dateFrom        || undefined,
+        dateTo:     dateTo          || undefined,
+      }),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const tabCounts = useMemo(() => {
+    if (!allForCounts) return {} as Record<string, number>;
+    const map: Record<string, number> = { __all__: allForCounts.length };
+    for (const inv of allForCounts) {
+      map[inv.status] = (map[inv.status] ?? 0) + 1;
+    }
+    return map;
+  }, [allForCounts]);
+
   // ── Derived selection helpers ──────────────────────────────────────────────
   const approvableInvoices = (invoices ?? []).filter((inv) =>
     APPROVABLE_STATUSES.has(inv.status),
@@ -170,6 +194,17 @@ function AdminInvoicesContent() {
       queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
     },
   });
+
+  // Confirm dialog shown when bulk-approving more than 5 invoices at once
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+
+  function handleBulkApprove() {
+    if (selectedIds.size > 5) {
+      setShowBulkConfirm(true);
+    } else {
+      bulkMutation.mutate();
+    }
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -298,20 +333,32 @@ function AdminInvoicesContent() {
 
       {/* Status tabs */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex gap-1">
+        <nav className="-mb-px flex gap-1 flex-wrap">
           {STATUS_TABS.map((tab) => {
             const active = activeTab === tab.value;
+            const count = tab.value === undefined
+              ? tabCounts["__all__"]
+              : tabCounts[tab.value];
             return (
               <button
                 key={String(tab.value)}
                 onClick={() => setActiveTab(tab.value)}
-                className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors ${
                   active
                     ? "border-b-2 border-blue-600 text-blue-600"
                     : "text-gray-500 hover:border-b-2 hover:border-gray-300 hover:text-gray-700"
                 }`}
               >
                 {tab.label}
+                {count !== undefined && count > 0 && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none ${
+                    active
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}>
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -332,7 +379,7 @@ function AdminInvoicesContent() {
               Clear selection
             </button>
             <button
-              onClick={() => bulkMutation.mutate()}
+              onClick={handleBulkApprove}
               disabled={bulkMutation.isPending}
               className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
@@ -340,6 +387,44 @@ function AdminInvoicesContent() {
                 ? "Approving…"
                 : `Approve ${selectedIds.size} Invoice${selectedIds.size !== 1 ? "s" : ""}`}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk confirm modal — shown when approving more than 5 invoices at once */}
+      {showBulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">
+              Approve {selectedIds.size} Invoices?
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              You are about to bulk-approve{" "}
+              <span className="font-semibold">{selectedIds.size} invoices</span> in a
+              single action. Each invoice will move to Approved status immediately — this
+              cannot be undone.
+            </p>
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+              ⚠ Any invoices with open exceptions will have those exceptions bypassed.
+              Verify the selection before confirming.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkConfirm(false)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowBulkConfirm(false);
+                  bulkMutation.mutate();
+                }}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+              >
+                Approve All {selectedIds.size}
+              </button>
+            </div>
           </div>
         </div>
       )}

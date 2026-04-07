@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -291,8 +291,8 @@ function GroupCard({
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex shrink-0 items-center gap-2">
+          {/* Action buttons — Confirm All is primary; Override All is low-emphasis */}
+          <div className="flex shrink-0 items-center gap-3">
             {canConfirmAll && (
               <Button
                 size="sm"
@@ -304,13 +304,12 @@ function GroupCard({
                 ✓ Confirm All
               </Button>
             )}
-            <Button
-              variant="secondary"
-              size="sm"
+            <button
               onClick={onToggleGroupOverride}
+              className="text-xs text-gray-400 hover:text-gray-700 transition-colors underline underline-offset-2"
             >
               {isOverridingGroup ? "Cancel" : "Override All"}
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -366,6 +365,20 @@ export default function AdminMappingsPage() {
   const qc = useQueryClient();
   const toast = useToast();
 
+  // Smart back-navigation: return to the originating invoice if we came from one
+  const [backUrl, setBackUrl] = useState("/admin/invoices");
+  useEffect(() => {
+    try {
+      const ref = document.referrer;
+      if (ref && new URL(ref).pathname.match(/^\/admin\/invoices\/[^/]+$/)) {
+        setBackUrl(new URL(ref).pathname);
+      }
+    } catch {}
+  }, []);
+
+  // Track which group key is currently being confirmed, so only that card shows loading
+  const [pendingGroupKey, setPendingGroupKey] = useState<string | null>(null);
+
   // Insights: dismissed suggestion IDs persisted to localStorage
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -406,6 +419,7 @@ export default function AdminMappingsPage() {
         is_confirm: true,
       }),
     onSuccess: (data) => {
+      setPendingGroupKey(null);
       qc.invalidateQueries({ queryKey: ["mapping-queue-grouped"] });
       qc.invalidateQueries({ queryKey: ["mapping-insights"] });
       const ruleMsg = data.rules_created
@@ -416,7 +430,10 @@ export default function AdminMappingsPage() {
         ruleMsg,
       );
     },
-    onError: (err: Error) => toast.error("Could not confirm", err.message),
+    onError: (err: Error) => {
+      setPendingGroupKey(null);
+      toast.error("Could not confirm", err.message);
+    },
   });
 
   function toggleGroup(groupKey: string) {
@@ -493,10 +510,10 @@ export default function AdminMappingsPage() {
           )}
         </div>
         <Link
-          href="/admin/invoices"
+          href={backUrl}
           className="shrink-0 text-sm font-medium text-blue-600 hover:text-blue-800"
         >
-          ← Invoice Queue
+          {backUrl === "/admin/invoices" ? "← Invoice Queue" : "← Back to Invoice"}
         </Link>
       </div>
 
@@ -565,14 +582,15 @@ export default function AdminMappingsPage() {
                 onToggleGroupOverride={() => toggleGroupOverride(groupKey)}
                 overrideItemId={overrideItemId}
                 onToggleItemOverride={toggleItemOverride}
-                onConfirmAll={() =>
+                onConfirmAll={() => {
+                  setPendingGroupKey(groupKey);
                   batchConfirmMut.mutate({
                     line_item_ids: g.line_item_ids,
                     taxonomy_code: g.suggested_taxonomy_code!,
                     billing_component: g.suggested_billing_component!,
-                  })
-                }
-                confirmPending={batchConfirmMut.isPending}
+                  });
+                }}
+                confirmPending={batchConfirmMut.isPending && pendingGroupKey === groupKey}
               />
             );
           })}
