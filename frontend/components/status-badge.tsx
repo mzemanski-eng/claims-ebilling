@@ -59,7 +59,7 @@ export function StatusBadge({ status, label, className = "" }: StatusBadgeProps)
   const displayLabel = label ?? STATUS_LABELS[status] ?? status.replace(/_/g, " ");
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${style} ${className}`}
+      className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${style} ${className}`}
     >
       {displayLabel}
     </span>

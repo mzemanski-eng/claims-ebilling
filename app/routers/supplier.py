@@ -401,10 +401,16 @@ def _to_invoice_list_item(invoice: Invoice, db: Session) -> InvoiceListItem:
     total_billed = (
         sum(li.raw_amount for li in invoice.line_items) if invoice.line_items else None
     )
+    # Count only spend exceptions — exclude REQUEST_RECLASSIFICATION (classification
+    # issues) so the list count matches the Spend Exceptions shown on the detail page.
     exc_count = sum(
         1
         for li in invoice.line_items
-        if any(exc.status == ExceptionStatus.OPEN for exc in li.exceptions)
+        if any(
+            exc.status == ExceptionStatus.OPEN
+            and exc.required_action != "REQUEST_RECLASSIFICATION"
+            for exc in li.exceptions
+        )
     )
     return InvoiceListItem(
         id=invoice.id,
