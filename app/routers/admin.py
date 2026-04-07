@@ -1867,6 +1867,24 @@ async def bulk_taxonomy_import(
     )
 
 
+# ── Verticals ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/verticals")
+def list_verticals(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_CARRIER_ROLES)),
+) -> list[dict]:
+    """
+    List all active line-of-business verticals.
+    Used to populate the vertical dropdown on the contract creation form.
+    """
+    from app.models.taxonomy import Vertical
+
+    rows = db.query(Vertical).filter(Vertical.is_active.is_(True)).order_by(Vertical.name).all()
+    return [{"id": str(v.id), "slug": v.slug, "name": v.name} for v in rows]
+
+
 # ── Contracts ─────────────────────────────────────────────────────────────────
 
 
@@ -1897,6 +1915,8 @@ def list_contracts(
             "is_active": c.is_active,
             "rate_card_count": len(c.rate_cards),
             "guideline_count": len(c.guidelines),
+            "vertical_id": str(c.vertical_id) if c.vertical_id else None,
+            "vertical_slug": c.vertical.slug if c.vertical else None,
         }
         for c in contracts
     ]
@@ -1938,6 +1958,7 @@ def create_contract(
         state_codes=payload.state_codes,
         notes=payload.notes,
         is_active=True,
+        vertical_id=payload.vertical_id,
     )
     db.add(contract)
     db.commit()
@@ -2186,10 +2207,10 @@ def get_seed_demo_status(
     When finished, includes a result summary with counts.
     """
     from rq.job import Job, NoSuchJobError
-    from app.workers.queue import get_queue
+    from app.workers.queue import get_redis
 
     try:
-        job = Job.fetch(job_id, connection=get_queue().connection)
+        job = Job.fetch(job_id, connection=get_redis())
         raw_status = job.get_status()
         # rq ≥ 1.16 returns a JobStatus enum; older returns a string
         status_str = raw_status.value if hasattr(raw_status, "value") else str(raw_status)
@@ -2201,6 +2222,65 @@ def get_seed_demo_status(
         return payload
     except NoSuchJobError:
         raise HTTPException(status_code=404, detail="Seed job not found")
+
+
+# ── Queue / Dead-Letter Queue management ──────────────────────────────────────
+
+
+@router.get("/queue/failed")
+def list_failed_jobs(
+    current_user: User = Depends(require_carrier_role),
+) -> list[dict]:
+    """
+    Return all jobs currently in the dead-letter queue (FailedJobRegistry).
+
+    Includes failed invoice processing jobs across all three priority queues
+    (high / default / low). Each entry includes the invoice_id, the error
+    summary, and the number of retries already attempted.
+
+    Carrier roles only.
+    """
+    from app.workers.queue import get_failed_jobs
+
+    return get_failed_jobs(limit=100)
+
+
+@router.post("/queue/failed/{job_id}/retry", status_code=200)
+def retry_failed_job_endpoint(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_carrier_role),
+) -> dict:
+    """
+    Re-enqueue a failed job from the dead-letter queue.
+
+    The job is re-created on the same priority queue with a fresh retry budget.
+    The corresponding Invoice row's job_id is updated to the new job ID so
+    subsequent DLQ lookups stay consistent.
+
+    Returns the new job ID and 'requeued' status.
+    """
+    from datetime import datetime, timezone
+
+    from app.models.invoice import Invoice
+    from app.workers.queue import retry_failed_job
+
+    try:
+        new_job_id = retry_failed_job(job_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Could not retry job '{job_id}': {exc}",
+        )
+
+    # Update the invoice's job_id so DLQ tracking stays in sync
+    invoice = db.query(Invoice).filter(Invoice.job_id == job_id).first()
+    if invoice:
+        invoice.job_id = new_job_id
+        invoice.job_queued_at = datetime.now(timezone.utc)
+        db.commit()
+
+    return {"job_id": new_job_id, "previous_job_id": job_id, "status": "requeued"}
 
 
 @router.delete("/invoices/{invoice_id}", status_code=status.HTTP_200_OK)
@@ -2326,6 +2406,8 @@ def _to_contract_detail(c: Contract, db: Session) -> ContractDetail:
         state_codes=c.state_codes,
         notes=c.notes,
         is_active=c.is_active,
+        vertical_id=c.vertical_id,
+        vertical_slug=c.vertical.slug if c.vertical else None,
         rate_cards=[_to_rate_card_detail(rc, db) for rc in c.rate_cards],
         guidelines=[_to_guideline_detail(g) for g in c.guidelines],
     )

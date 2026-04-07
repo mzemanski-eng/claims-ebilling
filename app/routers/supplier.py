@@ -48,7 +48,7 @@ from app.services.ai_assessment.supplier_response_assessor import (
 from app.services.audit import logger as audit
 from app.services.ingestion.dispatcher import detect_format
 from app.services.storage.base import get_storage
-from app.workers.invoice_pipeline import process_invoice_sync
+from app.workers.queue import enqueue_invoice_processing
 
 logger = logging.getLogger(__name__)
 
@@ -196,25 +196,22 @@ def upload_invoice_file(
     audit.log_invoice_submitted(db, invoice, actor_id=current_user.id)
     db.commit()
 
-    # ── Process synchronously (file bytes already in memory) ─────────────────
-    summary = process_invoice_sync(
+    # ── Enqueue for background processing ────────────────────────────────────
+    # File bytes travel through Redis with the job — no shared disk needed.
+    job_id = enqueue_invoice_processing(
         invoice_id=str(invoice.id),
         file_bytes=file_bytes,
         filename=filename,
-        db=db,
     )
-
-    # Refresh to get the final status set by the pipeline
-    db.refresh(invoice)
+    invoice.job_id = job_id
+    invoice.job_queued_at = datetime.now(timezone.utc)
+    db.commit()
 
     return InvoiceUploadResponse(
         invoice_id=invoice.id,
-        status=invoice.status,
-        message=(
-            f"Invoice processed successfully. "
-            f"{summary.get('lines_processed', 0)} lines processed, "
-            f"{summary.get('lines_error', 0)} exceptions flagged."
-        ),
+        status=invoice.status,  # SUBMITTED — processing continues in the background
+        job_id=job_id,
+        message="Invoice queued for processing. Status will update shortly.",
         version=invoice.current_version,
     )
 

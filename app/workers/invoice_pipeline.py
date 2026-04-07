@@ -30,6 +30,7 @@ import uuid
 from datetime import date, datetime, timezone
 
 from app.database import SessionLocal
+from app.taxonomy.vertical_config import VerticalConfig
 from app.models.invoice import (
     Invoice,
     InvoiceVersion,
@@ -127,12 +128,18 @@ def process_invoice_sync(
         raise
 
 
-def process_invoice(invoice_id: str) -> dict:
+def process_invoice(invoice_id: str, file_bytes: bytes, filename: str) -> dict:
     """
-    RQ background job entry point (legacy — used when worker service is enabled).
+    RQ background job entry point.
+
+    File bytes are received directly as a job argument (passed through Redis at
+    enqueue time) — no disk read is required on the worker. This removes any
+    shared-disk dependency between the web service and the worker service.
 
     Args:
         invoice_id: String UUID of the Invoice to process.
+        file_bytes: Raw file content (passed from the upload endpoint via Redis).
+        filename:   Original filename for format detection.
 
     Returns:
         Summary dict (stored as RQ job result).
@@ -155,15 +162,7 @@ def process_invoice(invoice_id: str) -> dict:
             db, invoice, from_status=old_status, to_status=SubmissionStatus.PROCESSING
         )
 
-        # ── Load file from storage ────────────────────────────────────────────
-        storage = get_storage()
-        try:
-            file_bytes = storage.load(invoice.raw_file_path)
-        except Exception as exc:
-            return _fail_invoice(db, invoice, f"Could not load invoice file: {exc}")
-
-        # ── Parse file ────────────────────────────────────────────────────────
-        filename = invoice.raw_file_path.rsplit("/", 1)[-1]
+        # ── Parse file (bytes received from RQ job args) ──────────────────────
         try:
             file_format = detect_format(filename)
             parser = get_parser(file_format)
@@ -177,7 +176,7 @@ def process_invoice(invoice_id: str) -> dict:
 
     except Exception:
         db.rollback()
-        logger.exception("Unhandled error processing invoice %s", invoice_id)
+        logger.exception("Unhandled error processing invoice %s (async)", invoice_id)
         try:
             invoice = db.get(Invoice, inv_uuid)
             if invoice and invoice.status == SubmissionStatus.PROCESSING:
@@ -231,6 +230,10 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     _raw_cs = (contract.carrier.settings or {}) if contract.carrier else {}
     cs = CarrierSettings.model_validate(_raw_cs)
 
+    # Detect vertical for per-vertical AI prompt routing.
+    # Falls back to "default" if contract has no vertical assigned.
+    vertical = VerticalConfig.from_contract(contract).slug
+
     # ── Verify the contract is active and currently effective ─────────────────
     today = date.today()
     if not contract.is_active:
@@ -271,6 +274,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             line_item_count=len(parse_result.line_items),
             estimated_total=estimated_total,
             prior_review_required_count=prior_rr_count,
+            vertical=vertical,
         )
         if triage_result:
             invoice.triage_risk_level = triage_result["risk_level"]
@@ -312,6 +316,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             classifier=classifier,
             rate_validator=rate_validator,
             guideline_validator=guideline_validator,
+            vertical=vertical,
         )
         processed_lines.append(line_item)
         error_count += item_errors
@@ -582,6 +587,7 @@ def _process_line(
     classifier,
     rate_validator,
     guideline_validator,
+    vertical: str = "default",
 ) -> tuple[LineItem, int, int, int, float]:
     """
     Process a single raw line item through the full pipeline.
@@ -642,6 +648,7 @@ def _process_line(
                 suggestion = suggest_classification(
                     raw_description=raw_item.raw_description,
                     raw_code=raw_item.raw_code,
+                    vertical=vertical,
                 )
                 if suggestion:
                     line_item.ai_classification_suggestion = suggestion
@@ -740,6 +747,7 @@ def _process_line(
                     raw_description=raw_item.raw_description,
                     taxonomy_label=tax_item.label,
                     taxonomy_description=tax_item.description,
+                    vertical=vertical,
                 )
                 if assessment:
                     line_item.ai_description_assessment = assessment
@@ -783,7 +791,7 @@ def _process_line(
             )
             db.add(exc_record)
             db.flush()
-            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract)
+            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract, vertical=vertical)
             audit.log_line_item_exception_opened(db, line_item, rate_result)
             error_count += 1
             spend_error_count += 1
@@ -825,7 +833,7 @@ def _process_line(
             )
             db.add(exc_record)
             db.flush()
-            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract)
+            _attach_ai_recommendation(db, exc_record, val, line_item, invoice, contract, vertical=vertical)
             audit.log_line_item_exception_opened(db, line_item, guide_result)
             error_count += 1
             spend_error_count += 1
@@ -884,7 +892,7 @@ def _prior_exception_count(db, supplier_id, taxonomy_code) -> int:
 
 
 def _attach_ai_recommendation(
-    db, exc_record, val_result, line_item, invoice, contract
+    db, exc_record, val_result, line_item, invoice, contract, vertical: str = "default"
 ) -> None:
     """
     Call the exception resolver and attach ai_recommendation + ai_reasoning
@@ -899,6 +907,7 @@ def _attach_ai_recommendation(
             contract_name=contract.name,
             supplier_name=invoice.supplier.name,
             prior_exception_count=prior,
+            vertical=vertical,
         )
         if rec:
             exc_record.ai_recommendation = rec["recommendation"]

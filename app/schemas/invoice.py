@@ -28,10 +28,16 @@ class InvoiceCreate(BaseSchema):
 
 
 class InvoiceUploadResponse(BaseSchema):
-    """Returned immediately after file upload — before processing completes."""
+    """
+    Returned immediately after file upload — processing continues in background.
+
+    The invoice is queued for async processing; poll GET /supplier/invoices/{id}
+    until status leaves SUBMITTED / PROCESSING to get the final outcome.
+    """
 
     invoice_id: uuid.UUID
     status: str
+    job_id: Optional[str] = None  # RQ job ID; None only in legacy sync fallback
     message: str
     version: int
 

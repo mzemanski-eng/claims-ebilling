@@ -63,6 +63,7 @@ import type {
   SupplierProfileUpdate,
   SupplierDocument,
   TaxonomyImportResult,
+  Vertical,
 } from "./types";
 
 const BASE_URL =
@@ -361,6 +362,10 @@ export function createSupplierUser(
 export function listAdminContracts(supplierId?: string): Promise<AdminContract[]> {
   const qs = supplierId ? `?supplier_id=${supplierId}` : "";
   return apiFetch<AdminContract[]>(`/admin/contracts${qs}`);
+}
+
+export function getVerticals(): Promise<Vertical[]> {
+  return apiFetch<Vertical[]>("/admin/verticals");
 }
 
 export function getAdminContract(id: string): Promise<ContractDetail> {

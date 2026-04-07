@@ -134,6 +134,19 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         comment="Timestamp when AI pipeline finished processing this invoice",
     )
 
+    # ── Async queue tracking ───────────────────────────────────────────────────
+    job_id: Mapped[Optional[str]] = mapped_column(
+        String(128),
+        nullable=True,
+        index=True,
+        comment="RQ job ID — populated at enqueue time for DLQ lookups",
+    )
+    job_queued_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when the invoice was enqueued for background processing",
+    )
+
     # Supplier memo on initial submission
     submission_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

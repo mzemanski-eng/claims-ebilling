@@ -262,8 +262,8 @@ export default function NewInvoicePage() {
               {uploadMutation.isPending ? (
                 <>
                   <span className="h-7 w-7 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                  <p className="text-sm font-medium text-blue-700">Processing invoice…</p>
-                  <p className="text-xs text-blue-400">Classifying lines and validating rates</p>
+                  <p className="text-sm font-medium text-blue-700">Uploading invoice…</p>
+                  <p className="text-xs text-blue-400">Processing will continue in the background</p>
                 </>
               ) : file ? (
                 <>
@@ -309,7 +309,7 @@ export default function NewInvoicePage() {
                 disabled={!file || uploadMutation.isPending}
                 onClick={() => uploadMutation.mutate()}
               >
-                Upload &amp; Process
+                Upload Invoice
               </Button>
             </div>
           </div>

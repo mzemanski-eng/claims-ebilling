@@ -264,6 +264,8 @@ export interface AdminContract {
   is_active: boolean;
   rate_card_count: number;
   guideline_count: number;
+  vertical_id: string | null;       // Phase 3
+  vertical_slug: string | null;     // Phase 3: "ale" | "restoration" | "legal" | null
 }
 
 export interface RateTier {
@@ -324,6 +326,7 @@ export interface ContractCreate {
   geography_scope: string;
   state_codes: string[] | null;
   notes: string | null;
+  vertical_id?: string | null;  // Phase 3: optional vertical UUID
 }
 
 export interface ContractDetail extends AdminContract {

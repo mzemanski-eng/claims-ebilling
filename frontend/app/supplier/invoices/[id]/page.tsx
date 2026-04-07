@@ -25,9 +25,17 @@ export default function SupplierInvoiceDetailPage({
 }) {
   const { id } = params;
 
+  // Poll every 3 seconds while the invoice is being processed in the background.
+  // Stops automatically once the status leaves SUBMITTED / PROCESSING.
+  const PROCESSING_STATUSES = new Set(["SUBMITTED", "PROCESSING"]);
+
   const { data: invoice, isLoading: invLoading } = useQuery({
     queryKey: ["supplier-invoice", id],
     queryFn: () => getSupplierInvoice(id),
+    refetchInterval: (query) => {
+      const s = query.state.data?.status;
+      return s && PROCESSING_STATUSES.has(s) ? 3_000 : false;
+    },
   });
 
   const { data: lines, isLoading: linesLoading } = useQuery({
@@ -94,6 +102,16 @@ export default function SupplierInvoiceDetailPage({
 
       {/* Progress stepper */}
       <InvoiceProgressStepper status={invoice.status} />
+
+      {/* Processing banner — shown while background worker is running */}
+      {PROCESSING_STATUSES.has(invoice.status) && (
+        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <span>
+            Processing invoice — classifying lines and validating rates against your contract…
+          </span>
+        </div>
+      )}
 
       {/* Status banner — always rendered, status-specific guidance */}
       <InvoiceStatusBanner status={invoice.status} invoiceId={id} />
