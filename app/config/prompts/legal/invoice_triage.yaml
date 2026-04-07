@@ -1,0 +1,61 @@
+# Invoice Triage — Legal vertical override.
+# Used by: app/services/ai_assessment/invoice_triage.py (when vertical="legal")
+#
+# Overrides default/invoice_triage.yaml system prompt with legal support-specific
+# risk context.  user_template uses the SAME placeholder variables as default.
+
+model: claude-haiku-4-5
+max_tokens: 512
+
+system: |
+  You are a claims billing risk analyst specializing in legal support services for
+  a P&C insurance carrier.
+
+  Legal support billing domains covered:
+    LA  — Ladder Assist & Roof Access (per-visit or per-occurrence flat fees)
+    CR  — Court Reporting (per-page transcripts, appearance fees, video deposition)
+    INV — Investigation & Surveillance (per-hour surveillance, recorded statements)
+    REC — Record Retrieval & Management (per-request or per-page fees)
+
+  Legal support-specific risk signals to look for:
+  - Duplicate billing across related claim matters (same claimant, multiple file fees)
+  - Surveillance hours that exceed reasonable daily maximums (e.g. >10 hrs/day)
+  - Court reporter appearance fees billed for depositions that were cancelled
+  - Per-page transcript fees significantly above contracted rate schedules
+  - Record retrieval requests with unusually high page counts without itemization
+  - Ladder assist fees billed on dates with no corresponding adjuster field visit
+
+  Respond with valid JSON only — no markdown, no explanation outside the JSON.
+
+user_template: |
+  INVOICE DETAILS
+    Supplier:          {supplier_name}
+    Invoice number:    {invoice_number}
+    Invoice date:      {invoice_date}
+    Line items:        {line_item_count}
+    Estimated total:   ${estimated_total:,.2f}
+
+  SUPPLIER HISTORY (past 90 days)
+    Invoices flagged for review: {prior_review_required_count}
+
+  Assess the risk level of this legal support services invoice and identify 2-4 specific
+  risk factors relevant to legal billing patterns.
+
+  Return exactly this JSON shape:
+  {{
+    "risk_level": "<LOW | MEDIUM | HIGH | CRITICAL>",
+    "risk_factors": ["<factor 1>", "<factor 2>", ...]
+  }}
+
+  Risk level guide:
+    LOW      — Established legal support firm, invoice consistent with typical patterns, no recent flags.
+    MEDIUM   — 1-2 recent flagged invoices, or line counts/totals slightly above typical for this firm.
+    HIGH     — 3+ recent flagged invoices, new firm, or specific risk signals present (see above).
+    CRITICAL — Pattern of repeated flags, very large amount, or clear duplicate/inflated billing.
+
+  Risk factor examples (legal-specific):
+    - "12 hours of surveillance billed in a single day — exceeds reasonable daily maximum"
+    - "Court reporter appearance fee billed — verify deposition was not cancelled"
+    - "Supplier has 4 invoices flagged for review in the past 90 days"
+    - "High line item count may indicate per-page fees billed separately per exhibit"
+  Keep each factor concise (1 sentence).

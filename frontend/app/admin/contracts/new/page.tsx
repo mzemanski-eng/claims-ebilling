@@ -7,6 +7,7 @@ import {
   createAdminContract,
   createGuideline,
   createRateCard,
+  getVerticals,
   listAdminSuppliers,
   parseContractPdf,
 } from "@/lib/api";
@@ -40,6 +41,7 @@ function NewContractContent() {
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [effectiveTo, setEffectiveTo] = useState("");
   const [geographyScope, setGeographyScope] = useState("national");
+  const [verticalId, setVerticalId] = useState<string>("");
   const [notes, setNotes] = useState("");
 
   // ── AI extraction state ─────────────────────────────────────────────────────
@@ -58,6 +60,12 @@ function NewContractContent() {
     queryKey: ["admin-suppliers"],
     queryFn: listAdminSuppliers,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: verticals } = useQuery({
+    queryKey: ["verticals"],
+    queryFn: getVerticals,
+    staleTime: 10 * 60 * 1000,
   });
 
   // ── PDF Upload handlers ──────────────────────────────────────────────────────
@@ -147,6 +155,7 @@ function NewContractContent() {
         geography_scope: geographyScope,
         state_codes: null,
         notes: notes || null,
+        vertical_id: verticalId || null,
       });
 
       // 2. Add rate cards sequentially
@@ -333,6 +342,25 @@ function NewContractContent() {
                 <option value="national">National</option>
                 <option value="regional">Regional</option>
                 <option value="state">State</option>
+              </select>
+            </div>
+
+            {/* Vertical */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                Vertical <span className="text-gray-400">(optional)</span>
+              </label>
+              <select
+                value={verticalId}
+                onChange={(e) => setVerticalId(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">— None —</option>
+                {verticals?.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
               </select>
             </div>
 

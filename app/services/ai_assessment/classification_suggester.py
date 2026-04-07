@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded client — only imported when actually needed
 _client = None
 
-# Prompt config — loaded from YAML at module import, cached by prompt_loader.
-# Edit app/config/prompts/default/classification_suggester.yaml to iterate without redeploy.
-_PROMPT = load_prompt("classification_suggester")
+# Prompt config loaded per-call via load_prompt(name, vertical=vertical).
+# load_prompt uses @lru_cache(maxsize=256) so YAML is read only once per
+# (name, vertical) pair across the process lifetime.
 
 # Build a set of valid codes and a compact taxonomy block for prompting.
 # Constructed once at import time; both are derived from the canonical list.
@@ -90,6 +90,7 @@ def _get_client():
 def suggest_classification(
     raw_description: str,
     raw_code: Optional[str],
+    vertical: str = "default",
 ) -> Optional[dict]:
     """
     Call Claude to assess an UNRECOGNIZED invoice line item.
@@ -108,23 +109,24 @@ def suggest_classification(
     if client is None:
         return None
 
+    prompt_cfg = load_prompt("classification_suggester", vertical=vertical)
     valid_codes, taxonomy_block = _get_taxonomy_data()
 
     billed_code_line = (
         f"  Billed code:  {raw_code}" if raw_code else "  Billed code:  (none provided)"
     )
 
-    prompt = _PROMPT["user_template"].format(
+    prompt = prompt_cfg["user_template"].format(
         taxonomy_block=taxonomy_block,
         raw_description=raw_description,
         billed_code_line=billed_code_line,
     )
 
     try:
-        model = _PROMPT["model"]
+        model = prompt_cfg["model"]
         message = client.messages.create(
             model=model,
-            max_tokens=_PROMPT["max_tokens"],
+            max_tokens=prompt_cfg["max_tokens"],
             messages=[{"role": "user", "content": prompt}],
         )
         raw_text = message.content[0].text.strip()

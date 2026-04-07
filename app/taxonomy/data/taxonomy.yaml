@@ -1,0 +1,1170 @@
+# Veridian ALAE Taxonomy — canonical code definitions.
+# Source of truth for TaxonomyItem rows. Seeded via app/taxonomy/seed.py.
+# vertical field: ale | restoration | legal | null (XDOMAIN)
+#
+# IMPORTANT: Do not add Python logic here — this file is data only.
+# Edit labels/descriptions freely; add new codes with the correct domain + vertical.
+
+- code: ENG.AAR.L1
+  domain: ENG
+  service_item: AAR
+  billing_component: L1
+  unit_model: per_hour
+  label: Auto Accident Reconstruction — Level 1
+  description: Auto Accident Reconstruction services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AAR.L2
+  domain: ENG
+  service_item: AAR
+  billing_component: L2
+  unit_model: per_hour
+  label: Auto Accident Reconstruction — Level 2
+  description: Auto Accident Reconstruction services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AAR.L3
+  domain: ENG
+  service_item: AAR
+  billing_component: L3
+  unit_model: per_hour
+  label: Auto Accident Reconstruction — Level 3
+  description: Auto Accident Reconstruction services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AAR.L4
+  domain: ENG
+  service_item: AAR
+  billing_component: L4
+  unit_model: per_hour
+  label: Auto Accident Reconstruction — Level 4
+  description: Auto Accident Reconstruction services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AAR.L5
+  domain: ENG
+  service_item: AAR
+  billing_component: L5
+  unit_model: per_hour
+  label: Auto Accident Reconstruction — Level 5
+  description: Auto Accident Reconstruction services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AAR.L6
+  domain: ENG
+  service_item: AAR
+  billing_component: L6
+  unit_model: per_hour
+  label: Auto Accident Reconstruction — Level 6
+  description: Auto Accident Reconstruction services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CT.L1
+  domain: ENG
+  service_item: CT
+  billing_component: L1
+  unit_model: per_hour
+  label: Component Testing — Level 1
+  description: Component Testing services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CT.L2
+  domain: ENG
+  service_item: CT
+  billing_component: L2
+  unit_model: per_hour
+  label: Component Testing — Level 2
+  description: Component Testing services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CT.L3
+  domain: ENG
+  service_item: CT
+  billing_component: L3
+  unit_model: per_hour
+  label: Component Testing — Level 3
+  description: Component Testing services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CT.L4
+  domain: ENG
+  service_item: CT
+  billing_component: L4
+  unit_model: per_hour
+  label: Component Testing — Level 4
+  description: Component Testing services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CT.L5
+  domain: ENG
+  service_item: CT
+  billing_component: L5
+  unit_model: per_hour
+  label: Component Testing — Level 5
+  description: Component Testing services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CT.L6
+  domain: ENG
+  service_item: CT
+  billing_component: L6
+  unit_model: per_hour
+  label: Component Testing — Level 6
+  description: Component Testing services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.DA.L1
+  domain: ENG
+  service_item: DA
+  billing_component: L1
+  unit_model: per_hour
+  label: Damage Assessment — Level 1
+  description: Damage Assessment services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.DA.L2
+  domain: ENG
+  service_item: DA
+  billing_component: L2
+  unit_model: per_hour
+  label: Damage Assessment — Level 2
+  description: Damage Assessment services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.DA.L3
+  domain: ENG
+  service_item: DA
+  billing_component: L3
+  unit_model: per_hour
+  label: Damage Assessment — Level 3
+  description: Damage Assessment services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.DA.L4
+  domain: ENG
+  service_item: DA
+  billing_component: L4
+  unit_model: per_hour
+  label: Damage Assessment — Level 4
+  description: Damage Assessment services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.DA.L5
+  domain: ENG
+  service_item: DA
+  billing_component: L5
+  unit_model: per_hour
+  label: Damage Assessment — Level 5
+  description: Damage Assessment services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.DA.L6
+  domain: ENG
+  service_item: DA
+  billing_component: L6
+  unit_model: per_hour
+  label: Damage Assessment — Level 6
+  description: Damage Assessment services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CAO.L1
+  domain: ENG
+  service_item: CAO
+  billing_component: L1
+  unit_model: per_hour
+  label: Engineering Cause and Origin — Level 1
+  description: Engineering Cause and Origin services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CAO.L2
+  domain: ENG
+  service_item: CAO
+  billing_component: L2
+  unit_model: per_hour
+  label: Engineering Cause and Origin — Level 2
+  description: Engineering Cause and Origin services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CAO.L3
+  domain: ENG
+  service_item: CAO
+  billing_component: L3
+  unit_model: per_hour
+  label: Engineering Cause and Origin — Level 3
+  description: Engineering Cause and Origin services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CAO.L4
+  domain: ENG
+  service_item: CAO
+  billing_component: L4
+  unit_model: per_hour
+  label: Engineering Cause and Origin — Level 4
+  description: Engineering Cause and Origin services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CAO.L5
+  domain: ENG
+  service_item: CAO
+  billing_component: L5
+  unit_model: per_hour
+  label: Engineering Cause and Origin — Level 5
+  description: Engineering Cause and Origin services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.CAO.L6
+  domain: ENG
+  service_item: CAO
+  billing_component: L6
+  unit_model: per_hour
+  label: Engineering Cause and Origin — Level 6
+  description: Engineering Cause and Origin services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EA.L1
+  domain: ENG
+  service_item: EA
+  billing_component: L1
+  unit_model: per_hour
+  label: Engineering Analysis — Level 1
+  description: Engineering Analysis services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EA.L2
+  domain: ENG
+  service_item: EA
+  billing_component: L2
+  unit_model: per_hour
+  label: Engineering Analysis — Level 2
+  description: Engineering Analysis services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EA.L3
+  domain: ENG
+  service_item: EA
+  billing_component: L3
+  unit_model: per_hour
+  label: Engineering Analysis — Level 3
+  description: Engineering Analysis services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EA.L4
+  domain: ENG
+  service_item: EA
+  billing_component: L4
+  unit_model: per_hour
+  label: Engineering Analysis — Level 4
+  description: Engineering Analysis services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EA.L5
+  domain: ENG
+  service_item: EA
+  billing_component: L5
+  unit_model: per_hour
+  label: Engineering Analysis — Level 5
+  description: Engineering Analysis services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EA.L6
+  domain: ENG
+  service_item: EA
+  billing_component: L6
+  unit_model: per_hour
+  label: Engineering Analysis — Level 6
+  description: Engineering Analysis services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FA.L1
+  domain: ENG
+  service_item: FA
+  billing_component: L1
+  unit_model: per_hour
+  label: Failure Analysis — Level 1
+  description: Failure Analysis services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FA.L2
+  domain: ENG
+  service_item: FA
+  billing_component: L2
+  unit_model: per_hour
+  label: Failure Analysis — Level 2
+  description: Failure Analysis services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FA.L3
+  domain: ENG
+  service_item: FA
+  billing_component: L3
+  unit_model: per_hour
+  label: Failure Analysis — Level 3
+  description: Failure Analysis services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FA.L4
+  domain: ENG
+  service_item: FA
+  billing_component: L4
+  unit_model: per_hour
+  label: Failure Analysis — Level 4
+  description: Failure Analysis services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FA.L5
+  domain: ENG
+  service_item: FA
+  billing_component: L5
+  unit_model: per_hour
+  label: Failure Analysis — Level 5
+  description: Failure Analysis services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FA.L6
+  domain: ENG
+  service_item: FA
+  billing_component: L6
+  unit_model: per_hour
+  label: Failure Analysis — Level 6
+  description: Failure Analysis services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FOC.L1
+  domain: ENG
+  service_item: FOC
+  billing_component: L1
+  unit_model: per_hour
+  label: Fire Origin and Cause — Level 1
+  description: Fire Origin and Cause services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FOC.L2
+  domain: ENG
+  service_item: FOC
+  billing_component: L2
+  unit_model: per_hour
+  label: Fire Origin and Cause — Level 2
+  description: Fire Origin and Cause services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FOC.L3
+  domain: ENG
+  service_item: FOC
+  billing_component: L3
+  unit_model: per_hour
+  label: Fire Origin and Cause — Level 3
+  description: Fire Origin and Cause services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FOC.L4
+  domain: ENG
+  service_item: FOC
+  billing_component: L4
+  unit_model: per_hour
+  label: Fire Origin and Cause — Level 4
+  description: Fire Origin and Cause services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FOC.L5
+  domain: ENG
+  service_item: FOC
+  billing_component: L5
+  unit_model: per_hour
+  label: Fire Origin and Cause — Level 5
+  description: Fire Origin and Cause services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.FOC.L6
+  domain: ENG
+  service_item: FOC
+  billing_component: L6
+  unit_model: per_hour
+  label: Fire Origin and Cause — Level 6
+  description: Fire Origin and Cause services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PR.L1
+  domain: ENG
+  service_item: PR
+  billing_component: L1
+  unit_model: per_hour
+  label: Peer Review — Level 1
+  description: Peer Review services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PR.L2
+  domain: ENG
+  service_item: PR
+  billing_component: L2
+  unit_model: per_hour
+  label: Peer Review — Level 2
+  description: Peer Review services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PR.L3
+  domain: ENG
+  service_item: PR
+  billing_component: L3
+  unit_model: per_hour
+  label: Peer Review — Level 3
+  description: Peer Review services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PR.L4
+  domain: ENG
+  service_item: PR
+  billing_component: L4
+  unit_model: per_hour
+  label: Peer Review — Level 4
+  description: Peer Review services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PR.L5
+  domain: ENG
+  service_item: PR
+  billing_component: L5
+  unit_model: per_hour
+  label: Peer Review — Level 5
+  description: Peer Review services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PR.L6
+  domain: ENG
+  service_item: PR
+  billing_component: L6
+  unit_model: per_hour
+  label: Peer Review — Level 6
+  description: Peer Review services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.RPT.L1
+  domain: ENG
+  service_item: RPT
+  billing_component: L1
+  unit_model: per_hour
+  label: Reporting — Level 1
+  description: Reporting services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.RPT.L2
+  domain: ENG
+  service_item: RPT
+  billing_component: L2
+  unit_model: per_hour
+  label: Reporting — Level 2
+  description: Reporting services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.RPT.L3
+  domain: ENG
+  service_item: RPT
+  billing_component: L3
+  unit_model: per_hour
+  label: Reporting — Level 3
+  description: Reporting services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.RPT.L4
+  domain: ENG
+  service_item: RPT
+  billing_component: L4
+  unit_model: per_hour
+  label: Reporting — Level 4
+  description: Reporting services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.RPT.L5
+  domain: ENG
+  service_item: RPT
+  billing_component: L5
+  unit_model: per_hour
+  label: Reporting — Level 5
+  description: Reporting services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.RPT.L6
+  domain: ENG
+  service_item: RPT
+  billing_component: L6
+  unit_model: per_hour
+  label: Reporting — Level 6
+  description: Reporting services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EWD.L1
+  domain: ENG
+  service_item: EWD
+  billing_component: L1
+  unit_model: per_hour
+  label: Expert Witness / Deposition — Level 1
+  description: Expert Witness / Deposition services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EWD.L2
+  domain: ENG
+  service_item: EWD
+  billing_component: L2
+  unit_model: per_hour
+  label: Expert Witness / Deposition — Level 2
+  description: Expert Witness / Deposition services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EWD.L3
+  domain: ENG
+  service_item: EWD
+  billing_component: L3
+  unit_model: per_hour
+  label: Expert Witness / Deposition — Level 3
+  description: Expert Witness / Deposition services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EWD.L4
+  domain: ENG
+  service_item: EWD
+  billing_component: L4
+  unit_model: per_hour
+  label: Expert Witness / Deposition — Level 4
+  description: Expert Witness / Deposition services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EWD.L5
+  domain: ENG
+  service_item: EWD
+  billing_component: L5
+  unit_model: per_hour
+  label: Expert Witness / Deposition — Level 5
+  description: Expert Witness / Deposition services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.EWD.L6
+  domain: ENG
+  service_item: EWD
+  billing_component: L6
+  unit_model: per_hour
+  label: Expert Witness / Deposition — Level 6
+  description: Expert Witness / Deposition services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AOS.L1
+  domain: ENG
+  service_item: AOS
+  billing_component: L1
+  unit_model: per_hour
+  label: Admin and Office Support — Level 1
+  description: Admin and Office Support services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AOS.L2
+  domain: ENG
+  service_item: AOS
+  billing_component: L2
+  unit_model: per_hour
+  label: Admin and Office Support — Level 2
+  description: Admin and Office Support services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AOS.L3
+  domain: ENG
+  service_item: AOS
+  billing_component: L3
+  unit_model: per_hour
+  label: Admin and Office Support — Level 3
+  description: Admin and Office Support services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AOS.L4
+  domain: ENG
+  service_item: AOS
+  billing_component: L4
+  unit_model: per_hour
+  label: Admin and Office Support — Level 4
+  description: Admin and Office Support services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AOS.L5
+  domain: ENG
+  service_item: AOS
+  billing_component: L5
+  unit_model: per_hour
+  label: Admin and Office Support — Level 5
+  description: Admin and Office Support services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.AOS.L6
+  domain: ENG
+  service_item: AOS
+  billing_component: L6
+  unit_model: per_hour
+  label: Admin and Office Support — Level 6
+  description: Admin and Office Support services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PM.L1
+  domain: ENG
+  service_item: PM
+  billing_component: L1
+  unit_model: per_hour
+  label: Project Management — Level 1
+  description: Project Management services at Level 1 (Principal Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PM.L2
+  domain: ENG
+  service_item: PM
+  billing_component: L2
+  unit_model: per_hour
+  label: Project Management — Level 2
+  description: Project Management services at Level 2 (Senior Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PM.L3
+  domain: ENG
+  service_item: PM
+  billing_component: L3
+  unit_model: per_hour
+  label: Project Management — Level 3
+  description: Project Management services at Level 3 (Staff Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PM.L4
+  domain: ENG
+  service_item: PM
+  billing_component: L4
+  unit_model: per_hour
+  label: Project Management — Level 4
+  description: Project Management services at Level 4 (Associate Engineer seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PM.L5
+  domain: ENG
+  service_item: PM
+  billing_component: L5
+  unit_model: per_hour
+  label: Project Management — Level 5
+  description: Project Management services at Level 5 (Junior Engineer / Technician seniority). Billed per hour.
+  vertical: restoration
+- code: ENG.PM.L6
+  domain: ENG
+  service_item: PM
+  billing_component: L6
+  unit_model: per_hour
+  label: Project Management — Level 6
+  description: Project Management services at Level 6 (Administrative / Support Staff seniority). Billed per hour.
+  vertical: restoration
+- code: IA.FIELD_ASSIGN.PROF_FEE
+  domain: IA
+  service_item: FIELD_ASSIGN
+  billing_component: PROF_FEE
+  unit_model: per_diem
+  label: Independent Adjusting Field Assignment — Professional Fee
+  description: Per-diem or hourly fee for field adjusting services (on-site claim handling).
+  vertical: ale
+- code: IA.FIELD_ASSIGN.TRAVEL_TRANSPORT
+  domain: IA
+  service_item: FIELD_ASSIGN
+  billing_component: TRAVEL_TRANSPORT
+  unit_model: actual
+  label: Independent Adjusting Field Assignment — Transportation
+  description: Actual transportation costs for field adjuster travel.
+  vertical: ale
+- code: IA.FIELD_ASSIGN.MILEAGE
+  domain: IA
+  service_item: FIELD_ASSIGN
+  billing_component: MILEAGE
+  unit_model: per_mile
+  label: Independent Adjusting Field Assignment — Mileage
+  description: Mileage reimbursement for field adjuster.
+  vertical: ale
+- code: IA.FIELD_ASSIGN.TRAVEL_LODGING
+  domain: IA
+  service_item: FIELD_ASSIGN
+  billing_component: TRAVEL_LODGING
+  unit_model: per_night
+  label: Independent Adjusting Field Assignment — Lodging
+  description: Hotel/lodging for field adjuster overnight assignments.
+  vertical: ale
+- code: IA.FIELD_ASSIGN.TRAVEL_MEALS
+  domain: IA
+  service_item: FIELD_ASSIGN
+  billing_component: TRAVEL_MEALS
+  unit_model: per_diem
+  label: Independent Adjusting Field Assignment — Meals & Per Diem
+  description: Meal per diem for field adjuster travel days.
+  vertical: ale
+- code: IA.DESK_ASSIGN.PROF_FEE
+  domain: IA
+  service_item: DESK_ASSIGN
+  billing_component: PROF_FEE
+  unit_model: per_file
+  label: Independent Adjusting Desk Assignment — Professional Fee
+  description: Per-file or hourly fee for desk/virtual claim handling without site visit.
+  vertical: ale
+- code: IA.CAT_ASSIGN.PROF_FEE
+  domain: IA
+  service_item: CAT_ASSIGN
+  billing_component: PROF_FEE
+  unit_model: per_diem
+  label: Independent Adjusting Catastrophe Assignment — Professional Fee
+  description: Per-diem fee for catastrophe (CAT) deployment adjusting services.
+  vertical: ale
+- code: IA.PHOTO_DOC.PROF_FEE
+  domain: IA
+  service_item: PHOTO_DOC
+  billing_component: PROF_FEE
+  unit_model: per_file
+  label: Independent Adjusting Photo & Documentation Services — Professional Fee
+  description: Fee for photographic documentation and scene documentation services.
+  vertical: ale
+- code: IA.SUPPLEMENT_HANDLING.PROF_FEE
+  domain: IA
+  service_item: SUPPLEMENT_HANDLING
+  billing_component: PROF_FEE
+  unit_model: per_occurrence
+  label: Independent Adjusting Supplement Handling — Professional Fee
+  description: Fee for handling repair estimate supplements.
+  vertical: ale
+- code: IA.ADMIN.FILE_OPEN_FEE
+  domain: IA
+  service_item: ADMIN
+  billing_component: FILE_OPEN_FEE
+  unit_model: flat_fee
+  label: Independent Adjusting Administrative / File Open Fee
+  description: One-time administrative fee for opening and setting up a new claim file.
+  vertical: ale
+- code: REC.MED_RECORDS.RETRIEVAL_FEE
+  domain: REC
+  service_item: MED_RECORDS
+  billing_component: RETRIEVAL_FEE
+  unit_model: per_request
+  label: Record Retrieval Medical Records — Retrieval Fee
+  description: Fee for requesting and obtaining medical records from a provider.
+  vertical: legal
+- code: REC.MED_RECORDS.COPY_REPRO
+  domain: REC
+  service_item: MED_RECORDS
+  billing_component: COPY_REPRO
+  unit_model: per_page
+  label: Record Retrieval Medical Records — Copy / Reproduction Fee
+  description: Per-page copying/reproduction fee for medical records.
+  vertical: legal
+- code: REC.MED_RECORDS.POSTAGE_COURIER
+  domain: REC
+  service_item: MED_RECORDS
+  billing_component: POSTAGE_COURIER
+  unit_model: actual
+  label: Record Retrieval Medical Records — Postage / Courier
+  description: Actual postage or courier cost for delivering medical records.
+  vertical: legal
+- code: REC.MED_RECORDS.RUSH_PREMIUM
+  domain: REC
+  service_item: MED_RECORDS
+  billing_component: RUSH_PREMIUM
+  unit_model: flat_fee
+  label: Record Retrieval Medical Records — Rush / Expedite Premium
+  description: Additional fee for expedited record retrieval.
+  vertical: legal
+- code: REC.MED_RECORDS.CERT_COPY_FEE
+  domain: REC
+  service_item: MED_RECORDS
+  billing_component: CERT_COPY_FEE
+  unit_model: per_request
+  label: Record Retrieval Medical Records — Certified Copy Fee
+  description: Fee for obtaining certified/notarized copies of medical records.
+  vertical: legal
+- code: REC.EMPLOYMENT_RECORDS.RETRIEVAL_FEE
+  domain: REC
+  service_item: EMPLOYMENT_RECORDS
+  billing_component: RETRIEVAL_FEE
+  unit_model: per_request
+  label: Record Retrieval Employment Records — Retrieval Fee
+  description: Fee for requesting and obtaining employment or wage records.
+  vertical: legal
+- code: REC.LEGAL_RECORDS.RETRIEVAL_FEE
+  domain: REC
+  service_item: LEGAL_RECORDS
+  billing_component: RETRIEVAL_FEE
+  unit_model: per_request
+  label: Record Retrieval Legal / Court Records — Retrieval Fee
+  description: Fee for requesting court documents, police reports, or legal filings.
+  vertical: legal
+- code: REC.ADMIN.PROCESSING_FEE
+  domain: REC
+  service_item: ADMIN
+  billing_component: PROCESSING_FEE
+  unit_model: flat_fee
+  label: Record Retrieval Administrative / Processing Fee
+  description: Administrative processing fee for record retrieval management.
+  vertical: legal
+- code: LA.LADDER_ACCESS.FLAT_FEE
+  domain: LA
+  service_item: LADDER_ACCESS
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Ladder Access
+  description: Ladder placement and stabilisation by a ladder assist technician to allow adjuster or inspector access to a
+    roof or elevated area.
+  vertical: legal
+- code: LA.ROOF_INSPECT.FLAT_FEE
+  domain: LA
+  service_item: ROOF_INSPECT
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Roof Inspection
+  description: On-roof inspection of damage or construction by a ladder assist technician.
+  vertical: legal
+- code: LA.ROOF_INSPECT_HARNESS.FLAT_FEE
+  domain: LA
+  service_item: ROOF_INSPECT_HARNESS
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Roof Inspection with Harness Equipment
+  description: On-roof inspection requiring fall-protection harness equipment (steep pitch or OSHA-mandated). Carries a higher
+    rate than standard inspection.
+  vertical: legal
+- code: LA.TARP_COVER.FLAT_FEE
+  domain: LA
+  service_item: TARP_COVER
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Tarp or Roof Covering
+  description: Emergency application of a tarp or other temporary roof covering to prevent further damage pending permanent
+    repair.
+  vertical: legal
+- code: LA.CANCEL.CANCEL_FEE
+  domain: LA
+  service_item: CANCEL
+  billing_component: CANCEL_FEE
+  unit_model: flat_fee
+  label: Appointment Cancellation Fee
+  description: Fee charged when a scheduled ladder assist appointment is cancelled within the contract-specified notice window.
+  vertical: legal
+- code: LA.TRIP_CHARGE.TRIP_FEE
+  domain: LA
+  service_item: TRIP_CHARGE
+  billing_component: TRIP_FEE
+  unit_model: flat_fee
+  label: Trip Charge
+  description: Fee charged when the technician is dispatched and arrives on site but is unable to complete the service (e.g.,
+    access denied, unsafe conditions).
+  vertical: legal
+- code: INSP.BASIC.FLAT_FEE
+  domain: INSP
+  service_item: BASIC
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Basic Property Inspection
+  description: Standard interior and exterior property inspection to document condition, damage, or compliance for a claim.
+  vertical: ale
+- code: INSP.REINSPECT.FLAT_FEE
+  domain: INSP
+  service_item: REINSPECT
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Re-Inspection
+  description: Follow-up inspection of a previously inspected property to verify repairs, changes in condition, or additional
+    damage.
+  vertical: ale
+- code: INSP.EXTERIOR.FLAT_FEE
+  domain: INSP
+  service_item: EXTERIOR
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Exterior / Drive-By Inspection
+  description: Exterior-only or drive-by property inspection where interior access is not required or available.
+  vertical: ale
+- code: INSP.INTERIOR.FLAT_FEE
+  domain: INSP
+  service_item: INTERIOR
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Interior Inspection
+  description: Interior property inspection documenting structural elements, finishes, fixtures, and interior damage.
+  vertical: ale
+- code: INSP.DAMAGE_ASSESS.FLAT_FEE
+  domain: INSP
+  service_item: DAMAGE_ASSESS
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Damage Assessment Report
+  description: Detailed written report assessing the nature, scope, and cause of property damage following an inspection.
+  vertical: ale
+- code: INSP.SUPPLEMENT_REVIEW.FLAT_FEE
+  domain: INSP
+  service_item: SUPPLEMENT_REVIEW
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Supplement Review
+  description: Review and field verification of a contractor supplement estimate to confirm accuracy of additional damage
+    items.
+  vertical: ale
+- code: INSP.PHOTO_DOC.FLAT_FEE
+  domain: INSP
+  service_item: PHOTO_DOC
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Photo Documentation Report
+  description: Photographic documentation of property condition or damage, delivered as an organized photo report.
+  vertical: ale
+- code: INSP.DISPUTE_REINSPECT.FLAT_FEE
+  domain: INSP
+  service_item: DISPUTE_REINSPECT
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Re-Inspection (Disputed Estimate)
+  description: Re-inspection conducted specifically to resolve a disputed repair estimate or appraisal discrepancy.
+  vertical: ale
+- code: INSP.CANCEL.CANCEL_FEE
+  domain: INSP
+  service_item: CANCEL
+  billing_component: CANCEL_FEE
+  unit_model: flat_fee
+  label: Cancellation Fee
+  description: Fee charged when a scheduled inspection appointment is cancelled within the contract-specified notice window.
+  vertical: ale
+- code: INSP.TRIP_CHARGE.TRIP_FEE
+  domain: INSP
+  service_item: TRIP_CHARGE
+  billing_component: TRIP_FEE
+  unit_model: flat_fee
+  label: Trip Charge / No Access
+  description: Fee charged when the inspector is dispatched and arrives on site but is unable to complete the inspection (e.g.,
+    access denied, property vacant).
+  vertical: ale
+- code: VIRT.GUIDED.FLAT_FEE
+  domain: VIRT
+  service_item: GUIDED
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Guided Virtual Inspection
+  description: Live video-guided inspection where a vendor technician directs the policyholder or field contact through a
+    structured damage walkthrough.
+  vertical: ale
+- code: VIRT.SELF_SERVICE.FLAT_FEE
+  domain: VIRT
+  service_item: SELF_SERVICE
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Self-Service Video Inspection
+  description: App-guided inspection where the policyholder submits photos and video following a scripted capture workflow;
+    vendor reviews and reports.
+  vertical: ale
+- code: VIRT.AI_SCOPE.FLAT_FEE
+  domain: VIRT
+  service_item: AI_SCOPE
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: AI-Assisted Scope / Estimate
+  description: Automated damage scoping service using AI image analysis to generate a preliminary repair estimate from submitted
+    photos or video.
+  vertical: ale
+- code: VIRT.AERIAL_ANALYSIS.FLAT_FEE
+  domain: VIRT
+  service_item: AERIAL_ANALYSIS
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Aerial / Satellite Image Analysis
+  description: Roof and property condition analysis using third-party aerial or satellite imagery (e.g., EagleView, Nearmap,
+    Verisk). No site visit required.
+  vertical: ale
+- code: VIRT.PHOTO_AI.FLAT_FEE
+  domain: VIRT
+  service_item: PHOTO_AI
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Photo AI Damage Detection
+  description: AI-powered review of submitted photographs to detect, classify, and quantify property damage items.
+  vertical: ale
+- code: VIRT.CANCEL.CANCEL_FEE
+  domain: VIRT
+  service_item: CANCEL
+  billing_component: CANCEL_FEE
+  unit_model: flat_fee
+  label: Virtual Inspection Cancellation Fee
+  description: Fee charged when a scheduled virtual inspection session is cancelled within the contract-specified notice window.
+  vertical: ale
+- code: CR.DEPO.APPEARANCE_FEE
+  domain: CR
+  service_item: DEPO
+  billing_component: APPEARANCE_FEE
+  unit_model: per_occurrence
+  label: Court Reporter Appearance Fee
+  description: Flat fee for the court reporter's attendance at a deposition.
+  vertical: legal
+- code: CR.DEPO.TRANSCRIPT
+  domain: CR
+  service_item: DEPO
+  billing_component: TRANSCRIPT
+  unit_model: per_page
+  label: Deposition Transcript
+  description: Per-page fee for the original deposition transcript. Rates are often tiered (e.g., first 100 pages / pages
+    101+).
+  vertical: legal
+- code: CR.DEPO.COPY_FEE
+  domain: CR
+  service_item: DEPO
+  billing_component: COPY_FEE
+  unit_model: per_page
+  label: Deposition Transcript — Copy Fee
+  description: Per-page fee for additional copies of a deposition transcript.
+  vertical: legal
+- code: CR.DEPO.VIDEOGRAPHY
+  domain: CR
+  service_item: DEPO
+  billing_component: VIDEOGRAPHY
+  unit_model: per_hour
+  label: Deposition Videography
+  description: Hourly fee for video recording of a deposition.
+  vertical: legal
+- code: CR.DEPO.RUSH_TRANSCRIPT
+  domain: CR
+  service_item: DEPO
+  billing_component: RUSH_TRANSCRIPT
+  unit_model: per_page
+  label: Rush / Expedited Transcript
+  description: Premium per-page surcharge for expedited transcript delivery.
+  vertical: legal
+- code: CR.DEPO.EXHIBIT_HANDLING
+  domain: CR
+  service_item: DEPO
+  billing_component: EXHIBIT_HANDLING
+  unit_model: flat_fee
+  label: Exhibit Handling Fee
+  description: Flat fee for managing and reproducing deposition exhibits.
+  vertical: legal
+- code: CR.DEPO.REMOTE_FEE
+  domain: CR
+  service_item: DEPO
+  billing_component: REMOTE_FEE
+  unit_model: flat_fee
+  label: Remote / Video Deposition Technology Fee
+  description: Platform and connectivity fee for depositions conducted via videoconference (Zoom, Teams, Veritext Connect,
+    etc.).
+  vertical: legal
+- code: CR.DEPO.TRAVEL_TRANSPORT
+  domain: CR
+  service_item: DEPO
+  billing_component: TRAVEL_TRANSPORT
+  unit_model: actual
+  label: Court Reporter Travel — Transportation
+  description: Actual transportation cost for court reporter travel to deposition location.
+  vertical: legal
+- code: CR.DEPO.MILEAGE
+  domain: CR
+  service_item: DEPO
+  billing_component: MILEAGE
+  unit_model: per_mile
+  label: Court Reporter Travel — Mileage
+  description: Mileage reimbursement for court reporter driving to deposition.
+  vertical: legal
+- code: CR.CANCEL.CANCEL_FEE
+  domain: CR
+  service_item: CANCEL
+  billing_component: CANCEL_FEE
+  unit_model: flat_fee
+  label: Cancellation Fee
+  description: Fee charged when a scheduled deposition is cancelled within the contract-specified notice window.
+  vertical: legal
+- code: CR.NO_SHOW.NO_SHOW_FEE
+  domain: CR
+  service_item: NO_SHOW
+  billing_component: NO_SHOW_FEE
+  unit_model: flat_fee
+  label: No-Show Fee
+  description: Fee charged when a deposition witness fails to appear.
+  vertical: legal
+- code: INV.SURVEILLANCE.PROF_FEE
+  domain: INV
+  service_item: SURVEILLANCE
+  billing_component: PROF_FEE
+  unit_model: per_hour
+  label: Investigation Surveillance — Professional Fee
+  description: Hourly fee for claimant surveillance services.
+  vertical: legal
+- code: INV.SURVEILLANCE.TRAVEL_TRANSPORT
+  domain: INV
+  service_item: SURVEILLANCE
+  billing_component: TRAVEL_TRANSPORT
+  unit_model: actual
+  label: Investigation Surveillance — Transportation
+  description: Actual transportation costs for surveillance investigators.
+  vertical: legal
+- code: INV.SURVEILLANCE.MILEAGE
+  domain: INV
+  service_item: SURVEILLANCE
+  billing_component: MILEAGE
+  unit_model: per_mile
+  label: Investigation Surveillance — Mileage
+  description: Mileage for surveillance investigators.
+  vertical: legal
+- code: INV.STATEMENT.PROF_FEE
+  domain: INV
+  service_item: STATEMENT
+  billing_component: PROF_FEE
+  unit_model: per_occurrence
+  label: Investigation Recorded Statement — Professional Fee
+  description: Fee for obtaining a recorded statement from claimant, witness, or involved party.
+  vertical: legal
+- code: INV.BACKGROUND_ASSET.PROF_FEE
+  domain: INV
+  service_item: BACKGROUND_ASSET
+  billing_component: PROF_FEE
+  unit_model: per_report
+  label: Investigation Background / Asset Search — Professional Fee
+  description: Fee for background check, asset search, or public records investigation.
+  vertical: legal
+- code: INV.AOE_COE.PROF_FEE
+  domain: INV
+  service_item: AOE_COE
+  billing_component: PROF_FEE
+  unit_model: per_file
+  label: Investigation AOE/COE Investigation — Professional Fee
+  description: Arising Out of Employment / Course of Employment investigation.
+  vertical: legal
+- code: INV.SKIP_TRACE.PROF_FEE
+  domain: INV
+  service_item: SKIP_TRACE
+  billing_component: PROF_FEE
+  unit_model: per_occurrence
+  label: Investigation Skip Trace — Professional Fee
+  description: Fee for locating a claimant or witness whose address is unknown.
+  vertical: legal
+- code: DRNE.ROOF_SURVEY.FLAT_FEE
+  domain: DRNE
+  service_item: ROOF_SURVEY
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Drone Roof Survey
+  description: Aerial drone survey of a roof structure to document condition, damage extent, and measurement data.
+  vertical: ale
+- code: DRNE.AERIAL_PHOTO.FLAT_FEE
+  domain: DRNE
+  service_item: AERIAL_PHOTO
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Aerial Photography & Documentation
+  description: Drone-captured still photography of a property for damage documentation, site orientation, or pre/post loss
+    comparison.
+  vertical: ale
+- code: DRNE.VIDEO.FLAT_FEE
+  domain: DRNE
+  service_item: VIDEO
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Aerial Video Documentation
+  description: Drone video footage of a loss site for claim file documentation.
+  vertical: ale
+- code: DRNE.THERMAL.FLAT_FEE
+  domain: DRNE
+  service_item: THERMAL
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Thermal Imaging Survey
+  description: Infrared/thermal drone survey to detect moisture intrusion, heat loss, or hidden damage not visible in standard
+    photography.
+  vertical: ale
+- code: DRNE.CANCEL.CANCEL_FEE
+  domain: DRNE
+  service_item: CANCEL
+  billing_component: CANCEL_FEE
+  unit_model: flat_fee
+  label: Cancellation Fee
+  description: Fee charged when a scheduled drone flight is cancelled within the contract-specified notice window.
+  vertical: ale
+- code: DRNE.TRIP_CHARGE.TRIP_FEE
+  domain: DRNE
+  service_item: TRIP_CHARGE
+  billing_component: TRIP_FEE
+  unit_model: flat_fee
+  label: Trip Charge / No Access
+  description: Fee charged when the drone operator is dispatched and arrives on site but cannot complete the flight (FAA restriction,
+    unsafe weather, access denied).
+  vertical: ale
+- code: APPR.PROPERTY_APPRAISAL.PROF_FEE
+  domain: APPR
+  service_item: PROPERTY_APPRAISAL
+  billing_component: PROF_FEE
+  unit_model: flat_fee
+  label: Property Appraisal — Professional Fee
+  description: Fee for an independent property appraisal to establish the value of loss or repair cost as part of the insurance
+    appraisal clause process.
+  vertical: ale
+- code: APPR.UMPIRE.PROF_FEE
+  domain: APPR
+  service_item: UMPIRE
+  billing_component: PROF_FEE
+  unit_model: flat_fee
+  label: Umpire Services — Professional Fee
+  description: Fee for a neutral umpire to resolve a disputed appraisal when the carrier and insured appraisers cannot agree
+    on loss amount.
+  vertical: ale
+- code: APPR.SITE_VISIT.FLAT_FEE
+  domain: APPR
+  service_item: SITE_VISIT
+  billing_component: FLAT_FEE
+  unit_model: per_occurrence
+  label: Appraisal Site Visit
+  description: Fee for an appraiser or umpire site visit to inspect the loss property.
+  vertical: ale
+- code: APPR.CONTENTS_INVENTORY.PROF_FEE
+  domain: APPR
+  service_item: CONTENTS_INVENTORY
+  billing_component: PROF_FEE
+  unit_model: per_file
+  label: Contents Inventory & Valuation
+  description: Professional inventory and valuation of personal property contents for homeowners or renters insurance claims.
+  vertical: ale
+- code: APPR.ADMIN.FILING_FEE
+  domain: APPR
+  service_item: ADMIN
+  billing_component: FILING_FEE
+  unit_model: flat_fee
+  label: Appraisal Administrative / Filing Fee
+  description: Administrative fee for appraisal process coordination and documentation.
+  vertical: ale
+- code: XDOMAIN.PASS_THROUGH.THIRD_PARTY_COST
+  domain: XDOMAIN
+  service_item: PASS_THROUGH
+  billing_component: THIRD_PARTY_COST
+  unit_model: actual
+  label: Pass-Through Third-Party Cost
+  description: Actual third-party cost paid by vendor on behalf of carrier (e.g., court filing fees, expert witness subpoena
+    fees). Requires supporting receipt.
+  vertical: null
+- code: XDOMAIN.ADMIN_MISC.ADMIN_FEE
+  domain: XDOMAIN
+  service_item: ADMIN_MISC
+  billing_component: ADMIN_FEE
+  unit_model: flat_fee
+  label: Miscellaneous Administrative Fee
+  description: Administrative fee not classifiable under a specific service domain. Requires carrier pre-approval.
+  vertical: null

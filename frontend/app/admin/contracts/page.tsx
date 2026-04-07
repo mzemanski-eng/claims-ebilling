@@ -110,6 +110,9 @@ export default function AdminContractsPage() {
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Status
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Vertical
+                </th>
                 <th className="w-16" />
               </tr>
             </thead>
@@ -149,6 +152,25 @@ export default function AdminContractsPage() {
                     >
                       {c.is_active ? "Active" : "Inactive"}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.vertical_slug ? (
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          c.vertical_slug === "ale"
+                            ? "bg-blue-50 text-blue-700"
+                            : c.vertical_slug === "restoration"
+                            ? "bg-green-50 text-green-700"
+                            : c.vertical_slug === "legal"
+                            ? "bg-purple-50 text-purple-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {c.vertical_slug}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

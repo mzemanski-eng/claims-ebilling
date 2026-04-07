@@ -26,7 +26,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.invoice import Invoice
-    from app.models.taxonomy import TaxonomyItem
+    from app.models.taxonomy import TaxonomyItem, Vertical
     from app.models.mapping import MappingRule
 
 
@@ -344,9 +344,19 @@ class Contract(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Boolean, nullable=False, default=True, server_default="true"
     )
 
+    # ── Vertical (Phase 3: nullable; drives per-vertical AI prompt routing) ──
+    vertical_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("verticals.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Line-of-business vertical for AI prompt routing. NULL = default.",
+    )
+
     # Relationships
     supplier: Mapped["Supplier"] = relationship("Supplier", back_populates="contracts")
     carrier: Mapped["Carrier"] = relationship("Carrier", back_populates="contracts")
+    vertical: Mapped[Optional["Vertical"]] = relationship("Vertical")
     rate_cards: Mapped[list["RateCard"]] = relationship(
         "RateCard", back_populates="contract", cascade="all, delete-orphan"
     )

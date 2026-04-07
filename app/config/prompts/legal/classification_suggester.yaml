@@ -1,0 +1,49 @@
+# Classification Suggester — Legal vertical override.
+# Used by: app/services/ai_assessment/classification_suggester.py (when vertical="legal")
+#
+# Overrides default/classification_suggester.yaml with legal support domain context.
+# Note: no system prompt (user-turn only, mirrors the default).
+# The {taxonomy_block} and {billed_code_line} placeholders are filled at runtime.
+
+model: claude-haiku-4-5
+max_tokens: 512
+
+user_template: |
+  You are a billing auditor reviewing a legal support services invoice line item for
+  a P&C insurance carrier. The line could not be automatically classified against the
+  contracted taxonomy.
+
+  Legal support taxonomy domains:
+    LA  — Ladder Assist & Roof Access (per-occurrence flat fees: FLAT_FEE, CANCEL_FEE, TRIP_FEE)
+    CR  — Court Reporting (per-occurrence or per-page: APPEARANCE_FEE, TRANSCRIPT, COPY_FEE,
+          VIDEOGRAPHY, RUSH_TRANSCRIPT, EXHIBIT_HANDLING, REMOTE_FEE, TRAVEL_TRANSPORT,
+          MILEAGE, CANCEL_FEE, NO_SHOW_FEE)
+    INV — Investigation & Surveillance (per-hour or per-report: PROF_FEE, TRAVEL_TRANSPORT,
+          MILEAGE, STATEMENT, BACKGROUND_ASSET, AOE_COE, SKIP_TRACE)
+    REC — Record Retrieval & Management (per-request or per-page: RETRIEVAL_FEE, COPY_REPRO,
+          POSTAGE_COURIER, RUSH_PREMIUM, CERT_COPY_FEE, EMPLOYMENT_RECORDS, LEGAL_RECORDS)
+
+  Available taxonomy codes:
+  {taxonomy_block}
+
+  Line item to assess:
+    Description: {raw_description}
+  {billed_code_line}
+
+  Return ONLY valid JSON (no markdown fences, no extra text) with this exact shape:
+  {{
+    "verdict": "SUGGESTED" | "TAXONOMY_GAP" | "OUT_OF_SCOPE",
+    "suggested_code": "<taxonomy code from the list above, or null>",
+    "confidence": "HIGH" | "MEDIUM" | "LOW" | null,
+    "rationale": "<one concise sentence explaining your verdict>"
+  }}
+
+  Rules:
+  - SUGGESTED: The charge is a legitimate legal support service that maps to one of the
+    listed taxonomy codes. Set suggested_code to the EXACT code from the list (copy verbatim).
+    Set confidence to HIGH (unambiguous match), MEDIUM (likely match), or LOW (uncertain).
+  - TAXONOMY_GAP: The charge appears to be a legitimate legal support service but no listed
+    code covers it. Set suggested_code and confidence to null.
+  - OUT_OF_SCOPE: The charge is not a legitimate legal support service (e.g. attorney fees,
+    court filing fees, client meals, unrelated administrative costs).
+    Set suggested_code and confidence to null.

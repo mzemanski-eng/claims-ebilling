@@ -33,11 +33,9 @@ _VALID_ACTIONS = {
     "DENIED",
 }
 
-# Prompt config — loaded from YAML at module import, cached by prompt_loader.
-# Edit app/config/prompts/default/exception_resolver.yaml to iterate without redeploy.
-_PROMPT = load_prompt("exception_resolver")
-_SYSTEM_PROMPT = _PROMPT.get("system", "")
-_USER_TEMPLATE = _PROMPT["user_template"]
+# Prompt config loaded per-call via load_prompt(name, vertical=vertical).
+# load_prompt uses @lru_cache(maxsize=256) so YAML is read only once per
+# (name, vertical) pair across the process lifetime.
 
 
 def _get_client():
@@ -71,6 +69,7 @@ def assess_exception(
     contract_name: str,
     supplier_name: str,
     prior_exception_count: int,
+    vertical: str = "default",
 ) -> Optional[dict]:
     """
     Call Claude to recommend a resolution action for a billing exception.
@@ -93,7 +92,9 @@ def assess_exception(
     if client is None:
         return None
 
-    user_content = _USER_TEMPLATE.format(
+    prompt = load_prompt("exception_resolver", vertical=vertical)
+    system_prompt = prompt.get("system", "")
+    user_content = prompt["user_template"].format(
         exception_message=exception_message[:600],  # cap length
         required_action=required_action,
         taxonomy_code=taxonomy_code or "N/A",
@@ -103,11 +104,11 @@ def assess_exception(
     )
 
     try:
-        model = _PROMPT["model"]
+        model = prompt["model"]
         message = _get_client().messages.create(
             model=model,
-            max_tokens=_PROMPT["max_tokens"],
-            system=_SYSTEM_PROMPT,
+            max_tokens=prompt["max_tokens"],
+            system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
         raw_text = message.content[0].text.strip()

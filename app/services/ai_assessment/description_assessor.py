@@ -36,11 +36,9 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded client — only imported when actually needed
 _client = None
 
-# Prompt config — loaded from YAML at module import, cached by prompt_loader.
-# Edit app/config/prompts/default/description_assessor.yaml to iterate without redeploy.
-_PROMPT = load_prompt("description_assessor")
-_SYSTEM_PROMPT = _PROMPT.get("system", "")
-_USER_TEMPLATE = _PROMPT["user_template"]
+# Prompt config loaded per-call via load_prompt(name, vertical=vertical).
+# load_prompt uses @lru_cache(maxsize=256) so YAML is read only once per
+# (name, vertical) pair across the process lifetime.
 
 
 def _get_client():
@@ -75,6 +73,7 @@ def assess_description_alignment(
     raw_description: str,
     taxonomy_label: str,
     taxonomy_description: Optional[str],
+    vertical: str = "default",
 ) -> Optional[dict]:
     """
     Call Claude to assess whether raw_description aligns with the taxonomy item.
@@ -93,22 +92,24 @@ def assess_description_alignment(
     if client is None:
         return None
 
+    prompt = load_prompt("description_assessor", vertical=vertical)
+    system_prompt = prompt.get("system", "")
     desc = (
         taxonomy_description or taxonomy_label
     )  # fall back to label if no description
 
-    user_content = _USER_TEMPLATE.format(
+    user_content = prompt["user_template"].format(
         taxonomy_label=taxonomy_label,
         taxonomy_description=desc,
         raw_description=raw_description,
     )
 
     try:
-        model = _PROMPT["model"]
+        model = prompt["model"]
         message = client.messages.create(
             model=model,
-            max_tokens=_PROMPT["max_tokens"],
-            system=_SYSTEM_PROMPT,
+            max_tokens=prompt["max_tokens"],
+            system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
         raw_text = message.content[0].text.strip()

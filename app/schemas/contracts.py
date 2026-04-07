@@ -80,6 +80,7 @@ class ContractCreate(BaseSchema):
     geography_scope: str = "national"
     state_codes: Optional[list[str]] = None
     notes: Optional[str] = None
+    vertical_id: Optional[uuid.UUID] = None  # Phase 3: per-vertical AI prompt routing
 
 
 class ContractDetail(BaseSchema):
@@ -94,6 +95,8 @@ class ContractDetail(BaseSchema):
     state_codes: Optional[list[str]]
     notes: Optional[str]
     is_active: bool
+    vertical_id: Optional[uuid.UUID] = None   # Phase 3
+    vertical_slug: Optional[str] = None       # Phase 3: "ale" | "restoration" | "legal" | null
     rate_cards: list[RateCardDetail]
     guidelines: list[GuidelineDetail]
 

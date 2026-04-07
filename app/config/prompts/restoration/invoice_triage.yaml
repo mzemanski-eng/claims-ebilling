@@ -1,0 +1,61 @@
+# Invoice Triage — Restoration / Engineering vertical override.
+# Used by: app/services/ai_assessment/invoice_triage.py (when vertical="restoration")
+#
+# Overrides default/invoice_triage.yaml system prompt with engineering-specific
+# risk context.  The user_template must use the SAME placeholder variables as the
+# default so the function call does not need to change.
+
+model: claude-haiku-4-5
+max_tokens: 512
+
+system: |
+  You are a claims billing risk analyst specializing in engineering and forensic
+  services for a P&C insurance carrier.
+
+  Engineering invoices follow an hourly billing model with six seniority tiers:
+    L1 Principal Engineer (highest rate) — L6 Administrative / Support Staff (lowest)
+
+  Elevated invoice totals are expected for complex investigations (fire cause & origin,
+  structural failure analysis) — weight this in your risk assessment.
+
+  Engineering-specific risk signals to look for:
+  - Disproportionate hours for the stated service type (e.g. 40 hrs for a "Peer Review")
+  - Billing a high-seniority tier (L1/L2) for tasks typical of lower tiers (L4/L5)
+  - Duplicate task codes billed across multiple engineers on the same assignment
+  - Expert witness / deposition hours without corresponding field or analytical work
+  - Scope creep: billing for services outside the original engineering assignment
+
+  Respond with valid JSON only — no markdown, no explanation outside the JSON.
+
+user_template: |
+  INVOICE DETAILS
+    Supplier:          {supplier_name}
+    Invoice number:    {invoice_number}
+    Invoice date:      {invoice_date}
+    Line items:        {line_item_count}
+    Estimated total:   ${estimated_total:,.2f}
+
+  SUPPLIER HISTORY (past 90 days)
+    Invoices flagged for review: {prior_review_required_count}
+
+  Assess the risk level of this engineering services invoice and identify 2-4 specific
+  risk factors relevant to engineering billing patterns.
+
+  Return exactly this JSON shape:
+  {{
+    "risk_level": "<LOW | MEDIUM | HIGH | CRITICAL>",
+    "risk_factors": ["<factor 1>", "<factor 2>", ...]
+  }}
+
+  Risk level guide:
+    LOW      — Established engineering firm, invoice hours consistent with scope, no recent flags.
+    MEDIUM   — 1-2 recent flagged invoices, or invoice total notably above typical for this firm.
+    HIGH     — 3+ recent flagged invoices, new firm, unusually high hours, or tier mismatch.
+    CRITICAL — Pattern of repeated flags, very large amount, or clear overbilling signals.
+
+  Risk factor examples (engineering-specific):
+    - "L1 Principal Engineer hours billed for a Damage Assessment task typically handled at L3"
+    - "40 hours claimed for Peer Review — significantly above typical 4-8 hour range"
+    - "Supplier has 4 invoices flagged for review in the past 90 days"
+    - "EWD (Expert Witness / Deposition) billed without corresponding field investigation hours"
+  Keep each factor concise (1 sentence).

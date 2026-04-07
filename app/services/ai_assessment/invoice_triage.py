@@ -33,11 +33,9 @@ _client = None
 
 _VALID_LEVELS = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 
-# Prompt config — loaded from YAML at module import, cached by prompt_loader.
-# Edit app/config/prompts/default/invoice_triage.yaml to iterate without redeploy.
-_PROMPT = load_prompt("invoice_triage")
-_SYSTEM_PROMPT = _PROMPT.get("system", "")
-_USER_TEMPLATE = _PROMPT["user_template"]
+# Prompt config loaded per-call via load_prompt(name, vertical=vertical).
+# load_prompt uses @lru_cache(maxsize=256) so YAML is read only once per
+# (name, vertical) pair across the process lifetime.
 
 
 def _get_client():
@@ -71,6 +69,7 @@ def triage_invoice(
     line_item_count: int,
     estimated_total: float,
     prior_review_required_count: int,
+    vertical: str = "default",
 ) -> Optional[dict]:
     """
     Call Claude to assign a risk level to an incoming invoice.
@@ -93,7 +92,9 @@ def triage_invoice(
     if client is None:
         return None
 
-    user_content = _USER_TEMPLATE.format(
+    prompt = load_prompt("invoice_triage", vertical=vertical)
+    system_prompt = prompt.get("system", "")
+    user_content = prompt["user_template"].format(
         supplier_name=supplier_name,
         invoice_number=invoice_number,
         invoice_date=invoice_date,
@@ -103,11 +104,11 @@ def triage_invoice(
     )
 
     try:
-        model = _PROMPT["model"]
+        model = prompt["model"]
         message = _get_client().messages.create(
             model=model,
-            max_tokens=_PROMPT["max_tokens"],
-            system=_SYSTEM_PROMPT,
+            max_tokens=prompt["max_tokens"],
+            system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
         raw_text = message.content[0].text.strip()
