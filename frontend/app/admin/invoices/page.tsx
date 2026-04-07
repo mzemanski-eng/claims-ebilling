@@ -9,12 +9,21 @@ import { bulkApproveInvoices, listAdminInvoices, listAdminSuppliers } from "@/li
 import { StatusBadge } from "@/components/status-badge";
 import type { BulkApprovalResult } from "@/lib/types";
 
-// ── Risk dot — only shown when HIGH or CRITICAL; folded into status cell ───────
+// ── Risk badge — shown for HIGH/CRITICAL triage; replaces the old tiny dot ─────
 
-const RISK_DOT: Record<string, string> = {
-  HIGH:     "bg-red-500",
-  CRITICAL: "bg-red-600",
+const RISK_BADGE: Record<string, string> = {
+  HIGH:     "bg-red-100 text-red-700 border border-red-200",
+  CRITICAL: "bg-red-600 text-white",
 };
+
+/** Returns a human-friendly age string like "2d ago" or "today". */
+function formatAge(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days === 0) return "today";
+  if (days === 1) return "1d ago";
+  return `${days}d ago`;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -437,12 +446,14 @@ function AdminInvoicesContent() {
                       {formatInvoiceDate(inv.invoice_date)}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {inv.triage_risk_level && RISK_DOT[inv.triage_risk_level] && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {inv.triage_risk_level && RISK_BADGE[inv.triage_risk_level] && (
                           <span
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${RISK_DOT[inv.triage_risk_level]}`}
-                            title={`AI triage: ${inv.triage_risk_level}`}
-                          />
+                            className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide shrink-0 ${RISK_BADGE[inv.triage_risk_level]}`}
+                            title={`AI triage risk: ${inv.triage_risk_level}`}
+                          >
+                            {inv.triage_risk_level}
+                          </span>
                         )}
                         <StatusBadge status={inv.status} />
                       </div>
@@ -483,9 +494,22 @@ function AdminInvoicesContent() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
-                      {inv.submitted_at
-                        ? new Date(inv.submitted_at).toLocaleDateString()
-                        : "—"}
+                      {inv.submitted_at ? (
+                        <>
+                          {new Date(inv.submitted_at).toLocaleDateString()}
+                          {(() => {
+                            const age = formatAge(inv.submitted_at);
+                            const days = Math.floor((Date.now() - new Date(inv.submitted_at).getTime()) / 86_400_000);
+                            return age ? (
+                              <span className={`ml-1.5 text-[11px] font-medium ${
+                                days >= 7 ? "text-red-500" : days >= 3 ? "text-amber-500" : "text-gray-400"
+                              }`}>
+                                · {age}
+                              </span>
+                            ) : null;
+                          })()}
+                        </>
+                      ) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link

@@ -341,6 +341,18 @@ function Dialog({
   );
 }
 
+// ── Human-readable labels for required_action enum values ─────────────────────
+const REQUIRED_ACTION_LABELS: Record<string, string> = {
+  REQUEST_RECLASSIFICATION: "Classification unclear — needs review",
+  ACCEPT_REDUCTION:         "Rate exceeds contract — reduction required",
+  ESTABLISH_CONTRACT_RATE:  "No contracted rate found for this service",
+  OUT_OF_SCOPE:             "Service outside contracted scope",
+  NO_ACTIVE_CONTRACT:       "No active contract at time of service",
+  REUPLOAD:                 "Documentation issue — reupload required",
+  ATTACH_DOC:               "Supporting document required",
+  NONE:                     "No action required",
+};
+
 // ── Resolution action config ──────────────────────────────────────────────────
 const RESOLUTION_OPTIONS: {
   value: string;
@@ -500,7 +512,9 @@ function ExceptionRow({
       <div>
         <div className="flex items-center gap-2 mb-1">
           <StatusBadge status={exc.status} />
-          <span className="font-mono text-gray-500">{exc.required_action}</span>
+          <span className="text-gray-500 text-xs">
+            {REQUIRED_ACTION_LABELS[exc.required_action] ?? exc.required_action.replace(/_/g, " ")}
+          </span>
         </div>
         <p className="text-gray-800">{exc.message}</p>
         {exc.supplier_response && (
@@ -578,7 +592,7 @@ function ExceptionRow({
         <div className="flex flex-col flex-1 min-w-32 gap-0.5">
           <input
             type="text"
-            placeholder="AI reasoning (editable)"
+            placeholder="Notes for the record (optional)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className={`rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
@@ -974,18 +988,31 @@ export default function AdminInvoiceDetailPage({
         />
       )}
 
+      {/* Bulk AI recommendations banner — prominent, shown above the table */}
+      {aiResolvableExceptions.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-amber-900">
+              ✦ AI has recommendations for {aiResolvableExceptions.length} exception{aiResolvableExceptions.length !== 1 ? "s" : ""}
+            </p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              Review and accept AI suggestions for all open exceptions with one click
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => setShowBulkModal(true)}
+            className="shrink-0"
+          >
+            Review &amp; Apply All
+          </Button>
+        </div>
+      )}
+
       {/* Line items */}
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="border-b px-6 py-4 flex items-center justify-between">
+        <div className="border-b px-6 py-4">
           <h2 className="font-semibold text-gray-900">Line Items</h2>
-          {aiResolvableExceptions.length > 0 && (
-            <button
-              onClick={() => setShowBulkModal(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-            >
-              ✦ Apply {aiResolvableExceptions.length} AI Recommendation{aiResolvableExceptions.length !== 1 ? "s" : ""}
-            </button>
-          )}
         </div>
         {loadingLines ? (
           <div className="flex justify-center py-10">
@@ -1015,8 +1042,11 @@ export default function AdminInvoiceDetailPage({
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Taxonomy
                 </th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
-                  Conf.
+                <th
+                  className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500 cursor-help"
+                  title="AI confidence in spend-bucket classification. LOW = needs manual review."
+                >
+                  AI Match
                 </th>
                 <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-gray-500">
                   Billed
@@ -1040,7 +1070,11 @@ export default function AdminInvoiceDetailPage({
                   <>
                     <tr
                       key={line.id}
-                      className={`transition-colors ${hasIssues ? "cursor-pointer hover:bg-amber-50" : "hover:bg-gray-50"}`}
+                      className={`transition-colors ${
+                        hasIssues
+                          ? "cursor-pointer bg-amber-50/30 hover:bg-amber-50 border-l-4 border-amber-400"
+                          : "hover:bg-gray-50 border-l-4 border-transparent"
+                      }`}
                       onClick={() => hasIssues && toggleLine(line.id)}
                     >
                       <td className="px-4 py-3 text-gray-400">
@@ -1177,7 +1211,10 @@ export default function AdminInvoiceDetailPage({
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={`px-4 py-3 ${
+                        line.mapping_confidence === "LOW"    ? "bg-red-50" :
+                        line.mapping_confidence === "MEDIUM" ? "bg-yellow-50/60" : ""
+                      }`}>
                         {line.mapping_confidence ? (
                           <ConfidenceBadge confidence={line.mapping_confidence} />
                         ) : (
@@ -1267,13 +1304,15 @@ export default function AdminInvoiceDetailPage({
                                 </span>
                               )}
                               {needsClassify && (
-                                <Link
-                                  href="/admin/mappings"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-200 transition-colors whitespace-nowrap"
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!expandedLines.has(line.id)) toggleLine(line.id);
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors whitespace-nowrap shadow-sm"
                                 >
-                                  → Classify
-                                </Link>
+                                  🏷 Classify
+                                </button>
                               )}
                               {!hasSpend && !needsClassify && (
                                 <StatusBadge status={line.status} />

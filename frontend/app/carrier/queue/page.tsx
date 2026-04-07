@@ -6,10 +6,10 @@ import { useQuery } from "@tanstack/react-query";
 import { listCarrierInvoices } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
 
-// ── Risk dot — shown for HIGH / CRITICAL triage only ─────────────────────────
-const RISK_DOT: Record<string, string> = {
-  HIGH:     "bg-red-500",
-  CRITICAL: "bg-red-600",
+// ── Risk badge — shown for HIGH / CRITICAL triage ─────────────────────────────
+const RISK_BADGE: Record<string, string> = {
+  HIGH:     "bg-red-100 text-red-700 border border-red-200",
+  CRITICAL: "bg-red-600 text-white",
 };
 
 function formatDate(iso: string | null) {
@@ -121,12 +121,14 @@ export default function CarrierQueuePage() {
                     {formatDate(inv.invoice_date)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {inv.triage_risk_level && RISK_DOT[inv.triage_risk_level] && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {inv.triage_risk_level && RISK_BADGE[inv.triage_risk_level] && (
                         <span
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${RISK_DOT[inv.triage_risk_level]}`}
-                          title={`AI triage: ${inv.triage_risk_level} risk`}
-                        />
+                          className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide shrink-0 ${RISK_BADGE[inv.triage_risk_level]}`}
+                          title={`AI triage risk: ${inv.triage_risk_level}`}
+                        >
+                          {inv.triage_risk_level}
+                        </span>
                       )}
                       <StatusBadge status={inv.status} />
                     </div>
@@ -136,9 +138,24 @@ export default function CarrierQueuePage() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     {inv.exception_count > 0 ? (
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
-                        {inv.exception_count}
-                      </span>
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
+                          {inv.exception_count}
+                        </span>
+                        <span className={`text-[10px] font-medium ${
+                          inv.status === "REVIEW_REQUIRED" ||
+                          inv.status === "SUPPLIER_RESPONDED" ||
+                          inv.status === "CARRIER_REVIEWING"
+                            ? "text-red-400"
+                            : "text-amber-400"
+                        }`}>
+                          {inv.status === "REVIEW_REQUIRED" ||
+                          inv.status === "SUPPLIER_RESPONDED" ||
+                          inv.status === "CARRIER_REVIEWING"
+                            ? "spend"
+                            : "classif."}
+                        </span>
+                      </div>
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}
