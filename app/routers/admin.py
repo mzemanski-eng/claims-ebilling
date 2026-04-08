@@ -2464,7 +2464,7 @@ def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
         for li in invoice.line_items
         if any(
             exc.status == ExceptionStatus.OPEN
-            and exc.required_action != "REQUEST_RECLASSIFICATION"
+            and exc.validation_result.required_action != "REQUEST_RECLASSIFICATION"
             for exc in li.exceptions
         )
     )
