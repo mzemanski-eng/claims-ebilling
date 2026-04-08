@@ -11,11 +11,9 @@ import {
   getCarrierInvoice,
   getCarrierInvoiceLines,
   requestInvoiceChanges,
-  getClassificationStats,
 } from "@/lib/api";
 import { isCarrierAdmin } from "@/lib/auth";
 import { StatusBadge } from "@/components/status-badge";
-import { ConfidenceBadge } from "@/components/confidence-badge";
 import { ValidationSummaryCard } from "@/components/validation-summary-card";
 import { CarrierExceptionPanel } from "@/components/exception-panel";
 import { AiAssessmentBadge, AiAssessmentInline } from "@/components/ai-assessment-badge";
@@ -255,7 +253,6 @@ export default function CarrierInvoiceReviewPage({
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">#</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Description</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Taxonomy</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-600">Confidence</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-600" title="AI description alignment assessment">AI</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Billed</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Expected</th>
@@ -309,9 +306,6 @@ export default function CarrierInvoiceReviewPage({
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <ConfidenceBadge confidence={li.mapping_confidence} />
-                        </td>
-                        <td className="px-4 py-3 text-center">
                           <AiAssessmentInline assessment={li.ai_description_assessment} />
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-900">
@@ -359,7 +353,7 @@ export default function CarrierInvoiceReviewPage({
                       {/* Expanded exceptions + AI assessment */}
                       {expanded && hasExceptions && (
                         <tr key={`${li.id}-exc`}>
-                          <td colSpan={9} className="px-6 pb-4 pt-0 bg-gray-50">
+                          <td colSpan={8} className="px-6 pb-4 pt-0 bg-gray-50">
                             <div className="pt-3 space-y-4">
                               {/* AI description alignment — shown when assessment exists */}
                               {li.ai_description_assessment && (
