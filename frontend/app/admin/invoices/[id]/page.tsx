@@ -1345,24 +1345,13 @@ export default function AdminInvoiceDetailPage({
 
                           return (
                             <div className="flex flex-wrap items-center gap-1.5">
-                              {hasSpend && (
+                              {hasSpend ? (
                                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 whitespace-nowrap">
                                   {openSpendExcs.length} Spend Issue{openSpendExcs.length !== 1 ? "s" : ""}
                                 </span>
-                              )}
-                              {needsClassify && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!expandedLines.has(line.id)) toggleLine(line.id);
-                                  }}
-                                  className="inline-flex items-center gap-1 rounded border border-dashed border-gray-300 px-2 py-0.5 text-xs text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
-                                  title="Needs spend-bucket classification — handled in the mapping queue"
-                                >
-                                  Unclassified
-                                </button>
-                              )}
-                              {!hasSpend && !needsClassify && (
+                              ) : (
+                                // No spend issue — just show line status. Classification
+                                // problems are handled in the mapping queue, not here.
                                 <StatusBadge status={line.status} />
                               )}
                             </div>
