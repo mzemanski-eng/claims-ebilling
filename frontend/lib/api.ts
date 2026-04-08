@@ -20,6 +20,11 @@ import type {
   AiAccuracyStats,
   AnalyticsSummary,
   BulkApprovalResult,
+  ClassificationApproveRequest,
+  ClassificationApproveResult,
+  ClassificationQueueItem,
+  ClassificationRejectRequest,
+  ClassificationStats,
   ContractCreate,
   ContractDetail,
   ContractHealth,
@@ -887,4 +892,51 @@ export function updateCarrierSettings(
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+// ── Classification Review ──────────────────────────────────────────────────────
+
+/**
+ * List classification queue items for this carrier.
+ * statusFilter: "PENDING" | "NEEDS_REVIEW" | "APPROVED" | "REJECTED"
+ */
+export function listClassificationQueue(
+  statusFilter: string = "PENDING",
+): Promise<ClassificationQueueItem[]> {
+  return apiFetch<ClassificationQueueItem[]>(
+    `/carrier/classification?status_filter=${statusFilter}`,
+  );
+}
+
+/** Summary stats for the Classification Review screen header. */
+export function getClassificationStats(): Promise<ClassificationStats> {
+  return apiFetch<ClassificationStats>("/carrier/classification/stats");
+}
+
+/** Approve a classification queue item (confirm taxonomy + run bill audit). */
+export function approveClassificationItem(
+  itemId: string,
+  payload: ClassificationApproveRequest,
+): Promise<ClassificationApproveResult> {
+  return apiFetch<ClassificationApproveResult>(
+    `/carrier/classification/${itemId}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+/** Reject a classification queue item (marks line as DENIED). */
+export function rejectClassificationItem(
+  itemId: string,
+  payload: ClassificationRejectRequest,
+): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(
+    `/carrier/classification/${itemId}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }

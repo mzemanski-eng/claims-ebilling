@@ -12,6 +12,7 @@ const STATUS_STYLES: Record<string, string> = {
   WITHDRAWN: "bg-gray-200 text-gray-500",
   // Line item statuses
   PENDING: "bg-gray-100 text-gray-600",
+  CLASSIFICATION_PENDING: "bg-amber-100 text-amber-700",
   CLASSIFIED: "bg-blue-100 text-blue-700",
   VALIDATED: "bg-green-100 text-green-700",
   EXCEPTION: "bg-red-100 text-red-700",
@@ -37,6 +38,7 @@ const STATUS_LABELS: Record<string, string> = {
   EXPORTED: "Exported",
   WITHDRAWN: "Withdrawn",
   PENDING: "Pending",
+  CLASSIFICATION_PENDING: "Classification Pending",
   CLASSIFIED: "Classified",
   VALIDATED: "Validated",
   EXCEPTION: "Exception",

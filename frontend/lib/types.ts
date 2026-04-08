@@ -34,6 +34,9 @@ export interface ValidationSummary {
   total_in_dispute: string;
   lines_denied: number;
   total_denied: string;
+  // Pending classification (in carrier Classification Review queue)
+  lines_pending_classification: number;
+  total_pending_classification: string;
   // Exception breakdown by type (carrier-facing)
   classification_exceptions: number;
   rate_exceptions: number;
@@ -719,6 +722,7 @@ export type SubmissionStatusType =
 
 export const LineItemStatusValues = {
   PENDING: "PENDING",
+  CLASSIFICATION_PENDING: "CLASSIFICATION_PENDING",
   CLASSIFIED: "CLASSIFIED",
   VALIDATED: "VALIDATED",
   EXCEPTION: "EXCEPTION",
@@ -839,6 +843,68 @@ export interface ValueSummary {
     exception_rate: number;
     identified_savings: number;
   }[];
+}
+
+// ── Classification Review ──────────────────────────────────────────────────────
+
+export interface ClassificationAlternative {
+  code: string;
+  label: string | null;
+  billing_component: string | null;
+  confidence: "HIGH" | "MEDIUM" | "LOW" | null;
+}
+
+export interface ClassificationQueueItem {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  line_item_id: string;
+  supplier_id: string;
+  supplier_name: string | null;
+  invoice_id: string | null;
+  invoice_number: string | null;
+  line_number: number | null;
+  raw_description: string;
+  raw_amount: string; // Decimal as string
+  ai_proposed_code: string | null;
+  ai_proposed_billing_component: string | null;
+  ai_confidence: string | null; // Decimal as string, e.g. "0.700"
+  ai_reasoning: string | null;
+  ai_alternatives: ClassificationAlternative[] | null;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "NEEDS_REVIEW";
+  reviewed_by_id: string | null;
+  reviewed_at: string | null;
+  approved_code: string | null;
+  approved_billing_component: string | null;
+  review_notes: string | null;
+  created_mapping_rule_id: string | null;
+}
+
+export interface ClassificationApproveRequest {
+  approved_code: string;
+  approved_billing_component: string;
+  review_notes?: string | null;
+}
+
+export interface ClassificationRejectRequest {
+  review_notes?: string | null;
+}
+
+export interface ClassificationApproveResult {
+  queue_item_id: string;
+  line_item_id: string;
+  approved_code: string;
+  bill_audit_result: "VALIDATED" | "EXCEPTION";
+  mapping_rule_created: boolean;
+  message: string;
+}
+
+export interface ClassificationStats {
+  pending: number;
+  needs_review: number;
+  approved_today: number;
+  rejected_today: number;
+  total_pending_amount: string; // Decimal as string
 }
 
 // ── Carrier Settings ──────────────────────────────────────────────────────────

@@ -15,8 +15,10 @@ type NavItem  = NavLink | NavGroup;
 const ADMIN_NAV: NavItem[] = [
   { type: "link",  href: "/admin",           label: "Dashboard", exact: true },
   { type: "group", label: "Invoices", items: [
-    { href: "/admin/invoices",  label: "Invoice Queue" },
-    { href: "/admin/mappings",  label: "Classification Review" },
+    { href: "/admin/invoices",          label: "Invoice Queue" },
+    { href: "/carrier/queue",           label: "Review Queue" },
+    { href: "/carrier/classification",  label: "Classification Queue" },
+    { href: "/admin/mappings",          label: "Mapping Rules" },
   ]},
   { type: "group", label: "Operations", items: [
     { href: "/admin/suppliers", label: "Suppliers" },
@@ -31,8 +33,8 @@ const ADMIN_NAV: NavItem[] = [
 const REVIEWER_NAV: NavItem[] = [
   { type: "link",  href: "/admin",          label: "Dashboard", exact: true },
   { type: "group", label: "Invoices", items: [
-    { href: "/admin/invoices", label: "Invoice Queue" },
-    { href: "/admin/mappings", label: "Classification Review" },
+    { href: "/carrier/queue",           label: "Review Queue" },
+    { href: "/carrier/classification",  label: "Classification Queue" },
   ]},
 ];
 
