@@ -165,7 +165,6 @@ def upgrade() -> None:
             UUID(as_uuid=True),
             sa.ForeignKey("suppliers.id", ondelete="CASCADE"),
             nullable=False,
-            index=True,
         ),
         sa.Column(
             "document_type",
