@@ -23,9 +23,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    from app.models.supplier import Contract, Supplier
+    from app.models.classification import ClassificationQueueItem
     from app.models.mapping import MappingRule
-    from app.models.validation import ValidationResult, ExceptionRecord
+    from app.models.supplier import Contract, Supplier
+    from app.models.validation import ExceptionRecord, ValidationResult
 
 
 # ── Lifecycle state constants ────────────────────────────────────────────────
@@ -64,6 +65,9 @@ class SubmissionStatus:
 
 class LineItemStatus:
     PENDING = "PENDING"
+    CLASSIFICATION_PENDING = (
+        "CLASSIFICATION_PENDING"  # In provisional queue; AI confidence < threshold
+    )
     CLASSIFIED = "CLASSIFIED"
     VALIDATED = "VALIDATED"
     EXCEPTION = "EXCEPTION"
@@ -341,6 +345,14 @@ class LineItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         "ExceptionRecord",
         back_populates="line_item",
         cascade="all, delete-orphan",
+    )
+    classification_queue_item: Mapped[Optional["ClassificationQueueItem"]] = (
+        relationship(
+            "ClassificationQueueItem",
+            back_populates="line_item",
+            uselist=False,
+            cascade="all, delete-orphan",
+        )
     )
 
     def __repr__(self) -> str:
