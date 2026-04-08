@@ -13,23 +13,29 @@ Pipeline steps:
   3. Store RawExtractionArtifact
   4. For each RawLineItem:
      a. Create LineItem (PENDING)
-     b. Classify → taxonomy_code + confidence (CLASSIFIED)
+     b. Classify → taxonomy_code + confidence
+        - AI confidence == HIGH  → CLASSIFIED; continue to rate/guideline validation
+        - AI confidence <  HIGH  → ClassificationQueueItem created; line set to
+          CLASSIFICATION_PENDING; validation skipped for this line
      c. Run rate validation → ValidationResults
      d. Run guideline validation → ValidationResults
-     e. Create ExceptionRecords for failures
+     e. Create ExceptionRecords for RATE/GUIDELINE failures
      f. Update LineItem status (VALIDATED or EXCEPTION)
   5. Update Invoice status:
-     - Any ERROR exceptions → REVIEW_REQUIRED
-     - All PASS/WARNING     → APPROVED (if auto_approve_clean_invoices)
-                            → PENDING_CARRIER_REVIEW (if manual approval required)
+     - Any RATE/GUIDELINE exceptions   → REVIEW_REQUIRED
+     - Any CLASSIFICATION_PENDING lines → PENDING_CARRIER_REVIEW
+     - All PASS/WARNING                → APPROVED (if auto_approve_clean_invoices)
+                                       → PENDING_CARRIER_REVIEW (if manual review required)
   6. Write audit events throughout
 """
 
 import logging
 import uuid
 from datetime import date, datetime, timezone
+from decimal import Decimal
 
 from app.database import SessionLocal
+from app.models.classification import ClassificationQueueItem, ClassificationQueueStatus
 from app.taxonomy.vertical_config import VerticalConfig
 from app.models.invoice import (
     Invoice,
@@ -42,11 +48,8 @@ from app.models.invoice import (
 from app.models.validation import (
     ExceptionRecord,
     ExceptionStatus,
-    RequiredAction,
     ValidationResult,
-    ValidationSeverity,
     ValidationStatus,
-    ValidationType,
 )
 from app.services.ai_assessment.classification_suggester import suggest_classification
 from app.services.ai_assessment.description_assessor import assess_description_alignment
@@ -329,6 +332,14 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
 
     db.flush()
 
+    # Lines in the classification queue — payable amount is unknown until
+    # a carrier reviewer approves a taxonomy code and bill audit re-runs.
+    pending_classification_count = sum(
+        1
+        for line in processed_lines
+        if line.status == LineItemStatus.CLASSIFICATION_PENDING
+    )
+
     # ── Invoice-level exclusivity guideline checks ────────────────────────────
     # invoice_codes_exclusive rules fire when mutually exclusive service codes
     # appear on the same invoice (e.g. LA service hierarchy: only one of
@@ -408,11 +419,11 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
             warning_count += 1
 
     # ── Determine final invoice status ────────────────────────────────────────
-    # spend_error_count > 0  → REVIEW_REQUIRED (billing dispute; supplier notified)
-    # spend_error_count == 0, error_count > 0 → classification-only exceptions;
-    #   HIGH/MEDIUM AI confidence → auto-resolve + APPROVED (no human needed)
-    #   LOW confidence or no suggestion → PENDING_CARRIER_REVIEW (carrier confirms)
-    # error_count == 0 → PENDING_CARRIER_REVIEW (auto-approve if setting enabled)
+    # Priority order:
+    #   1. spend_error_count > 0          → REVIEW_REQUIRED (billing dispute; supplier notified)
+    #   2. error_count > 0                → classification EXCEPTION path (see below)
+    #   3. pending_classification_count > 0 → PENDING_CARRIER_REVIEW (queue work remains)
+    #   4. all clean                      → PENDING_CARRIER_REVIEW or APPROVED
     if spend_error_count > 0:
         new_status = SubmissionStatus.REVIEW_REQUIRED
 
@@ -501,11 +512,22 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
                 invoice_id,
             )
 
+    elif pending_classification_count > 0:
+        # Some lines are in the Classification Review queue.  The already-cleared
+        # lines are payable now; the pending lines will re-enter bill audit once
+        # a carrier reviewer approves their taxonomy codes.
+        new_status = SubmissionStatus.PENDING_CARRIER_REVIEW
+        logger.info(
+            "Invoice %s → PENDING_CARRIER_REVIEW: %d line(s) awaiting classification",
+            invoice_id,
+            pending_classification_count,
+        )
+
     else:
         new_status = SubmissionStatus.PENDING_CARRIER_REVIEW
 
     # ── Auto-approve fully clean invoices (if configured) ─────────────────────
-    # Only applies when error_count == 0 (no classification or spend errors).
+    # Only applies when error_count == 0 and pending_classification_count == 0.
     # The high-confidence classification path above handles its own approval.
     #
     # Effective auto_approve is resolved in priority order:
@@ -540,6 +562,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     if (
         new_status == SubmissionStatus.PENDING_CARRIER_REVIEW
         and error_count == 0
+        and pending_classification_count == 0
         and _eff_auto_approve
     ):
         new_status = SubmissionStatus.APPROVED
@@ -670,10 +693,12 @@ def _process_line(
                     ai_exc,
                 )
 
-            _AUTO_CONF = {"HIGH", "MEDIUM"}
+            # Only HIGH confidence auto-proceeds to bill audit.
+            # MEDIUM and below go to the Classification Review queue so a carrier
+            # reviewer can confirm the taxonomy before rate/guideline checks run.
             auto_accepted = (
                 isinstance(suggestion, dict)
-                and suggestion.get("confidence") in _AUTO_CONF
+                and suggestion.get("confidence") == "HIGH"
                 and suggestion.get("suggested_code")
             )
 
@@ -686,11 +711,10 @@ def _process_line(
                 line_item.mapping_confidence = suggestion["confidence"]  # type: ignore[index]
                 line_item.mapping_rule_id = None  # AI-suggested, no rule matched
                 logger.info(
-                    "Line %d: UNRECOGNIZED → AI auto-accepted '%s' (%s confidence); "
+                    "Line %d: UNRECOGNIZED → AI auto-accepted '%s' (HIGH confidence); "
                     "proceeding to rate validation",
                     raw_item.line_number,
                     suggestion["suggested_code"],  # type: ignore[index]
-                    suggestion["confidence"],  # type: ignore[index]
                 )
                 # Record the accepted mapping so the rule engine learns from it
                 # and won't need to call the AI suggester again for the same supplier.
@@ -718,32 +742,69 @@ def _process_line(
                 # Fall through to rate/guideline validation (do NOT return early).
 
             else:
-                # No confident suggestion — flag for carrier classification review.
-                # spend_error_count intentionally NOT incremented: classification
-                # failures do not require supplier correction; carrier confirms taxonomy.
-                val_result = ValidationResult(
-                    line_item_id=line_item.id,
-                    validation_type=ValidationType.CLASSIFICATION,
-                    status=ValidationStatus.FAIL,
-                    severity=ValidationSeverity.ERROR,
-                    message=(
-                        f"Service description could not be classified: "
-                        f"'{raw_item.raw_description}'. "
-                        f"Please provide a clearer description or request manual "
-                        f"reclassification."
-                    ),
-                    required_action=RequiredAction.REQUEST_RECLASSIFICATION,
+                # Confidence below HIGH threshold (MEDIUM/LOW) or no proposal.
+                # Route to the Classification Review queue instead of flagging an
+                # exception — this is carrier-internal taxonomy work, not a billing
+                # dispute. Neither error_count nor spend_error_count is incremented
+                # so the rest of the invoice processes normally for the clean lines.
+                _CONF_TO_SCORE: dict[str, Decimal] = {
+                    "HIGH": Decimal("0.950"),
+                    "MEDIUM": Decimal("0.700"),
+                    "LOW": Decimal("0.350"),
+                }
+                conf_label = (
+                    suggestion.get("confidence")
+                    if isinstance(suggestion, dict)
+                    else None
                 )
-                db.add(val_result)
-                db.flush()
-                exc_record = ExceptionRecord(
-                    line_item_id=line_item.id,
-                    validation_result_id=val_result.id,
-                    status=ExceptionStatus.OPEN,
+                proposed_code = (
+                    suggestion.get("suggested_code")
+                    if isinstance(suggestion, dict)
+                    else None
+                ) or None
+                proposed_component = (
+                    suggestion.get("suggested_billing_component")
+                    if isinstance(suggestion, dict)
+                    else None
+                ) or None
+                ai_reasoning = (
+                    suggestion.get("rationale")
+                    if isinstance(suggestion, dict)
+                    else None
                 )
-                db.add(exc_record)
-                line_item.status = LineItemStatus.EXCEPTION
-                error_count += 1
+                # NEEDS_REVIEW when the AI has no proposal at all — flag for
+                # priority human attention in the classification triage screen.
+                queue_status = (
+                    ClassificationQueueStatus.NEEDS_REVIEW
+                    if not proposed_code
+                    else ClassificationQueueStatus.PENDING
+                )
+                queue_item = ClassificationQueueItem(
+                    line_item_id=line_item.id,
+                    supplier_id=invoice.supplier_id,
+                    raw_description=raw_item.raw_description,
+                    raw_amount=raw_item.raw_amount,
+                    ai_proposed_code=proposed_code,
+                    ai_proposed_billing_component=proposed_component,
+                    ai_confidence=_CONF_TO_SCORE.get(conf_label)
+                    if conf_label
+                    else None,
+                    ai_reasoning=ai_reasoning,
+                    ai_alternatives=None,  # future: multi-candidate AI response
+                    status=queue_status,
+                )
+                db.add(queue_item)
+                line_item.status = LineItemStatus.CLASSIFICATION_PENDING
+                logger.info(
+                    "Line %d: UNRECOGNIZED → Classification Review queue "
+                    "(confidence: %s, verdict: %s, queue status: %s)",
+                    raw_item.line_number,
+                    conf_label or "none",
+                    suggestion.get("verdict")
+                    if isinstance(suggestion, dict)
+                    else "none",
+                    queue_status,
+                )
                 return line_item, error_count, spend_error_count, warning_count, 0
 
         # ── AI description alignment assessment ───────────────────────────────
