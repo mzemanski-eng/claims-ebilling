@@ -46,17 +46,30 @@ class ValidationSummary(BaseSchema):
     """
     High-level validation summary shown to supplier.
     Counts only — no taxonomy codes exposed.
+
+    Financial buckets (total_billed = sum of all four):
+      total_payable                — clean lines; will be paid
+      total_in_dispute             — rate/guideline failures; under review
+      total_pending_classification — in carrier Classification Review queue;
+                                     taxonomy not yet confirmed; bill audit
+                                     will run once the carrier approves a code
+      total_denied                 — carrier-final; will not be paid
     """
 
     total_lines: int
     lines_validated: int  # PASS
     lines_with_exceptions: int  # FAIL or WARNING (ERROR severity)
-    lines_pending_review: int  # LOW/MEDIUM confidence mappings
+    lines_pending_review: int  # rule-engine LOW/MEDIUM confidence, passed bill audit
     total_billed: Decimal
-    total_payable: Decimal  # validated amount (may be less than billed)
-    total_in_dispute: Decimal  # lines with open exceptions
+    total_payable: Decimal  # validated lines; will be paid
+    total_in_dispute: Decimal  # lines with open rate/guideline exceptions
     lines_denied: int = 0  # lines carrier has denied (will not pay)
     total_denied: Decimal = Decimal("0")  # sum of raw_amount for denied lines
+
+    # Pending classification — in carrier review queue, excluded from all
+    # financial outcomes until taxonomy is confirmed and bill audit re-runs
+    lines_pending_classification: int = 0
+    total_pending_classification: Decimal = Decimal("0")
 
     # Exception breakdown by type (carrier-facing)
     classification_exceptions: int = 0  # lines with classification failures (taxonomy)

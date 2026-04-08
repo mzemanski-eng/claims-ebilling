@@ -431,13 +431,19 @@ def _build_validation_summary(
     if not lines:
         return None
 
+    # total_billed is the full submitted amount regardless of line status.
+    # The four sub-buckets below sum to total_billed:
+    #   total_payable + total_in_dispute + total_pending_classification + total_denied
     total_billed = sum(li.raw_amount for li in lines)
     total_payable = Decimal("0")
     total_in_dispute = Decimal("0")
+    total_pending_classification = Decimal("0")
     total_denied = Decimal("0")
+
     validated = 0
     with_exceptions = 0
     pending_review = 0
+    lines_pending_classification = 0
     lines_denied = 0
     classification_exceptions = 0
     rate_exceptions = 0
@@ -445,15 +451,28 @@ def _build_validation_summary(
     with_spend_exceptions = 0
 
     for li in lines:
-        # DENIED lines are carrier-final: excluded from both payable and in-dispute
+        # ── DENIED — carrier-final; excluded from all financial outcomes ──────
         if li.status == LineItemStatus.DENIED:
             lines_denied += 1
             total_denied += li.raw_amount
             continue
 
+        # ── CLASSIFICATION_PENDING — in carrier review queue ──────────────────
+        # Taxonomy not yet confirmed; bill audit has not run on this line.
+        # Excluded from payable and in-dispute until the carrier approves a code
+        # and validation re-runs.  Opaque to the supplier.
+        if li.status == LineItemStatus.CLASSIFICATION_PENDING:
+            lines_pending_classification += 1
+            total_pending_classification += li.raw_amount
+            continue
+
+        # ── Bill audit lines — rate / guideline validation results ────────────
         has_error = any(
             v.status == ValidationStatus.FAIL for v in li.validation_results
         )
+        # Flag rule-engine-classified lines with lower confidence for carrier
+        # spot-check (separate from the classification queue — these lines did
+        # match a MappingRule but with MEDIUM/LOW confidence weight).
         has_low_confidence = li.mapping_confidence in ("LOW", "MEDIUM")
 
         if has_error:
@@ -466,7 +485,7 @@ def _build_validation_summary(
         if has_low_confidence and not has_error:
             pending_review += 1
 
-        # Count exceptions by validation type; track lines with spend (rate/guideline) failures
+        # Count exceptions by validation type; track lines with spend failures
         has_spend_fail = False
         for v in li.validation_results:
             if v.status == ValidationStatus.FAIL:
@@ -486,9 +505,11 @@ def _build_validation_summary(
         lines_validated=validated,
         lines_with_exceptions=with_exceptions,
         lines_pending_review=pending_review,
+        lines_pending_classification=lines_pending_classification,
         total_billed=total_billed,
         total_payable=total_payable,
         total_in_dispute=total_in_dispute,
+        total_pending_classification=total_pending_classification,
         lines_denied=lines_denied,
         total_denied=total_denied,
         classification_exceptions=classification_exceptions,
