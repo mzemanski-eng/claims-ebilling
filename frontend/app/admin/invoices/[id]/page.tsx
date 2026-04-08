@@ -1074,7 +1074,7 @@ export default function AdminInvoiceDetailPage({
                 <th rowSpan={2} className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Description
                 </th>
-                <th colSpan={2} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-blue-700 bg-blue-50 border-b border-blue-100">
+                <th colSpan={2} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-b border-gray-200">
                   Spend Classification
                 </th>
                 <th colSpan={3} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-b border-gray-200">
@@ -1089,10 +1089,10 @@ export default function AdminInvoiceDetailPage({
                 </th>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   <span className="flex items-center gap-1">
-                    AI Match
+                    Confidence
                     <span
-                      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-200 text-[9px] font-bold text-gray-500 hover:bg-blue-100 hover:text-blue-700 transition-colors"
-                      title={"AI confidence in spend-bucket classification:\n• HIGH — AI is confident; safe to bulk-accept\n• MEDIUM — Moderate confidence; verify if unsure\n• LOW — AI is uncertain; manual review recommended before approving"}
+                      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-200 text-[9px] font-bold text-gray-500 hover:bg-gray-300 transition-colors"
+                      title={"How confident the AI is that this line was placed in the correct spend bucket (taxonomy). Does not reflect bill accuracy.\n• HIGH — classification is reliable; safe to accept as-is\n• MEDIUM — worth a quick check before approving\n• LOW — AI is uncertain; manual classification recommended"}
                     >
                       ?
                     </span>
@@ -1261,10 +1261,7 @@ export default function AdminInvoiceDetailPage({
                           </div>
                         )}
                       </td>
-                      <td className={`px-4 py-3 ${
-                        line.mapping_confidence === "LOW"    ? "bg-red-50" :
-                        line.mapping_confidence === "MEDIUM" ? "bg-yellow-50/60" : ""
-                      }`}>
+                      <td className="px-4 py-3">
                         {line.mapping_confidence ? (
                           <ConfidenceBadge confidence={line.mapping_confidence} />
                         ) : (
@@ -1359,9 +1356,10 @@ export default function AdminInvoiceDetailPage({
                                     e.stopPropagation();
                                     if (!expandedLines.has(line.id)) toggleLine(line.id);
                                   }}
-                                  className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors whitespace-nowrap shadow-sm"
+                                  className="inline-flex items-center gap-1 rounded border border-dashed border-gray-300 px-2 py-0.5 text-xs text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
+                                  title="Needs spend-bucket classification — handled in the mapping queue"
                                 >
-                                  🏷 Classify
+                                  Unclassified
                                 </button>
                               )}
                               {!hasSpend && !needsClassify && (
