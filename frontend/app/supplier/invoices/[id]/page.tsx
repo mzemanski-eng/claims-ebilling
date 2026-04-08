@@ -146,6 +146,29 @@ export default function SupplierInvoiceDetailPage({
         );
       })()}
 
+      {/* Pending classification notice — some lines are under carrier review */}
+      {summary && (summary.lines_pending_classification ?? 0) > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm">
+          <span className="mt-0.5 text-lg leading-none">⏳</span>
+          <div>
+            <p className="font-semibold text-amber-900">
+              {summary.lines_pending_classification} line
+              {summary.lines_pending_classification !== 1 ? "s" : ""} under
+              carrier review ($
+              {parseFloat(
+                summary.total_pending_classification,
+              ).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              )
+            </p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              The carrier is verifying the service classification for these
+              lines. No action is needed from you — payment will be processed
+              once the review is complete.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Approved payment summary box */}
       {invoice.status === "APPROVED" && summary && (
         <div className="rounded-xl border-2 border-green-200 bg-green-50 px-6 py-5">

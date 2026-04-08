@@ -32,6 +32,13 @@ export function ValidationSummaryCard({ summary }: ValidationSummaryCardProps) {
           highlight
         />
       )}
+      {(summary.lines_pending_classification ?? 0) > 0 && (
+        <Stat
+          label="Pending Classification"
+          value={<Money value={summary.total_pending_classification} />}
+          amber
+        />
+      )}
     </div>
   );
 }
@@ -41,14 +48,20 @@ function Stat({
   value,
   highlight,
   green,
+  amber,
 }: {
   label: string;
   value: React.ReactNode;
   highlight?: boolean;
   green?: boolean;
+  amber?: boolean;
 }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
+    <div
+      className={`rounded-lg border p-4 shadow-sm ${
+        amber ? "border-amber-200 bg-amber-50" : "bg-white"
+      }`}
+    >
       <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
         {label}
       </p>
@@ -58,7 +71,9 @@ function Stat({
             ? "text-red-600"
             : green
               ? "text-green-600"
-              : "text-gray-900"
+              : amber
+                ? "text-amber-700"
+                : "text-gray-900"
         }`}
       >
         {value}

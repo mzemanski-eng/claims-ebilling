@@ -11,6 +11,7 @@ import {
   getCarrierInvoice,
   getCarrierInvoiceLines,
   requestInvoiceChanges,
+  getClassificationStats,
 } from "@/lib/api";
 import { isCarrierAdmin } from "@/lib/auth";
 import { StatusBadge } from "@/components/status-badge";
@@ -201,6 +202,40 @@ export default function CarrierInvoiceReviewPage({
         </div>
       )}
 
+      {/* Classification pending banner */}
+      {invoice.validation_summary &&
+        (invoice.validation_summary.lines_pending_classification ?? 0) > 0 && (
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 text-lg leading-none">⏳</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  {invoice.validation_summary.lines_pending_classification} line
+                  {invoice.validation_summary.lines_pending_classification !== 1
+                    ? "s"
+                    : ""}{" "}
+                  awaiting classification (
+                  $
+                  {parseFloat(
+                    invoice.validation_summary.total_pending_classification,
+                  ).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  )
+                </p>
+                <p className="mt-0.5 text-xs text-amber-700">
+                  These lines are in the Classification Queue. Bill audit will
+                  run automatically once a taxonomy code is confirmed.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/carrier/classification"
+              className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+            >
+              Open Queue →
+            </Link>
+          </div>
+        )}
+
       {/* Line items */}
       {linesLoading && (
         <div className="flex items-center justify-center py-10">
@@ -230,15 +265,23 @@ export default function CarrierInvoiceReviewPage({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {lines.map((li) => {
+                  const isClassificationPending =
+                    li.status === "CLASSIFICATION_PENDING";
                   const openExcs = li.exceptions.filter((e) => e.status === "OPEN" || e.status === "SUPPLIER_RESPONDED");
                   const expanded = expandedLines.has(li.id);
-                  const hasExceptions = li.exceptions.length > 0;
+                  const hasExceptions = li.exceptions.length > 0 && !isClassificationPending;
 
                   return (
                     <>
                       <tr
                         key={li.id}
-                        className={`${openExcs.length > 0 ? "bg-red-50" : "hover:bg-gray-50"} ${hasExceptions ? "cursor-pointer" : ""} transition-colors`}
+                        className={`${
+                          isClassificationPending
+                            ? "bg-amber-50/60"
+                            : openExcs.length > 0
+                            ? "bg-red-50"
+                            : "hover:bg-gray-50"
+                        } ${hasExceptions ? "cursor-pointer" : ""} transition-colors`}
                         onClick={() => hasExceptions && toggleLine(li.id)}
                       >
                         <td className="px-4 py-3 text-gray-500">{li.line_number}</td>
@@ -275,15 +318,30 @@ export default function CarrierInvoiceReviewPage({
                           ${parseFloat(li.raw_amount).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-500">
-                          {li.expected_amount
-                            ? `$${parseFloat(li.expected_amount).toFixed(2)}`
-                            : "—"}
+                          {isClassificationPending ? (
+                            <span className="text-xs text-amber-600 font-medium">
+                              Pending
+                            </span>
+                          ) : li.expected_amount ? (
+                            `$${parseFloat(li.expected_amount).toFixed(2)}`
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={li.status} />
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {openExcs.length > 0 ? (
+                          {isClassificationPending ? (
+                            <Link
+                              href="/carrier/classification"
+                              className="text-xs text-amber-600 hover:underline"
+                              title="Open Classification Queue"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Queue →
+                            </Link>
+                          ) : openExcs.length > 0 ? (
                             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
                               {openExcs.length}
                             </span>

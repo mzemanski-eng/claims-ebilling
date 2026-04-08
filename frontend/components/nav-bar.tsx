@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { clearToken, getUserInfo, isAdmin, isCarrierAdmin, isCarrierRole, isSupplier } from "@/lib/auth";
+import { getClassificationStats } from "@/lib/api";
 
 // ── Nav structure ──────────────────────────────────────────────────────────────
 
@@ -70,6 +72,16 @@ export function NavBar() {
   }
 
   const adminNav = isCarrierRole() && !isCarrierAdmin() ? REVIEWER_NAV : ADMIN_NAV;
+
+  // Live pending count badge for the Classification Queue nav item
+  const { data: classificationStats } = useQuery({
+    queryKey: ["classification-stats"],
+    queryFn: getClassificationStats,
+    refetchInterval: 60_000,
+    enabled: isAdmin(),
+  });
+  const classificationPendingCount =
+    (classificationStats?.pending ?? 0) + (classificationStats?.needs_review ?? 0);
 
   return (
     <nav className="border-b bg-white shadow-sm">
@@ -147,13 +159,19 @@ export function NavBar() {
                         key={sub.href}
                         href={sub.href}
                         onClick={() => setOpenGroup(null)}
-                        className={`block px-4 py-2 text-sm transition-colors ${
+                        className={`flex items-center justify-between px-4 py-2 text-sm transition-colors ${
                           isActive(sub.href)
                             ? "bg-blue-50 text-blue-700 font-semibold"
                             : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                         }`}
                       >
                         {sub.label}
+                        {sub.href === "/carrier/classification" &&
+                          classificationPendingCount > 0 && (
+                            <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 whitespace-nowrap">
+                              {classificationPendingCount}
+                            </span>
+                          )}
                       </Link>
                     ))}
                   </div>
