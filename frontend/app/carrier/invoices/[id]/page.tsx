@@ -117,6 +117,13 @@ export default function CarrierInvoiceReviewPage({
       )
     : 0;
 
+  // Lines ready for bill audit — excludes anything still in the Classification
+  // Queue. HIGH-confidence lines were classified immediately by the pipeline;
+  // MEDIUM/LOW lines only appear here once a carrier confirms their taxonomy.
+  const auditLines = lines
+    ? lines.filter((li) => li.status !== "CLASSIFICATION_PENDING")
+    : [];
+
   return (
     <div className="space-y-8">
       {/* Breadcrumb */}
@@ -244,7 +251,12 @@ export default function CarrierInvoiceReviewPage({
       {lines && (
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Line Items ({lines.length})
+            Line Items ({auditLines.length}
+            {auditLines.length !== lines.length && (
+              <span className="ml-1 font-normal text-gray-400">
+                · {lines.length - auditLines.length} pending classification
+              </span>
+            )})
           </h2>
           <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -261,21 +273,17 @@ export default function CarrierInvoiceReviewPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {lines.map((li) => {
-                  const isClassificationPending =
-                    li.status === "CLASSIFICATION_PENDING";
+                {auditLines.map((li) => {
                   const openExcs = li.exceptions.filter((e) => e.status === "OPEN" || e.status === "SUPPLIER_RESPONDED");
                   const expanded = expandedLines.has(li.id);
-                  const hasExceptions = li.exceptions.length > 0 && !isClassificationPending;
+                  const hasExceptions = li.exceptions.length > 0;
 
                   return (
                     <>
                       <tr
                         key={li.id}
                         className={`${
-                          isClassificationPending
-                            ? "bg-amber-50/60"
-                            : openExcs.length > 0
+                          openExcs.length > 0
                             ? "bg-red-50"
                             : "hover:bg-gray-50"
                         } ${hasExceptions ? "cursor-pointer" : ""} transition-colors`}
@@ -312,30 +320,15 @@ export default function CarrierInvoiceReviewPage({
                           ${parseFloat(li.raw_amount).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-500">
-                          {isClassificationPending ? (
-                            <span className="text-xs text-amber-600 font-medium">
-                              Pending
-                            </span>
-                          ) : li.expected_amount ? (
-                            `$${parseFloat(li.expected_amount).toFixed(2)}`
-                          ) : (
-                            "—"
-                          )}
+                          {li.expected_amount
+                            ? `$${parseFloat(li.expected_amount).toFixed(2)}`
+                            : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={li.status} />
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {isClassificationPending ? (
-                            <Link
-                              href="/carrier/classification"
-                              className="text-xs text-amber-600 hover:underline"
-                              title="Open Classification Queue"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Queue →
-                            </Link>
-                          ) : openExcs.length > 0 ? (
+                          {openExcs.length > 0 ? (
                             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
                               {openExcs.length}
                             </span>
