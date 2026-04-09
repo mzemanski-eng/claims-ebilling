@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bulkApproveInvoices, listAdminInvoices, listAdminSuppliers } from "@/lib/api";
+import { isCarrierRole } from "@/lib/auth";
 import { StatusBadge } from "@/components/status-badge";
 import type { BulkApprovalResult } from "@/lib/types";
 
@@ -498,7 +499,7 @@ function AdminInvoicesContent() {
                 return (
                   <tr
                     key={inv.id}
-                    onClick={() => router.push(`/admin/invoices/${inv.id}`)}
+                    onClick={() => router.push(isCarrierRole() ? `/carrier/invoices/${inv.id}` : `/admin/invoices/${inv.id}`)}
                     className={`cursor-pointer transition-colors ${
                       checked
                         ? "bg-blue-50 hover:bg-blue-100"
@@ -598,8 +599,9 @@ function AdminInvoicesContent() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/admin/invoices/${inv.id}`}
+                        href={isCarrierRole() ? `/carrier/invoices/${inv.id}` : `/admin/invoices/${inv.id}`}
                         className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         Review →
                       </Link>

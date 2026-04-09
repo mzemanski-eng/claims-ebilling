@@ -13,7 +13,7 @@ import {
 import { TrendingUp } from "lucide-react";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
-import { getUserInfo, isCarrierAdmin } from "@/lib/auth";
+import { getUserInfo, isCarrierAdmin, isCarrierRole } from "@/lib/auth";
 import type { InvoiceListItem, SeedDemoJobStatus } from "@/lib/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ function InvoiceQueueCard({
           {invoices.slice(0, 6).map((inv) => (
             <li key={inv.id}>
               <Link
-                href={`/admin/invoices/${inv.id}`}
+                href={isCarrierRole() ? `/carrier/invoices/${inv.id}` : `/admin/invoices/${inv.id}`}
                 className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-gray-50 transition-colors group"
               >
                 <div className="min-w-0">
