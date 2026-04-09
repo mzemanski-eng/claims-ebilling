@@ -84,7 +84,7 @@ def delete_invoices(db, invoice_ids: list[str]) -> int:
     if not invoice_ids:
         return 0
     result = db.execute(
-        text("DELETE FROM invoices WHERE id = ANY(:ids)"),
+        text("DELETE FROM invoices WHERE id::text = ANY(:ids)"),
         {"ids": invoice_ids},
     )
     return result.rowcount
