@@ -20,10 +20,13 @@ from rq.registry import FailedJobRegistry
 from app.settings import settings
 
 # ── Queue name constants ───────────────────────────────────────────────────────
+# All queues use the same name configured via RQ_QUEUE_NAME (default:
+# "invoice-pipeline") so the API and worker always stay in sync regardless
+# of how the worker start command is configured on the host.
 
-QUEUE_HIGH = "high"
-QUEUE_DEFAULT = "default"
-QUEUE_LOW = "low"
+QUEUE_HIGH = settings.rq_queue_name
+QUEUE_DEFAULT = settings.rq_queue_name
+QUEUE_LOW = settings.rq_queue_name
 
 _VALID_PRIORITIES = {QUEUE_HIGH, QUEUE_DEFAULT, QUEUE_LOW}
 

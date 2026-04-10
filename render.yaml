@@ -49,7 +49,7 @@ services:
     name: claims-ebilling-worker
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: rq worker high default low --url $REDIS_URL
+    startCommand: rq worker invoice-pipeline --url $REDIS_URL
     envVars:
       - key: DATABASE_URL
         fromDatabase:
