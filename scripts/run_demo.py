@@ -22,7 +22,6 @@ import argparse
 import os
 import sys
 import time
-import json
 import csv
 import io
 import datetime
@@ -90,14 +89,36 @@ def _c(code: str, text: str) -> str:
     return f"\033[{code}m{text}\033[0m"
 
 
-def blue(t):   return _c("94", t)
-def green(t):  return _c("92", t)
-def yellow(t): return _c("93", t)
-def red(t):    return _c("91", t)
-def bold(t):   return _c("1", t)
-def dim(t):    return _c("2", t)
-def cyan(t):   return _c("96", t)
-def magenta(t): return _c("95", t)
+def blue(t):
+    return _c("94", t)
+
+
+def green(t):
+    return _c("92", t)
+
+
+def yellow(t):
+    return _c("93", t)
+
+
+def red(t):
+    return _c("91", t)
+
+
+def bold(t):
+    return _c("1", t)
+
+
+def dim(t):
+    return _c("2", t)
+
+
+def cyan(t):
+    return _c("96", t)
+
+
+def magenta(t):
+    return _c("95", t)
 
 
 def hr(char="─", width=70):
@@ -133,6 +154,7 @@ def err(msg: str):
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
+
 def get_config(args) -> dict:
     profile = SUPPLIER_PROFILES[args.supplier]
     base_url = (
@@ -145,7 +167,9 @@ def get_config(args) -> dict:
         pause = 0.0
     return {
         "base_url": base_url,
-        "supplier_email": os.environ.get("DEMO_SUPPLIER_EMAIL", profile["email_default"]),
+        "supplier_email": os.environ.get(
+            "DEMO_SUPPLIER_EMAIL", profile["email_default"]
+        ),
         "supplier_pass": os.environ.get("DEMO_SUPPLIER_PASS", ""),
         "carrier_email": os.environ.get("DEMO_CARRIER_EMAIL", "carrier_admin@demo.com"),
         "carrier_pass": os.environ.get("DEMO_CARRIER_PASS", ""),
@@ -156,6 +180,7 @@ def get_config(args) -> dict:
 
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
+
 
 class APIClient:
     def __init__(self, base_url: str, pause: float):
@@ -193,7 +218,9 @@ class APIClient:
         self._pause()
         return resp.json()
 
-    def post(self, path: str, json_body=None, files=None, data=None, params=None) -> dict:
+    def post(
+        self, path: str, json_body=None, files=None, data=None, params=None
+    ) -> dict:
         kwargs = {}
         if json_body is not None:
             kwargs["json"] = json_body
@@ -205,9 +232,7 @@ class APIClient:
             kwargs["params"] = params
         resp = self.session.post(self._url(path), **kwargs)
         if resp.status_code not in (200, 201):
-            raise RuntimeError(
-                f"POST {path} → {resp.status_code}: {resp.text[:300]}"
-            )
+            raise RuntimeError(f"POST {path} → {resp.status_code}: {resp.text[:300]}")
         self._pause()
         return resp.json()
 
@@ -226,15 +251,18 @@ class APIClient:
 
 # ── Credential prompts ────────────────────────────────────────────────────────
 
+
 def _prompt_pass(label: str, env_key: str) -> str:
     val = os.environ.get(env_key, "")
     if val:
         return val
     import getpass
+
     return getpass.getpass(f"  Enter password for {label}: ")
 
 
 # ── Demo steps ────────────────────────────────────────────────────────────────
+
 
 def step_supplier_login(client: APIClient, cfg: dict) -> str:
     step("SUPPLIER LOGIN")
@@ -242,7 +270,11 @@ def step_supplier_login(client: APIClient, cfg: dict) -> str:
     email = cfg["supplier_email"]
     info(f"Supplier: {profile['label']}")
     info(f"Email:    {email}")
-    password = _prompt_pass(email, "DEMO_SUPPLIER_PASS") if not cfg["supplier_pass"] else cfg["supplier_pass"]
+    password = (
+        _prompt_pass(email, "DEMO_SUPPLIER_PASS")
+        if not cfg["supplier_pass"]
+        else cfg["supplier_pass"]
+    )
     client.login(email, password)
     me = client.get("/auth/me")
     ok(f"Logged in — role={me['role']}  supplier_id={me.get('supplier_id', 'n/a')}")
@@ -253,12 +285,16 @@ def step_get_contract(client: APIClient) -> dict:
     step("FETCH ACTIVE CONTRACT")
     contracts = client.get("/supplier/contracts")
     if not contracts:
-        raise RuntimeError("No active contracts found for this supplier. Run seed scripts first.")
+        raise RuntimeError(
+            "No active contracts found for this supplier. Run seed scripts first."
+        )
     contract = contracts[0]
     ok(f"Contract: {contract['name']}")
     info(f"  id={contract['id']}")
     info(f"  effective_from={contract['effective_from']}")
-    info(f"  rate_cards={len(contract.get('rate_cards', []))}  guidelines={len(contract.get('guidelines', []))}")
+    info(
+        f"  rate_cards={len(contract.get('rate_cards', []))}  guidelines={len(contract.get('guidelines', []))}"
+    )
     return contract
 
 
@@ -295,18 +331,25 @@ def step_upload_csv(client: APIClient, invoice_id: str, fixture_path: Path) -> d
     return result
 
 
-def step_wait_for_pipeline(client: APIClient, invoice_id: str, max_wait: int = 60) -> dict:
+def step_wait_for_pipeline(
+    client: APIClient, invoice_id: str, max_wait: int = 60
+) -> dict:
     step("WAITING FOR PIPELINE PROCESSING")
     terminal_statuses = {
-        "APPROVED", "REVIEW_REQUIRED", "PENDING_CARRIER_REVIEW",
-        "REJECTED", "CANCELLED",
+        "APPROVED",
+        "REVIEW_REQUIRED",
+        "PENDING_CARRIER_REVIEW",
+        "REJECTED",
+        "CANCELLED",
     }
     start = time.time()
     dots = 0
     while True:
         elapsed = time.time() - start
         if elapsed > max_wait:
-            raise RuntimeError(f"Pipeline did not finish within {max_wait}s. Check worker logs.")
+            raise RuntimeError(
+                f"Pipeline did not finish within {max_wait}s. Check worker logs."
+            )
 
         invoice = client.get(f"/supplier/invoices/{invoice_id}")
         status = invoice["status"]
@@ -325,7 +368,11 @@ def step_wait_for_pipeline(client: APIClient, invoice_id: str, max_wait: int = 6
 
         # Still processing
         dots = (dots + 1) % 4
-        print(f"\r  {dim('·')} Processing{'.' * (dots + 1)}{' ' * (3 - dots)}  [{elapsed:.0f}s]", end="", flush=True)
+        print(
+            f"\r  {dim('·')} Processing{'.' * (dots + 1)}{' ' * (3 - dots)}  [{elapsed:.0f}s]",
+            end="",
+            flush=True,
+        )
         time.sleep(1.5)
 
 
@@ -333,7 +380,11 @@ def step_carrier_login(client: APIClient, cfg: dict) -> dict:
     step("CARRIER ADMIN LOGIN")
     email = cfg["carrier_email"]
     info(f"Email: {email}")
-    password = _prompt_pass(email, "DEMO_CARRIER_PASS") if not cfg["carrier_pass"] else cfg["carrier_pass"]
+    password = (
+        _prompt_pass(email, "DEMO_CARRIER_PASS")
+        if not cfg["carrier_pass"]
+        else cfg["carrier_pass"]
+    )
     client.login(email, password)
     me = client.get("/auth/me")
     ok(f"Logged in — role={me['role']}  carrier_id={me.get('carrier_id', 'n/a')}")
@@ -343,39 +394,51 @@ def step_carrier_login(client: APIClient, cfg: dict) -> dict:
 def step_show_invoice_queue(client: APIClient, invoice_id: str) -> dict:
     step("INVOICE REVIEW QUEUE")
     # Show queue summary first
-    queue = client.get("/admin/invoices", params={"status": "REVIEW_REQUIRED,PENDING_CARRIER_REVIEW"})
+    queue = client.get(
+        "/admin/invoices", params={"status": "REVIEW_REQUIRED,PENDING_CARRIER_REVIEW"}
+    )
     items = queue if isinstance(queue, list) else queue.get("items", [])
     info(f"Invoices awaiting review: {len(items)}")
 
     # Fetch our specific invoice with full line detail
     lines = client.get(f"/admin/invoices/{invoice_id}/lines")
-    invoice = client.get(f"/admin/invoices/{invoice_id}") if hasattr(client, "_last_invoice") else None
 
     # Print lines table
     hr()
-    print(f"  {'#':<3}  {'Taxonomy Code':<35}  {'Billed':>8}  {'Payable':>8}  {'Status':<18}  Exceptions")
+    print(
+        f"  {'#':<3}  {'Taxonomy Code':<35}  {'Billed':>8}  {'Payable':>8}  {'Status':<18}  Exceptions"
+    )
     hr()
     exception_ids = []
     for i, line in enumerate(lines, 1):
         status = line.get("status", "?")
         billed = f"${float(line.get('raw_amount', 0)):,.2f}"
-        payable = f"${float(line.get('expected_amount') or 0):,.2f}" if line.get("expected_amount") else dim("  —")
+        payable = (
+            f"${float(line.get('expected_amount') or 0):,.2f}"
+            if line.get("expected_amount")
+            else dim("  —")
+        )
         taxonomy = line.get("taxonomy_code") or dim("<unclassified>")
         exc_list = line.get("exceptions", [])
         exc_summary = ""
         if exc_list:
             types = ", ".join(e.get("required_action", "?") for e in exc_list[:2])
             if len(exc_list) > 2:
-                types += f" +{len(exc_list)-2}"
+                types += f" +{len(exc_list) - 2}"
             exc_summary = yellow(f"⚠ {types}")
             exception_ids.extend(e["exception_id"] for e in exc_list)
         status_fmt = (
-            green(status) if status in ("VALIDATED", "APPROVED")
-            else yellow(status) if status == "REVIEW_REQUIRED"
-            else red(status) if status == "DENIED"
+            green(status)
+            if status in ("VALIDATED", "APPROVED")
+            else yellow(status)
+            if status == "REVIEW_REQUIRED"
+            else red(status)
+            if status == "DENIED"
             else dim(status)
         )
-        print(f"  {i:<3}  {str(taxonomy):<35}  {billed:>8}  {str(payable):>8}  {status_fmt:<28}  {exc_summary}")
+        print(
+            f"  {i:<3}  {str(taxonomy):<35}  {billed:>8}  {str(payable):>8}  {status_fmt:<28}  {exc_summary}"
+        )
     hr()
     ok(f"{len(lines)} lines shown  |  {len(exception_ids)} open exception(s)")
     return {"lines": lines, "exception_ids": exception_ids}
@@ -417,7 +480,9 @@ def step_show_exceptions(client: APIClient, lines: list) -> list:
     return exceptions
 
 
-def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = True) -> None:
+def step_resolve_exceptions(
+    client: APIClient, exceptions: list, auto: bool = True
+) -> None:
     step("RESOLVE EXCEPTIONS")
     if not exceptions:
         info("Nothing to resolve.")
@@ -439,10 +504,16 @@ def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = Tr
             warn(f"Exception {exc_id[:8]}… — {action}: contract rate missing, skipping")
             continue
 
-        resolution_action = ai_rec if ai_rec else (
-            "ACCEPTED_REDUCTION" if action in ("ACCEPT_REDUCTION", "ACCEPTED_REDUCTION")
-            else "DENIED" if action == "OUT_OF_SCOPE"
-            else "WAIVED"
+        resolution_action = (
+            ai_rec
+            if ai_rec
+            else (
+                "ACCEPTED_REDUCTION"
+                if action in ("ACCEPT_REDUCTION", "ACCEPTED_REDUCTION")
+                else "DENIED"
+                if action == "OUT_OF_SCOPE"
+                else "WAIVED"
+            )
         )
         notes = (
             "AI-recommended resolution accepted during demo"
@@ -453,7 +524,10 @@ def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = Tr
         try:
             client.post(
                 f"/admin/exceptions/{exc_id}/resolve",
-                params={"resolution_action": resolution_action, "resolution_notes": notes},
+                params={
+                    "resolution_action": resolution_action,
+                    "resolution_notes": notes,
+                },
             )
             label = RESOLUTION_LABELS.get(resolution_action, resolution_action)
             ok(f"Exception {exc_id[:8]}… → {bold(label)}")
@@ -478,7 +552,9 @@ def step_approve_invoice(client: APIClient, invoice_id: str) -> dict:
         raise
 
 
-def step_export_csv(client: APIClient, invoice_id: str, out_dir: Path) -> Optional[Path]:
+def step_export_csv(
+    client: APIClient, invoice_id: str, out_dir: Path
+) -> Optional[Path]:
     step("EXPORT APPROVED LINES TO CSV")
     try:
         raw = client.get_raw(f"/admin/invoices/{invoice_id}/export")
@@ -504,8 +580,10 @@ def step_run_supplier_audit(client: APIClient, supplier_id: str) -> None:
         result = client.post(f"/admin/suppliers/{supplier_id}/audit")
         risk = result.get("risk_rating", "UNKNOWN")
         risk_fmt = (
-            red(risk) if risk in ("HIGH", "CRITICAL")
-            else yellow(risk) if risk == "MEDIUM"
+            red(risk)
+            if risk in ("HIGH", "CRITICAL")
+            else yellow(risk)
+            if risk == "MEDIUM"
             else green(risk)
         )
         print(f"\n  Risk Rating: {bold(risk_fmt)}\n")
@@ -536,6 +614,7 @@ def step_show_analytics(client: APIClient) -> None:
 
 # ── Final summary banner ──────────────────────────────────────────────────────
 
+
 def print_summary(invoice_id: str, invoice_number: str, export_path: Optional[Path]):
     section("DEMO COMPLETE ✅")
     print(f"  Invoice Number:  {bold(invoice_number)}")
@@ -565,6 +644,7 @@ def print_summary(invoice_id: str, invoice_number: str, export_path: Optional[Pa
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Run a full end-to-end demo of the claims eBilling platform.",
@@ -572,27 +652,34 @@ def parse_args():
         epilog=__doc__,
     )
     parser.add_argument(
-        "--supplier", choices=["IME", "ENG", "LA"], default="IME",
+        "--supplier",
+        choices=["IME", "ENG", "LA"],
+        default="IME",
         help="Which supplier profile to demo (default: IME)",
     )
     parser.add_argument(
-        "--url", default=None,
+        "--url",
+        default=None,
         help="API base URL (overrides DEMO_API_URL env var)",
     )
     parser.add_argument(
-        "--fast", action="store_true",
+        "--fast",
+        action="store_true",
         help="Skip inter-step pauses (CI mode)",
     )
     parser.add_argument(
-        "--skip-audit", action="store_true",
+        "--skip-audit",
+        action="store_true",
         help="Skip the on-demand supplier audit step",
     )
     parser.add_argument(
-        "--skip-analytics", action="store_true",
+        "--skip-analytics",
+        action="store_true",
         help="Skip the analytics snapshot step",
     )
     parser.add_argument(
-        "--export-dir", default="demo_exports",
+        "--export-dir",
+        default="demo_exports",
         help="Directory to write the approved-lines CSV export (default: demo_exports/)",
     )
     return parser.parse_args()
@@ -617,13 +704,13 @@ def main():
     # ── Supplier workflow ─────────────────────────────────────────────────────
     try:
         supplier_id = step_supplier_login(client, cfg)
-        contract    = step_get_contract(client)
-        invoice     = step_create_invoice(client, contract["id"], profile["invoice_prefix"])
-        invoice_id  = invoice["id"]
+        contract = step_get_contract(client)
+        invoice = step_create_invoice(client, contract["id"], profile["invoice_prefix"])
+        invoice_id = invoice["id"]
         invoice_num = invoice["invoice_number"]
 
         step_upload_csv(client, invoice_id, profile["fixture"])
-        invoice     = step_wait_for_pipeline(client, invoice_id)
+        invoice = step_wait_for_pipeline(client, invoice_id)
 
     except RuntimeError as e:
         err(str(e))
@@ -635,21 +722,24 @@ def main():
     # ── Carrier admin workflow ────────────────────────────────────────────────
     try:
         step_carrier_login(client, cfg)
-        result      = step_show_invoice_queue(client, invoice_id)
-        lines       = result["lines"]
+        result = step_show_invoice_queue(client, invoice_id)
+        lines = result["lines"]
 
-        exceptions  = step_show_exceptions(client, lines)
+        exceptions = step_show_exceptions(client, lines)
         step_resolve_exceptions(client, exceptions)
 
         # Re-fetch and check whether all errors are resolved before approving
         updated_lines = client.get(f"/admin/invoices/{invoice_id}/lines")
         open_errors = [
-            e for ln in updated_lines
+            e
+            for ln in updated_lines
             for e in ln.get("exceptions", [])
             if e.get("severity") == "ERROR" and not e.get("resolution_action")
         ]
         if open_errors:
-            warn(f"{len(open_errors)} unresolved ERROR exception(s) remain — invoice may land in REVIEW_REQUIRED")
+            warn(
+                f"{len(open_errors)} unresolved ERROR exception(s) remain — invoice may land in REVIEW_REQUIRED"
+            )
 
         step_approve_invoice(client, invoice_id)
         export_path = step_export_csv(client, invoice_id, export_dir)
