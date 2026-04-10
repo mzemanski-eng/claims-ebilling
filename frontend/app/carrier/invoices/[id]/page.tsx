@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { ValidationSummaryCard } from "@/components/validation-summary-card";
 import { CarrierExceptionPanel } from "@/components/exception-panel";
 import { AiAssessmentBadge } from "@/components/ai-assessment-badge";
+import { AiReviewSummaryBar } from "@/components/ai-review-summary-bar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -216,6 +217,19 @@ export default function CarrierInvoiceReviewPage({
             review in Classification Queue
           </Link>
         </p>
+      )}
+
+      {/* AI review summary — show before line items when exceptions have AI recs */}
+      {isCarrierAdmin() && lines && invoice && (
+        <AiReviewSummaryBar
+          invoiceId={id}
+          invoiceStatus={invoice.status}
+          lines={lines}
+          invalidateKeys={[
+            ["carrier-invoice", id],
+            ["carrier-lines", id],
+          ]}
+        />
       )}
 
       {/* Line items */}

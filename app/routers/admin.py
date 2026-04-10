@@ -902,6 +902,139 @@ def bulk_approve_invoices(
     }
 
 
+# ── Accept AI Recommendations (bulk resolve) ──────────────────────────────────
+
+
+@router.post("/invoices/{invoice_id}/accept-ai-recommendations", status_code=200)
+def accept_ai_recommendations(
+    invoice_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role(UserRole.CARRIER_ADMIN, UserRole.SYSTEM_ADMIN)
+    ),
+) -> dict:
+    """
+    Bulk-resolve all open billing exceptions using their ai_recommendation.
+
+    For each open billing exception that has an ai_recommendation set:
+    - Sets resolution_action = ai_recommendation
+    - Sets ai_recommendation_accepted = True
+    - Promotes the line to APPROVED (for accepting actions) or DENIED
+
+    Exceptions without an ai_recommendation are skipped.
+    Invoice auto-advances when all billing exceptions are resolved.
+    """
+    invoice = _get_invoice(invoice_id, db, current_user)
+    if invoice.status not in (
+        SubmissionStatus.REVIEW_REQUIRED,
+        SubmissionStatus.PENDING_CARRIER_REVIEW,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Invoice is {invoice.status}. Only REVIEW_REQUIRED or "
+                "PENDING_CARRIER_REVIEW invoices can be bulk-resolved."
+            ),
+        )
+
+    _ACCEPTING = {
+        ResolutionAction.WAIVED,
+        ResolutionAction.HELD_CONTRACT_RATE,
+        ResolutionAction.RECLASSIFIED,
+        ResolutionAction.ACCEPTED_REDUCTION,
+    }
+    _ACTIVE_STATUSES = {
+        ExceptionStatus.OPEN,
+        ExceptionStatus.SUPPLIER_RESPONDED,
+        ExceptionStatus.CARRIER_REVIEWING,
+    }
+
+    accepted = 0
+    skipped = 0
+
+    for li in invoice.line_items:
+        for exc in li.exceptions:
+            # Only open billing exceptions — skip classification queue items
+            if exc.status not in _ACTIVE_STATUSES:
+                continue
+            if exc.validation_result.required_action == "REQUEST_RECLASSIFICATION":
+                continue
+            if exc.ai_recommendation is None:
+                skipped += 1
+                continue
+
+            action = exc.ai_recommendation
+            exc.resolution_action = action
+            exc.resolution_notes = "Accepted AI recommendation"
+            exc.resolved_at = datetime.now(timezone.utc)
+            exc.resolved_by_user_id = current_user.id
+            exc.ai_recommendation_accepted = True
+            exc.status = ExceptionStatus.RESOLVED
+
+            if action == ResolutionAction.DENIED:
+                li.status = LineItemStatus.DENIED
+            elif action in _ACCEPTING:
+                # Promote line if no other active exceptions remain on it
+                other_active = [
+                    e
+                    for e in li.exceptions
+                    if e.id != exc.id and e.status in _ACTIVE_STATUSES
+                ]
+                if not other_active:
+                    li.status = LineItemStatus.APPROVED
+
+            accepted += 1
+
+    db.flush()
+
+    # Auto-advance invoice when all billing exceptions are resolved
+    remaining_open = [
+        e
+        for li in invoice.line_items
+        for e in li.exceptions
+        if (
+            e.status in _ACTIVE_STATUSES
+            and e.validation_result.required_action != "REQUEST_RECLASSIFICATION"
+        )
+    ]
+    if not remaining_open:
+        old_status = invoice.status
+        exception_lines = [
+            li for li in invoice.line_items if li.status == LineItemStatus.EXCEPTION
+        ]
+        if settings.auto_approve_clean_invoices and not exception_lines:
+            invoice.status = SubmissionStatus.APPROVED
+            for li in invoice.line_items:
+                if li.status == LineItemStatus.VALIDATED:
+                    li.status = LineItemStatus.APPROVED
+        else:
+            invoice.status = SubmissionStatus.PENDING_CARRIER_REVIEW
+
+        audit.log_invoice_status_changed(
+            db,
+            invoice,
+            from_status=old_status,
+            to_status=invoice.status,
+        )
+
+    db.commit()
+    db.refresh(invoice)
+
+    return {
+        "accepted": accepted,
+        "skipped": skipped,
+        "invoice_status": invoice.status,
+        "message": (
+            f"Accepted {accepted} AI recommendation(s)."
+            + (
+                f" {skipped} exception(s) skipped (no AI recommendation)."
+                if skipped
+                else ""
+            )
+        ),
+    }
+
+
 # ── Export ────────────────────────────────────────────────────────────────────
 
 
@@ -2468,6 +2601,18 @@ def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
             for exc in li.exceptions
         )
     )
+    # Count open billing exceptions that already have an AI recommendation set.
+    # Used by the queue to show "AI Ready" vs "needs triage" indicators.
+    ai_recs_ready = sum(
+        1
+        for li in invoice.line_items
+        for exc in li.exceptions
+        if (
+            exc.status == ExceptionStatus.OPEN
+            and exc.validation_result.required_action != "REQUEST_RECLASSIFICATION"
+            and exc.ai_recommendation is not None
+        )
+    )
     return InvoiceListItem(
         id=invoice.id,
         invoice_number=invoice.invoice_number,
@@ -2477,6 +2622,7 @@ def _to_invoice_list_item(invoice: Invoice) -> InvoiceListItem:
         submitted_at=invoice.submitted_at,
         total_billed=total_billed,
         exception_count=exc_count,
+        ai_recommendations_ready=ai_recs_ready,
         supplier_name=invoice.supplier.name if invoice.supplier else None,
         triage_risk_level=invoice.triage_risk_level,
     )

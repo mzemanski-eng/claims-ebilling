@@ -542,6 +542,24 @@ function AdminInvoicesContent() {
                           </span>
                         )}
                         <StatusBadge status={inv.status} />
+                        {inv.ai_recommendations_ready > 0 && inv.exception_count > 0 && (
+                          <span
+                            title={
+                              inv.ai_recommendations_ready >= inv.exception_count
+                                ? "AI has recommendations for all open exceptions"
+                                : `AI has recommendations for ${inv.ai_recommendations_ready} of ${inv.exception_count} exceptions`
+                            }
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${
+                              inv.ai_recommendations_ready >= inv.exception_count
+                                ? "border-blue-200 bg-blue-50 text-blue-700"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {inv.ai_recommendations_ready >= inv.exception_count
+                              ? "AI Ready"
+                              : `${inv.ai_recommendations_ready}/${inv.exception_count} AI`}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-gray-900">

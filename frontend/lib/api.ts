@@ -489,6 +489,18 @@ export function approveAdminInvoice(
   });
 }
 
+/** Bulk-resolve all open billing exceptions using their AI recommendation. */
+export function acceptAiRecommendations(invoiceId: string): Promise<{
+  accepted: number;
+  skipped: number;
+  invoice_status: string;
+  message: string;
+}> {
+  return apiFetch(`/admin/invoices/${invoiceId}/accept-ai-recommendations`, {
+    method: "POST",
+  });
+}
+
 /** Approve multiple invoices at once. Invoices already approved are silently skipped. */
 export function bulkApproveInvoices(
   invoiceIds: string[],

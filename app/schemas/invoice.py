@@ -113,6 +113,9 @@ class InvoiceListItem(BaseSchema):
     triage_risk_level: Optional[str] = (
         None  # set by AI triage agent; null until processed
     )
+    ai_recommendations_ready: int = (
+        0  # open billing exceptions with ai_recommendation set
+    )
 
 
 # ── LineItem schemas ──────────────────────────────────────────────────────────

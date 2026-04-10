@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
 import { AiClassificationSuggestion } from "@/components/ai-classification-suggestion";
+import { AiReviewSummaryBar } from "@/components/ai-review-summary-bar";
 import { Button } from "@/components/ui/button";
 import type { LineItemCarrierView } from "@/lib/types";
 import { ResolutionActions } from "@/lib/types";
@@ -1032,25 +1033,17 @@ export default function AdminInvoiceDetailPage({
         />
       )}
 
-      {/* Bulk AI recommendations banner — prominent, shown above the table */}
-      {aiResolvableExceptions.length > 0 && (
-        <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5 shadow-sm">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-amber-900">
-              ✦ AI has recommendations for {aiResolvableExceptions.length} exception{aiResolvableExceptions.length !== 1 ? "s" : ""}
-            </p>
-            <p className="mt-0.5 text-xs text-amber-700">
-              Review and accept AI suggestions for all open exceptions with one click
-            </p>
-          </div>
-          <Button
-            variant="secondary"
-            onClick={() => setShowBulkModal(true)}
-            className="shrink-0"
-          >
-            Review &amp; Apply All
-          </Button>
-        </div>
+      {/* AI Review Summary Bar — shows breakdown by recommendation + one-click bulk accept */}
+      {lines && invoice && (
+        <AiReviewSummaryBar
+          invoiceId={id}
+          invoiceStatus={invoice.status}
+          lines={lines}
+          invalidateKeys={[
+            ["admin-invoice", id],
+            ["admin-invoice-lines", id],
+          ]}
+        />
       )}
 
       {/* Line items */}

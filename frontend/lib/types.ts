@@ -55,6 +55,7 @@ export interface InvoiceListItem {
   exception_count: number;
   supplier_name: string | null; // populated by admin endpoints; null for supplier views
   triage_risk_level: string | null; // LOW | MEDIUM | HIGH | CRITICAL; set by AI triage
+  ai_recommendations_ready: number; // open billing exceptions with ai_recommendation set
 }
 
 export interface InvoiceListFilters {
