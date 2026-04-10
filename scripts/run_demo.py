@@ -191,7 +191,7 @@ class APIClient:
         self._pause()
         return resp.json()
 
-    def post(self, path: str, json_body=None, files=None, data=None) -> dict:
+    def post(self, path: str, json_body=None, files=None, data=None, params=None) -> dict:
         kwargs = {}
         if json_body is not None:
             kwargs["json"] = json_body
@@ -199,6 +199,8 @@ class APIClient:
             kwargs["files"] = files
         if data is not None:
             kwargs["data"] = data
+        if params is not None:
+            kwargs["params"] = params
         resp = self.session.post(self._url(path), **kwargs)
         if resp.status_code not in (200, 201):
             raise RuntimeError(
@@ -447,7 +449,7 @@ def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = Tr
         try:
             client.post(
                 f"/admin/exceptions/{exc_id}/resolve",
-                json_body={"resolution_action": resolution_action, "notes": notes},
+                params={"resolution_action": resolution_action, "resolution_notes": notes},
             )
             label = RESOLUTION_LABELS.get(resolution_action, resolution_action)
             ok(f"Exception {exc_id[:8]}… → {bold(label)}")
@@ -457,7 +459,7 @@ def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = Tr
 
 def step_approve_invoice(client: APIClient, invoice_id: str) -> dict:
     step("APPROVE INVOICE")
-    result = client.post(f"/admin/invoices/{invoice_id}/approve", json_body={})
+    result = client.post(f"/admin/invoices/{invoice_id}/approve", json_body={"invoice_id": invoice_id})
     new_status = result.get("status", "?")
     ok(f"Invoice approved — status={bold(new_status)}")
     return result
