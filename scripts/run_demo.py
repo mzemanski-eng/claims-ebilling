@@ -463,10 +463,19 @@ def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = Tr
 
 def step_approve_invoice(client: APIClient, invoice_id: str) -> dict:
     step("APPROVE INVOICE")
-    result = client.post(f"/admin/invoices/{invoice_id}/approve", json_body={"invoice_id": invoice_id})
-    new_status = result.get("status", "?")
-    ok(f"Invoice approved — status={bold(new_status)}")
-    return result
+    try:
+        result = client.post(
+            f"/admin/invoices/{invoice_id}/approve",
+            json_body={"invoice_id": invoice_id},
+        )
+        ok(result.get("message", "Invoice approved."))
+        return result
+    except RuntimeError as e:
+        # 409 means the invoice auto-advanced to APPROVED already (auto_approve_clean_invoices)
+        if "409" in str(e) and "APPROVED" in str(e):
+            ok("Invoice already auto-approved after exception resolution.")
+            return {}
+        raise
 
 
 def step_export_csv(client: APIClient, invoice_id: str, out_dir: Path) -> Optional[Path]:
