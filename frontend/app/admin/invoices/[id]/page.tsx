@@ -15,7 +15,6 @@ import {
   downloadOriginalInvoiceFile,
 } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
-import { ConfidenceBadge } from "@/components/confidence-badge";
 import { AiClassificationSuggestion } from "@/components/ai-classification-suggestion";
 import { Button } from "@/components/ui/button";
 import type { LineItemCarrierView } from "@/lib/types";
@@ -1074,7 +1073,7 @@ export default function AdminInvoiceDetailPage({
                 <th rowSpan={2} className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Description
                 </th>
-                <th colSpan={2} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-b border-gray-200">
+                <th colSpan={1} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-b border-gray-200">
                   Spend Classification
                 </th>
                 <th colSpan={3} className="px-4 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border-b border-gray-200">
@@ -1086,17 +1085,6 @@ export default function AdminInvoiceDetailPage({
               <tr>
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
                   Taxonomy
-                </th>
-                <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">
-                  <span className="flex items-center gap-1">
-                    Confidence
-                    <span
-                      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-200 text-[9px] font-bold text-gray-500 hover:bg-gray-300 transition-colors"
-                      title={"How confident the AI is that this line was placed in the correct spend bucket (taxonomy). Does not reflect bill accuracy.\n• HIGH — classification is reliable; safe to accept as-is\n• MEDIUM — worth a quick check before approving\n• LOW — AI is uncertain; manual classification recommended"}
-                    >
-                      ?
-                    </span>
-                  </span>
                 </th>
                 <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-gray-500">
                   Billed
@@ -1112,6 +1100,12 @@ export default function AdminInvoiceDetailPage({
             <tbody className="divide-y divide-gray-100">
               {lines?.map((line) => {
                 const isExpanded = expandedLines.has(line.id);
+                const isPending = line.status === "CLASSIFICATION_PENDING";
+                const hasBillingIssues = line.exceptions.some(
+                  (e) =>
+                    ["OPEN", "SUPPLIER_RESPONDED", "CARRIER_REVIEWING"].includes(e.status) &&
+                    e.required_action !== "REQUEST_RECLASSIFICATION"
+                );
                 const hasIssues =
                   line.exceptions.length > 0 ||
                   line.needs_review ||
@@ -1121,11 +1115,15 @@ export default function AdminInvoiceDetailPage({
                     <tr
                       key={line.id}
                       className={`transition-colors ${
-                        hasIssues
+                        isPending
+                          ? "opacity-50 border-l-4 border-transparent"
+                          : hasBillingIssues
                           ? "cursor-pointer bg-amber-50/30 hover:bg-amber-50 border-l-4 border-amber-400"
+                          : hasIssues
+                          ? "cursor-pointer hover:bg-gray-50 border-l-4 border-gray-200"
                           : "hover:bg-gray-50 border-l-4 border-transparent"
                       }`}
-                      onClick={() => hasIssues && toggleLine(line.id)}
+                      onClick={() => !isPending && hasIssues && toggleLine(line.id)}
                     >
                       <td className="px-4 py-3 text-gray-400">
                         {line.line_number}
@@ -1259,13 +1257,6 @@ export default function AdminInvoiceDetailPage({
                               </Button>
                             </div>
                           </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {line.mapping_confidence ? (
-                          <ConfidenceBadge confidence={line.mapping_confidence} />
-                        ) : (
-                          <span className="text-gray-300">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">

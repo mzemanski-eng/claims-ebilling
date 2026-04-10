@@ -16,7 +16,7 @@ import { isCarrierAdmin } from "@/lib/auth";
 import { StatusBadge } from "@/components/status-badge";
 import { ValidationSummaryCard } from "@/components/validation-summary-card";
 import { CarrierExceptionPanel } from "@/components/exception-panel";
-import { AiAssessmentBadge, AiAssessmentInline } from "@/components/ai-assessment-badge";
+import { AiAssessmentBadge } from "@/components/ai-assessment-badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -117,12 +117,12 @@ export default function CarrierInvoiceReviewPage({
       )
     : 0;
 
-  // Lines ready for bill audit — excludes anything still in the Classification
-  // Queue. HIGH-confidence lines were classified immediately by the pipeline;
-  // MEDIUM/LOW lines only appear here once a carrier confirms their taxonomy.
-  const auditLines = lines
-    ? lines.filter((li) => li.status !== "CLASSIFICATION_PENDING")
-    : [];
+  // All lines — classification-pending ones render as de-emphasized rows so the
+  // reviewer can see which lines are held up without acting on them here.
+  const auditLines = lines ?? [];
+  const pendingCount = lines
+    ? lines.filter((li) => li.status === "CLASSIFICATION_PENDING").length
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -207,39 +207,16 @@ export default function CarrierInvoiceReviewPage({
         </div>
       )}
 
-      {/* Classification pending banner */}
-      {invoice.validation_summary &&
-        (invoice.validation_summary.lines_pending_classification ?? 0) > 0 && (
-          <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 text-lg leading-none">⏳</span>
-              <div>
-                <p className="text-sm font-semibold text-amber-900">
-                  {invoice.validation_summary.lines_pending_classification} line
-                  {invoice.validation_summary.lines_pending_classification !== 1
-                    ? "s"
-                    : ""}{" "}
-                  awaiting classification (
-                  $
-                  {parseFloat(
-                    invoice.validation_summary.total_pending_classification,
-                  ).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  )
-                </p>
-                <p className="mt-0.5 text-xs text-amber-700">
-                  These lines are in the Classification Queue. Bill audit will
-                  run automatically once a taxonomy code is confirmed.
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/carrier/classification"
-              className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
-            >
-              Open Queue →
-            </Link>
-          </div>
-        )}
+      {/* Classification pending — quiet note only, detail is in the table rows */}
+      {pendingCount > 0 && (
+        <p className="text-xs text-gray-400">
+          {pendingCount} line{pendingCount !== 1 ? "s" : ""} awaiting taxonomy
+          classification —{" "}
+          <Link href="/carrier/classification" className="text-blue-500 hover:underline">
+            review in Classification Queue
+          </Link>
+        </p>
+      )}
 
       {/* Line items */}
       {linesLoading && (
@@ -251,12 +228,7 @@ export default function CarrierInvoiceReviewPage({
       {lines && (
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Line Items ({auditLines.length}
-            {auditLines.length !== lines.length && (
-              <span className="ml-1 font-normal text-gray-400">
-                · {lines.length - auditLines.length} pending classification
-              </span>
-            )})
+            Line Items ({auditLines.length})
           </h2>
           <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -265,7 +237,6 @@ export default function CarrierInvoiceReviewPage({
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">#</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Description</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Taxonomy</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-600" title="AI description alignment assessment">AI</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Billed</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Expected</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
@@ -274,10 +245,38 @@ export default function CarrierInvoiceReviewPage({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {auditLines.map((li) => {
+                  const isPending = li.status === "CLASSIFICATION_PENDING";
                   const openExcs = li.exceptions.filter((e) => e.status === "OPEN" || e.status === "SUPPLIER_RESPONDED");
                   const expanded = expandedLines.has(li.id);
                   const hasExceptions = li.exceptions.length > 0;
 
+                  // ── Classification-pending row — de-emphasised, not actionable ──
+                  if (isPending) {
+                    return (
+                      <tr key={li.id} className="opacity-50">
+                        <td className="px-4 py-3 text-gray-400">{li.line_number}</td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <span className="block truncate text-gray-400 italic" title={li.raw_description}>
+                            {li.raw_description}
+                          </span>
+                          {li.claim_number && (
+                            <span className="text-xs text-gray-300">{li.claim_number}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-gray-400 italic">Awaiting classification</span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-400">
+                          ${parseFloat(li.raw_amount).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-300">—</td>
+                        <td className="px-4 py-3 text-gray-300 text-xs italic">Pending</td>
+                        <td className="px-4 py-3" />
+                      </tr>
+                    );
+                  }
+
+                  // ── Standard billing line ──────────────────────────────────────
                   return (
                     <>
                       <tr
@@ -313,9 +312,6 @@ export default function CarrierInvoiceReviewPage({
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center">
-                          <AiAssessmentInline assessment={li.ai_description_assessment} />
-                        </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-900">
                           ${parseFloat(li.raw_amount).toFixed(2)}
                         </td>
@@ -343,16 +339,15 @@ export default function CarrierInvoiceReviewPage({
                         </td>
                       </tr>
 
-                      {/* Expanded exceptions + AI assessment */}
+                      {/* Expanded exceptions — AI description assessment in detail, not column */}
                       {expanded && hasExceptions && (
                         <tr key={`${li.id}-exc`}>
-                          <td colSpan={8} className="px-6 pb-4 pt-0 bg-gray-50">
+                          <td colSpan={7} className="px-6 pb-4 pt-0 bg-gray-50">
                             <div className="pt-3 space-y-4">
-                              {/* AI description alignment — shown when assessment exists */}
                               {li.ai_description_assessment && (
                                 <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
                                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                    AI Description Assessment
+                                    Description vs. taxonomy match
                                   </p>
                                   <AiAssessmentBadge
                                     assessment={li.ai_description_assessment}
