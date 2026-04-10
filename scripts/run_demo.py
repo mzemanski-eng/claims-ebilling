@@ -54,14 +54,14 @@ SUPPLIER_PROFILES = {
         "label": "Pacific Coast Engineering Group",
         "fixture": FIXTURES / "sample_invoice_eng.csv",
         "invoice_prefix": "DEMO-ENG",
-        "email_default": "supplier@pceng.com",
+        "email_default": "billing@vectoreng.demo",
         "narrative": "Engineering & forensic services — pass-through and billing-increment checks",
     },
     "LA": {
         "label": "Ladder Assist Pro",
         "fixture": FIXTURES / "sample_invoice_la.csv",
         "invoice_prefix": "DEMO-LA",
-        "email_default": "supplier@ladderassist.com",
+        "email_default": "billing@peakaccess.demo",
         "narrative": "Ladder assist / roof access — code exclusivity and rate validation",
     },
 }
@@ -364,7 +364,7 @@ def step_show_invoice_queue(client: APIClient, invoice_id: str) -> dict:
             if len(exc_list) > 2:
                 types += f" +{len(exc_list)-2}"
             exc_summary = yellow(f"⚠ {types}")
-            exception_ids.extend(e["id"] for e in exc_list)
+            exception_ids.extend(e["exception_id"] for e in exc_list)
         status_fmt = (
             green(status) if status in ("VALIDATED", "APPROVED")
             else yellow(status) if status == "REVIEW_REQUIRED"
@@ -420,7 +420,7 @@ def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = Tr
         return
 
     for exc in exceptions:
-        exc_id = exc["id"]
+        exc_id = exc["exception_id"]
         action = exc.get("required_action", "NONE")
         ai_rec = exc.get("ai_recommendation")
 
