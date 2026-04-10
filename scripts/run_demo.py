@@ -67,13 +67,15 @@ SUPPLIER_PROFILES = {
 }
 
 RESOLUTION_LABELS = {
-    "APPROVE": "Approved",
-    "ACCEPT_REDUCTION": "Accepted carrier reduction",
-    "REQUEST_RECLASSIFICATION": "Sent for reclassification",
+    # Valid ResolutionAction values accepted by the API
+    "WAIVED": "Waived — accepted as billed",
+    "ACCEPTED_REDUCTION": "Accepted carrier reduction",
+    "HELD_CONTRACT_RATE": "Held to contract rate",
+    "RECLASSIFIED": "Reclassified",
+    "DENIED": "Denied",
+    # Legacy / required_action values (not sent to API, used for display only)
     "ESTABLISH_CONTRACT_RATE": "Flagged — add to contract",
-    "REUPLOAD": "Requested re-upload",
-    "ATTACH_DOC": "Requested supporting document",
-    "DENY": "Denied",
+    "OUT_OF_SCOPE": "Out of scope",
     "NONE": "No action required",
 }
 
@@ -427,18 +429,20 @@ def step_resolve_exceptions(client: APIClient, exceptions: list, auto: bool = Tr
         ai_rec = exc.get("ai_recommendation")
 
         # Demo resolution logic:
-        # - Use AI recommendation if present
-        # - ESTABLISH_CONTRACT_RATE → skip (carrier action needed, not resolution)
-        # - ACCEPT_REDUCTION for rate overages
-        # - APPROVE for warnings
+        # - Use AI recommendation if present (must already be a valid ResolutionAction)
+        # - ESTABLISH_CONTRACT_RATE → skip (carrier action needed, not resolvable here)
+        # - ACCEPT_REDUCTION / rate overages → ACCEPTED_REDUCTION
+        # - OUT_OF_SCOPE → DENIED
+        # - All other exceptions → WAIVED
 
         if action == "ESTABLISH_CONTRACT_RATE":
             warn(f"Exception {exc_id[:8]}… — {action}: contract rate missing, skipping")
             continue
 
         resolution_action = ai_rec if ai_rec else (
-            "ACCEPT_REDUCTION" if action == "ACCEPT_REDUCTION"
-            else "APPROVE"
+            "ACCEPTED_REDUCTION" if action in ("ACCEPT_REDUCTION", "ACCEPTED_REDUCTION")
+            else "DENIED" if action == "OUT_OF_SCOPE"
+            else "WAIVED"
         )
         notes = (
             "AI-recommended resolution accepted during demo"
