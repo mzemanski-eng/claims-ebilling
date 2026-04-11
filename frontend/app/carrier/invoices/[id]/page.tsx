@@ -195,19 +195,16 @@ export default function CarrierInvoiceReviewPage({
 
   const canExport = invoice.status === "APPROVED";
 
-  // Count only open BILLING exceptions — exclude classification queue items.
-  // This matches the number shown on the exception cards the reviewer actually acts on.
+  // Count LINES with at least one open billing exception — matches Validation Summary's
+  // "Exceptions" number. Excludes REQUEST_RECLASSIFICATION (classification queue items).
   const openExceptionCount = lines
-    ? lines.reduce(
-        (sum, li) =>
-          sum +
-          li.exceptions.filter(
-            (e) =>
-              e.status === "OPEN" &&
-              e.required_action !== "REQUEST_RECLASSIFICATION",
-          ).length,
-        0,
-      )
+    ? lines.filter((li) =>
+        li.exceptions.some(
+          (e) =>
+            e.status === "OPEN" &&
+            e.required_action !== "REQUEST_RECLASSIFICATION",
+        ),
+      ).length
     : 0;
 
   // All lines — classification-pending ones render as de-emphasized rows so the
@@ -271,7 +268,11 @@ export default function CarrierInvoiceReviewPage({
             )}
             {!canApprove && !canExport && invoice.status !== "APPROVED" && (
               <span className="rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
-                View only — Carrier Admin required to approve
+                {isCarrierAdmin()
+                  ? invoice.status === "REVIEW_REQUIRED"
+                    ? "Resolve exceptions to approve"
+                    : "Not yet ready to approve"
+                  : "View only — Carrier Admin required to approve"}
               </span>
             )}
           </div>
