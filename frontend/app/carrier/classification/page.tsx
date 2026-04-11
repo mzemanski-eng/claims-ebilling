@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveClassificationItem,
@@ -496,6 +496,7 @@ export default function ClassificationQueuePage() {
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>("PENDING");
+  const [tabInitialized, setTabInitialized] = useState(false);
   const [approvingItem, setApprovingItem] =
     useState<ClassificationQueueItem | null>(null);
   const [rejectingItem, setRejectingItem] =
@@ -507,6 +508,19 @@ export default function ClassificationQueuePage() {
     queryFn: getClassificationStats,
     refetchInterval: 30_000,
   });
+
+  // Auto-select the most urgent non-empty tab on first load.
+  // Priority: NEEDS_REVIEW (no AI proposal — highest urgency) → PENDING → PENDING default.
+  // Only runs once; subsequent tab clicks are user-controlled.
+  useEffect(() => {
+    if (!stats || tabInitialized) return;
+    setTabInitialized(true);
+    if (stats.needs_review > 0) {
+      setActiveTab("NEEDS_REVIEW");
+    } else if (stats.pending > 0) {
+      setActiveTab("PENDING");
+    }
+  }, [stats, tabInitialized]);
 
   // Queue items for the active tab
   const { data: items, isLoading } = useQuery<ClassificationQueueItem[]>({
