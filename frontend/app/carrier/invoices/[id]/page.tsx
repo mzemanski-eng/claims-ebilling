@@ -13,6 +13,7 @@ import {
   requestInvoiceChanges,
 } from "@/lib/api";
 import { isCarrierAdmin } from "@/lib/auth";
+import type { LineItemCarrierView } from "@/lib/types";
 import { StatusBadge } from "@/components/status-badge";
 import { ValidationSummaryCard } from "@/components/validation-summary-card";
 import { CarrierExceptionPanel } from "@/components/exception-panel";
@@ -28,6 +29,90 @@ function formatDate(iso: string | null) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** Normalise raw_unit to a short readable label (hr, ea, day, …). */
+function normaliseUnit(unit: string | null): string {
+  if (!unit) return "";
+  const u = unit.trim().toLowerCase();
+  if (/^hours?$/.test(u) || u === "hr" || u === "hrs") return "hr";
+  if (u === "days" || u === "day") return "day";
+  if (u === "ea" || u === "each") return "ea";
+  if (u === "flat" || u === "flat fee") return "flat";
+  return u;
+}
+
+/** Display quantity + unit together: "8 hr", "1 ea", "2.5 day" */
+function formatQty(quantity: string, unit: string | null): string {
+  const q = parseFloat(quantity);
+  const qStr = Number.isInteger(q) ? String(q) : q.toFixed(2);
+  const u = normaliseUnit(unit);
+  return u ? `${qStr} ${u}` : qStr;
+}
+
+/** Billing breakdown panel shown in the expanded row. */
+function BillingBreakdown({ line }: { line: LineItemCarrierView }) {
+  const qty = parseFloat(line.raw_quantity);
+  const billed = parseFloat(line.raw_amount);
+  const expected = line.expected_amount ? parseFloat(line.expected_amount) : null;
+  const contractedRate = line.mapped_rate ? parseFloat(line.mapped_rate) : null;
+  const unit = normaliseUnit(line.raw_unit);
+
+  // Per-unit rate the supplier charged
+  const billedRate = qty > 0 && qty !== 1 ? billed / qty : null;
+
+  const delta = expected !== null ? billed - expected : null;
+  const hasVariance = delta !== null && Math.abs(delta) > 0.005;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        Billing Breakdown
+      </p>
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
+        {/* Quantity */}
+        <span className="text-gray-700">
+          <span className="font-medium text-gray-900">{formatQty(line.raw_quantity, line.raw_unit)}</span>
+          <span className="ml-1 text-xs text-gray-400">billed</span>
+        </span>
+
+        {/* Rates — only when qty > 1 (time / unit billing) */}
+        {billedRate !== null && (
+          <span className="text-gray-700">
+            <span className="font-medium text-gray-900">${billedRate.toFixed(2)}</span>
+            <span className="ml-0.5 text-xs text-gray-400">/{unit || "unit"} billed</span>
+          </span>
+        )}
+        {contractedRate !== null && (
+          <span className="text-gray-700">
+            <span className="font-medium text-gray-900">${contractedRate.toFixed(2)}</span>
+            <span className="ml-0.5 text-xs text-gray-400">/{unit || "unit"} contracted</span>
+          </span>
+        )}
+
+        {/* Totals */}
+        <span className="text-gray-700">
+          <span className="font-medium text-gray-900">${billed.toFixed(2)}</span>
+          <span className="ml-1 text-xs text-gray-400">billed total</span>
+        </span>
+        {expected !== null && (
+          <span className="text-gray-700">
+            <span className="font-medium text-gray-900">${expected.toFixed(2)}</span>
+            <span className="ml-1 text-xs text-gray-400">expected</span>
+          </span>
+        )}
+
+        {/* Variance */}
+        {hasVariance && (
+          <span
+            className={`font-semibold ${delta! > 0 ? "text-red-600" : "text-green-600"}`}
+          >
+            {delta! > 0 ? "+" : ""}${delta!.toFixed(2)} variance
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function CarrierInvoiceReviewPage({
@@ -110,10 +195,17 @@ export default function CarrierInvoiceReviewPage({
 
   const canExport = invoice.status === "APPROVED";
 
+  // Count only open BILLING exceptions — exclude classification queue items.
+  // This matches the number shown on the exception cards the reviewer actually acts on.
   const openExceptionCount = lines
     ? lines.reduce(
         (sum, li) =>
-          sum + li.exceptions.filter((e) => e.status === "OPEN").length,
+          sum +
+          li.exceptions.filter(
+            (e) =>
+              e.status === "OPEN" &&
+              e.required_action !== "REQUEST_RECLASSIFICATION",
+          ).length,
         0,
       )
     : 0;
@@ -219,12 +311,13 @@ export default function CarrierInvoiceReviewPage({
         </p>
       )}
 
-      {/* AI review summary — show before line items when exceptions have AI recs */}
-      {isCarrierAdmin() && lines && invoice && (
+      {/* AI review summary — shown to all carrier users; accept button only for admins */}
+      {lines && invoice && (
         <AiReviewSummaryBar
           invoiceId={id}
           invoiceStatus={invoice.status}
           lines={lines}
+          canAct={isCarrierAdmin()}
           invalidateKeys={[
             ["carrier-invoice", id],
             ["carrier-lines", id],
@@ -251,6 +344,7 @@ export default function CarrierInvoiceReviewPage({
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">#</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Description</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Taxonomy</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Qty</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Billed</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Expected</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
@@ -280,6 +374,7 @@ export default function CarrierInvoiceReviewPage({
                         <td className="px-4 py-3">
                           <span className="text-xs text-gray-400 italic">Awaiting classification</span>
                         </td>
+                        <td className="px-4 py-3 text-right text-gray-300">—</td>
                         <td className="px-4 py-3 text-right font-mono text-gray-400">
                           ${parseFloat(li.raw_amount).toFixed(2)}
                         </td>
@@ -326,6 +421,9 @@ export default function CarrierInvoiceReviewPage({
                             </span>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-right font-mono text-gray-600 whitespace-nowrap">
+                          {formatQty(li.raw_quantity, li.raw_unit)}
+                        </td>
                         <td className="px-4 py-3 text-right font-mono text-gray-900">
                           ${parseFloat(li.raw_amount).toFixed(2)}
                         </td>
@@ -353,11 +451,15 @@ export default function CarrierInvoiceReviewPage({
                         </td>
                       </tr>
 
-                      {/* Expanded exceptions — AI description assessment in detail, not column */}
+                      {/* Expanded detail — billing breakdown + exceptions */}
                       {expanded && hasExceptions && (
                         <tr key={`${li.id}-exc`}>
-                          <td colSpan={7} className="px-6 pb-4 pt-0 bg-gray-50">
-                            <div className="pt-3 space-y-4">
+                          <td colSpan={8} className="px-6 pb-4 pt-0 bg-gray-50">
+                            <div className="pt-3 space-y-3">
+                              {/* Billing breakdown — what was billed vs what's contracted */}
+                              <BillingBreakdown line={li} />
+
+                              {/* AI description alignment (secondary context) */}
                               {li.ai_description_assessment && (
                                 <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
                                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -369,6 +471,7 @@ export default function CarrierInvoiceReviewPage({
                                   />
                                 </div>
                               )}
+
                               <CarrierExceptionPanel
                                 exceptions={li.exceptions}
                                 invoiceId={id}

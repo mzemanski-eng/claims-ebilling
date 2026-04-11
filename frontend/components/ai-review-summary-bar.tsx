@@ -23,6 +23,8 @@ interface AiReviewSummaryBarProps {
   lines: LineItemCarrierView[];
   /** Query keys to invalidate after bulk accept */
   invalidateKeys: string[][];
+  /** If false, the Accept button is hidden (reviewer can see breakdown but not act) */
+  canAct?: boolean;
 }
 
 const REVIEWABLE_STATUSES = new Set(["REVIEW_REQUIRED", "PENDING_CARRIER_REVIEW"]);
@@ -43,6 +45,7 @@ export function AiReviewSummaryBar({
   invoiceStatus,
   lines,
   invalidateKeys,
+  canAct = true,
 }: AiReviewSummaryBarProps) {
   const queryClient = useQueryClient();
 
@@ -117,18 +120,24 @@ export function AiReviewSummaryBar({
           </div>
         </div>
 
-        {/* Right: action button */}
-        <button
-          onClick={() => mutation.mutate()}
-          disabled={mutation.isPending || mutation.isSuccess}
-          className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {mutation.isPending
-            ? "Applying…"
-            : mutation.isSuccess
-              ? "Applied"
-              : `Accept ${readyCount} AI Recommendation${readyCount !== 1 ? "s" : ""}`}
-        </button>
+        {/* Right: action button (only for users with write access) */}
+        {canAct ? (
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || mutation.isSuccess}
+            className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {mutation.isPending
+              ? "Applying…"
+              : mutation.isSuccess
+                ? "Applied"
+                : `Accept ${readyCount} AI Recommendation${readyCount !== 1 ? "s" : ""}`}
+          </button>
+        ) : (
+          <span className="text-xs text-blue-500 italic shrink-0">
+            Carrier Admin required to apply
+          </span>
+        )}
       </div>
 
       {/* Feedback messages */}

@@ -24,7 +24,18 @@ export function ValidationSummaryCard({ summary }: ValidationSummaryCardProps) {
       />
       <Stat label="Pending Review" value={String(summary.lines_pending_review)} />
       <Stat label="Total Billed" value={<Money value={summary.total_billed} />} />
-      <Stat label="Payable" value={<Money value={summary.total_payable} />} green />
+      <Stat
+        label="Approved to Pay"
+        value={
+          summary.lines_with_spend_exceptions > 0 &&
+          parseFloat(summary.total_payable) === 0 ? (
+            <span className="text-base font-medium text-gray-400">Pending</span>
+          ) : (
+            <Money value={summary.total_payable} />
+          )
+        }
+        green={parseFloat(summary.total_payable) > 0}
+      />
       {summary.lines_denied > 0 && (
         <Stat
           label="Denied"

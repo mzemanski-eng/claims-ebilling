@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { resolveException, respondToException } from "@/lib/api";
 import { isCarrierAdmin } from "@/lib/auth";
-import type { ExceptionView } from "@/lib/types";
+import type { ExceptionView, ResolutionAction } from "@/lib/types";
 import { ResolutionActions } from "@/lib/types";
 import { StatusBadge } from "./status-badge";
 import { Button } from "./ui/button";
@@ -13,11 +13,48 @@ import { Textarea } from "./ui/textarea";
 
 const RESOLUTION_OPTIONS = [
   { value: ResolutionActions.HELD_CONTRACT_RATE, label: "Hold Contract Rate" },
+  { value: ResolutionActions.ACCEPTED_REDUCTION, label: "Accept Reduction" },
   { value: ResolutionActions.WAIVED, label: "Waive Exception" },
   { value: ResolutionActions.RECLASSIFIED, label: "Reclassify Line" },
-  { value: ResolutionActions.ACCEPTED_REDUCTION, label: "Accept Reduction" },
   { value: ResolutionActions.DENIED, label: "Deny Line" },
 ];
+
+/** Map required_action values from the validation engine to ResolutionAction defaults. */
+const REQUIRED_ACTION_TO_RESOLUTION: Record<string, string> = {
+  ACCEPT_REDUCTION: ResolutionActions.ACCEPTED_REDUCTION,
+  ACCEPTED_REDUCTION: ResolutionActions.ACCEPTED_REDUCTION,
+  HOLD_CONTRACT_RATE: ResolutionActions.HELD_CONTRACT_RATE,
+  HELD_CONTRACT_RATE: ResolutionActions.HELD_CONTRACT_RATE,
+  WAIVE: ResolutionActions.WAIVED,
+  WAIVED: ResolutionActions.WAIVED,
+  DENY: ResolutionActions.DENIED,
+  DENIED: ResolutionActions.DENIED,
+  RECLASSIFY: ResolutionActions.RECLASSIFIED,
+  REQUEST_RECLASSIFICATION: ResolutionActions.RECLASSIFIED,
+};
+
+const AI_REC_LABELS: Record<string, string> = {
+  HELD_CONTRACT_RATE: "Hold Contract Rate",
+  ACCEPTED_REDUCTION: "Accept Reduction",
+  WAIVED: "Waive",
+  RECLASSIFIED: "Reclassify",
+  DENIED: "Deny",
+};
+
+function defaultResolutionAction(exception: ExceptionView): string {
+  // AI recommendation takes priority — it's the most informed suggestion
+  if (
+    exception.ai_recommendation &&
+    Object.values(ResolutionActions).includes(exception.ai_recommendation as ResolutionAction)
+  ) {
+    return exception.ai_recommendation;
+  }
+  // Fall back to the validation engine's required_action
+  const mapped = REQUIRED_ACTION_TO_RESOLUTION[exception.required_action];
+  if (mapped) return mapped;
+  // Safe default
+  return ResolutionActions.HELD_CONTRACT_RATE;
+}
 
 // Plain-English carrier decision labels shown to suppliers once an exception is resolved
 const RESOLUTION_LABELS: Record<
@@ -67,7 +104,9 @@ function CarrierExceptionCard({
   exception,
   invoiceId,
 }: CarrierExceptionCardProps) {
-  const [action, setAction] = useState<string>(ResolutionActions.HELD_CONTRACT_RATE);
+  const [action, setAction] = useState<string>(() =>
+    defaultResolutionAction(exception),
+  );
   const [notes, setNotes] = useState("");
   const queryClient = useQueryClient();
 
@@ -86,15 +125,32 @@ function CarrierExceptionCard({
     <div className="rounded-lg border border-red-200 bg-red-50 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={exception.status} />
             <span className="text-xs text-gray-500">
-              {exception.severity} · {exception.required_action.replace(/_/g, " ")}
+              {exception.validation_type} · {exception.severity}
             </span>
           </div>
-          <p className="mt-1 text-sm font-medium text-gray-800">
+          <p className="mt-1.5 text-sm font-medium text-gray-800">
             {exception.message}
           </p>
+
+          {/* AI recommendation — shown before the resolution form */}
+          {exception.ai_recommendation && !isResolved && (
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5">
+              <span className="text-xs text-blue-500">✦ AI</span>
+              <span className="text-xs font-medium text-blue-800">
+                Recommend:{" "}
+                <strong>{AI_REC_LABELS[exception.ai_recommendation] ?? exception.ai_recommendation}</strong>
+              </span>
+              {exception.ai_reasoning && (
+                <span className="ml-1 text-xs text-blue-600 italic truncate max-w-xs" title={exception.ai_reasoning}>
+                  — {exception.ai_reasoning}
+                </span>
+              )}
+            </div>
+          )}
+
           {exception.supplier_response && (
             <div className="mt-2 rounded border-l-4 border-blue-300 bg-blue-50 px-3 py-2">
               <p className="text-xs font-medium text-blue-700">
