@@ -301,13 +301,16 @@ export default function CarrierInvoiceReviewPage({
         </div>
       )}
 
-      {/* Classification pending — quiet note only, detail is in the table rows */}
+      {/* Classification pending — link filtered to this invoice */}
       {pendingCount > 0 && (
         <p className="text-xs text-gray-400">
           {pendingCount} line{pendingCount !== 1 ? "s" : ""} awaiting taxonomy
           classification —{" "}
-          <Link href="/carrier/classification" className="text-blue-500 hover:underline">
-            review in Classification Queue
+          <Link
+            href={`/carrier/classification?invoice_id=${id}&invoice_number=${encodeURIComponent(invoice.invoice_number)}`}
+            className="text-blue-500 hover:underline"
+          >
+            review in Classification Queue →
           </Link>
         </p>
       )}
@@ -373,7 +376,13 @@ export default function CarrierInvoiceReviewPage({
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-gray-400 italic">Awaiting classification</span>
+                          <Link
+                            href={`/carrier/classification?invoice_id=${id}&invoice_number=${encodeURIComponent(invoice.invoice_number)}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Awaiting classification →
+                          </Link>
                         </td>
                         <td className="px-4 py-3 text-right text-gray-300">—</td>
                         <td className="px-4 py-3 text-right font-mono text-gray-400">

@@ -914,9 +914,12 @@ export function updateCarrierSettings(
  */
 export function listClassificationQueue(
   statusFilter: string = "PENDING",
+  invoiceId?: string,
 ): Promise<ClassificationQueueItem[]> {
+  const params = new URLSearchParams({ status_filter: statusFilter });
+  if (invoiceId) params.set("invoice_id", invoiceId);
   return apiFetch<ClassificationQueueItem[]>(
-    `/carrier/classification?status_filter=${statusFilter}`,
+    `/carrier/classification?${params.toString()}`,
   );
 }
 

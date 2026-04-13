@@ -27,7 +27,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -424,6 +424,7 @@ def export_carrier_invoice(
 )
 def list_classification_queue(
     status_filter: str = "PENDING",
+    invoice_id: uuid.UUID | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(*_READ_ROLES)),
 ) -> list[ClassificationQueueItemSummary]:
@@ -431,6 +432,7 @@ def list_classification_queue(
     Return classification queue items for this carrier's suppliers.
 
     status_filter: PENDING (default) | NEEDS_REVIEW | APPROVED | REJECTED
+    invoice_id: optional UUID to restrict results to a single invoice's lines.
     Results ordered oldest-first so reviewers work through the backlog in FIFO order.
     """
     # Collect all supplier IDs that have an active contract with this carrier
@@ -440,15 +442,19 @@ def list_classification_queue(
         .subquery()
     )
 
-    items = (
-        db.query(ClassificationQueueItem)
-        .filter(
-            ClassificationQueueItem.supplier_id.in_(carrier_supplier_ids),
-            ClassificationQueueItem.status == status_filter,
-        )
-        .order_by(ClassificationQueueItem.created_at.asc())
-        .all()
+    query = db.query(ClassificationQueueItem).filter(
+        ClassificationQueueItem.supplier_id.in_(carrier_supplier_ids),
+        ClassificationQueueItem.status == status_filter,
     )
+
+    # Optional: narrow to a specific invoice by joining through line_item
+    if invoice_id is not None:
+        query = query.join(
+            LineItem,
+            ClassificationQueueItem.line_item_id == LineItem.id,
+        ).filter(LineItem.invoice_id == invoice_id)
+
+    items = query.order_by(ClassificationQueueItem.created_at.asc()).all()
 
     return [_to_classification_summary(item, db) for item in items]
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveClassificationItem,
@@ -494,6 +495,11 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps)
 export default function ClassificationQueuePage() {
   const qc = useQueryClient();
   const toast = useToast();
+  const searchParams = useSearchParams();
+
+  // Optional invoice-level filter from ?invoice_id=<uuid>
+  const invoiceIdFilter = searchParams.get("invoice_id") ?? undefined;
+  const invoiceNumberFilter = searchParams.get("invoice_number") ?? undefined;
 
   const [activeTab, setActiveTab] = useState<Tab>("PENDING");
   const [tabInitialized, setTabInitialized] = useState(false);
@@ -509,9 +515,15 @@ export default function ClassificationQueuePage() {
     refetchInterval: 30_000,
   });
 
-  // Auto-select the most urgent non-empty tab on first load.
+  // Re-run tab auto-selection whenever the invoice filter changes.
+  useEffect(() => {
+    setTabInitialized(false);
+    setActiveTab("PENDING");
+  }, [invoiceIdFilter]);
+
+  // Auto-select the most urgent non-empty tab on first load (or after filter change).
   // Priority: NEEDS_REVIEW (no AI proposal — highest urgency) → PENDING → PENDING default.
-  // Only runs once; subsequent tab clicks are user-controlled.
+  // Only runs once per filter context; subsequent tab clicks are user-controlled.
   useEffect(() => {
     if (!stats || tabInitialized) return;
     setTabInitialized(true);
@@ -522,10 +534,10 @@ export default function ClassificationQueuePage() {
     }
   }, [stats, tabInitialized]);
 
-  // Queue items for the active tab
+  // Queue items for the active tab (optionally filtered to one invoice)
   const { data: items, isLoading } = useQuery<ClassificationQueueItem[]>({
-    queryKey: ["classification-queue", activeTab],
-    queryFn: () => listClassificationQueue(activeTab),
+    queryKey: ["classification-queue", activeTab, invoiceIdFilter],
+    queryFn: () => listClassificationQueue(activeTab, invoiceIdFilter),
     refetchInterval: 30_000,
   });
 
@@ -594,6 +606,25 @@ export default function ClassificationQueuePage() {
           Approving creates a mapping rule so future similar lines auto-classify.
         </p>
       </div>
+
+      {/* Invoice filter banner */}
+      {invoiceIdFilter && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm">
+          <span className="text-blue-500">🔍</span>
+          <span className="text-blue-800">
+            Filtered to invoice{" "}
+            <strong className="font-semibold">
+              {invoiceNumberFilter ?? invoiceIdFilter}
+            </strong>
+          </span>
+          <Link
+            href="/carrier/classification"
+            className="ml-auto text-xs text-blue-600 hover:underline whitespace-nowrap"
+          >
+            Clear filter ×
+          </Link>
+        </div>
+      )}
 
       {/* Stats header */}
       {stats && <StatsHeader stats={stats} />}
