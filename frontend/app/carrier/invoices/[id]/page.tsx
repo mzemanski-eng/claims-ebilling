@@ -361,6 +361,12 @@ export default function CarrierInvoiceReviewPage({
                   const openExcs = li.exceptions.filter((e) => e.status === "OPEN" || e.status === "SUPPLIER_RESPONDED");
                   const expanded = expandedLines.has(li.id);
                   const hasExceptions = li.exceptions.length > 0;
+                  // Show "Resolved" when a line had exceptions but all are now resolved/waived,
+                  // so only the 1 truly open line shows "Billing Issue" in red.
+                  const displayStatus =
+                    li.status === "EXCEPTION" && openExcs.length === 0
+                      ? "RESOLVED"
+                      : li.status;
 
                   // ── Classification-pending row — de-emphasised, not actionable ──
                   if (isPending) {
@@ -443,7 +449,7 @@ export default function CarrierInvoiceReviewPage({
                             : "—"}
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={li.status} />
+                          <StatusBadge status={displayStatus} />
                         </td>
                         <td className="px-4 py-3 text-center">
                           {openExcs.length > 0 ? (

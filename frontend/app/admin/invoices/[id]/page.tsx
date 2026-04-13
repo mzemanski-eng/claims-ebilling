@@ -1327,6 +1327,12 @@ export default function AdminInvoiceDetailPage({
                             openExcs.some((e) => e.required_action === "REQUEST_RECLASSIFICATION");
                           const hasSpend = openSpendExcs.length > 0;
 
+                          // If status is EXCEPTION but no open exceptions remain, show Resolved
+                          const resolvedStatus =
+                            line.status === "EXCEPTION" && openExcs.length === 0
+                              ? "RESOLVED"
+                              : line.status;
+
                           return (
                             <div className="flex flex-wrap items-center gap-1.5">
                               {hasSpend ? (
@@ -1334,9 +1340,10 @@ export default function AdminInvoiceDetailPage({
                                   {openSpendExcs.length} Spend Issue{openSpendExcs.length !== 1 ? "s" : ""}
                                 </span>
                               ) : (
-                                // No spend issue — just show line status. Classification
-                                // problems are handled in the mapping queue, not here.
-                                <StatusBadge status={line.status} />
+                                // No open spend issue — show derived status (Resolved if
+                                // exceptions existed but are all closed; classification
+                                // problems are handled in the mapping queue, not here).
+                                <StatusBadge status={resolvedStatus} />
                               )}
                             </div>
                           );
