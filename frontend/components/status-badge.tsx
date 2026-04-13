@@ -27,26 +27,29 @@ const STATUS_STYLES: Record<string, string> = {
 
 // Human-readable labels — used as defaults so every screen shows friendly text
 const STATUS_LABELS: Record<string, string> = {
+  // Invoice statuses
   DRAFT: "Draft",
-  SUBMITTED: "Submitted",
-  PROCESSING: "Processing",
-  REVIEW_REQUIRED: "Needs Response",
-  PENDING_CARRIER_REVIEW: "Pending Review",
-  CARRIER_REVIEWING: "Under Review",
+  SUBMITTED: "AI Processing",
+  PROCESSING: "AI Processing",
+  REVIEW_REQUIRED: "Exceptions Flagged",
+  SUPPLIER_RESPONDED: "Supplier Replied",
+  PENDING_CARRIER_REVIEW: "Awaiting Approval",
+  CARRIER_REVIEWING: "Awaiting Approval",
   APPROVED: "Approved",
   DISPUTED: "Disputed",
-  EXPORTED: "Exported",
+  EXPORTED: "Paid",
   WITHDRAWN: "Withdrawn",
+  // Line item statuses
   PENDING: "Pending",
-  CLASSIFICATION_PENDING: "Classification Pending",
+  CLASSIFICATION_PENDING: "Needs Classification",
   CLASSIFIED: "Classified",
   VALIDATED: "Validated",
-  EXCEPTION: "Exception",
+  EXCEPTION: "Billing Issue",
   DENIED: "Denied",
-  OVERRIDE: "Overridden",
+  OVERRIDE: "Manually Overridden",
   RESOLVED: "Resolved",
+  // Exception statuses
   OPEN: "Open",
-  SUPPLIER_RESPONDED: "Supplier Responded",
   WAIVED: "Waived",
 };
 

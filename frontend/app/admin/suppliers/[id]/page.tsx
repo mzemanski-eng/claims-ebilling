@@ -54,6 +54,20 @@ const STATUS_COLORS: Record<string, string> = {
   DRAFT:                  "#D1D5DB",
 };
 
+const STATUS_FRIENDLY: Record<string, string> = {
+  APPROVED:               "Approved",
+  EXPORTED:               "Paid",
+  REVIEW_REQUIRED:        "Exceptions Flagged",
+  PENDING_CARRIER_REVIEW: "Awaiting Approval",
+  CARRIER_REVIEWING:      "Awaiting Approval",
+  SUPPLIER_RESPONDED:     "Supplier Replied",
+  DISPUTED:               "Disputed",
+  WITHDRAWN:              "Withdrawn",
+  SUBMITTED:              "AI Processing",
+  PROCESSING:             "AI Processing",
+  DRAFT:                  "Draft",
+};
+
 const EXCEPTION_TYPE_COLORS: Record<string, string> = {
   RATE:           "#EF4444",
   GUIDELINE:      "#F97316",
@@ -126,7 +140,7 @@ export default function SupplierScorecardPage() {
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([status, count]) => ({
-      status: status.replace(/_/g, " "),
+      status: STATUS_FRIENDLY[status] ?? status.replace(/_/g, " "),
       count,
       fill: STATUS_COLORS[status] ?? "#9CA3AF",
     }));

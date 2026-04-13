@@ -513,7 +513,7 @@ export default function AdminMappingsPage() {
           href={backUrl}
           className="shrink-0 text-sm font-medium text-blue-600 hover:text-blue-800"
         >
-          {backUrl === "/admin/invoices" ? "← Invoice Queue" : "← Back to Invoice"}
+          {backUrl === "/admin/invoices" ? "← All Invoices" : "← Back to Invoice"}
         </Link>
       </div>
 

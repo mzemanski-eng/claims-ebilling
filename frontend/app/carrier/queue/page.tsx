@@ -329,9 +329,9 @@ export default function CarrierQueuePage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Review Queue</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Action Required</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Invoices requiring carrier attention
+          Invoices that need your attention
           {totalCount > 0 && ` · ${totalCount} invoice${totalCount !== 1 ? "s" : ""}`}
         </p>
       </div>

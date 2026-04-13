@@ -30,11 +30,11 @@ function formatAge(iso: string | null | undefined): string | null {
 
 const STATUS_TABS = [
   { label: "All",                value: undefined },
-  { label: "Pending Review",     value: "PENDING_CARRIER_REVIEW" },
-  { label: "Needs Changes",      value: "REVIEW_REQUIRED" },
-  { label: "Supplier Responded", value: "SUPPLIER_RESPONDED" },
+  { label: "Exceptions Flagged", value: "REVIEW_REQUIRED" },
+  { label: "Supplier Replied",   value: "SUPPLIER_RESPONDED" },
+  { label: "Awaiting Approval",  value: "PENDING_CARRIER_REVIEW" },
   { label: "Approved",           value: "APPROVED" },
-  { label: "Exported",           value: "EXPORTED" },
+  { label: "Paid",               value: "EXPORTED" },
 ] as const;
 
 type StatusTab = (typeof STATUS_TABS)[number]["value"];

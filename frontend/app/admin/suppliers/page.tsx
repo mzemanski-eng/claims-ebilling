@@ -719,7 +719,7 @@ export default function AdminSuppliersPage() {
         <div className="flex items-center gap-3">
           <Button onClick={() => setShowNewSupplier(true)}>+ New Supplier</Button>
           <Link href="/admin/invoices" className="text-sm font-medium text-blue-600 hover:text-blue-800">
-            ← Invoice Queue
+            ← All Invoices
           </Link>
         </div>
       </div>

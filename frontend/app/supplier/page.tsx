@@ -42,12 +42,12 @@ const STATUS_GROUPS = {
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT:                  "Draft",
-  SUBMITTED:              "Submitted",
-  PROCESSING:             "Processing",
+  SUBMITTED:              "Validating",
+  PROCESSING:             "Validating",
   REVIEW_REQUIRED:        "Action Required",
   SUPPLIER_RESPONDED:     "Response Submitted",
   PENDING_CARRIER_REVIEW: "Under Carrier Review",
-  CARRIER_REVIEWING:      "Carrier Reviewing",
+  CARRIER_REVIEWING:      "Under Carrier Review",
   APPROVED:               "Approved",
   DISPUTED:               "Disputed",
   EXPORTED:               "Payment Issued",

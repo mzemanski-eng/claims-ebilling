@@ -111,6 +111,19 @@ const STATUS_COLORS: Record<string, string> = {
   SUBMITTED:              "#60A5FA",
 };
 
+const STATUS_FRIENDLY: Record<string, string> = {
+  REVIEW_REQUIRED:        "Exceptions Flagged",
+  PENDING_CARRIER_REVIEW: "Awaiting Approval",
+  CARRIER_REVIEWING:      "Awaiting Approval",
+  SUPPLIER_RESPONDED:     "Supplier Replied",
+  APPROVED:               "Approved",
+  DISPUTED:               "Disputed",
+  EXPORTED:               "Paid",
+  WITHDRAWN:              "Withdrawn",
+  SUBMITTED:              "AI Processing",
+  PROCESSING:             "AI Processing",
+};
+
 const EXCEPTION_COLORS: Record<string, string> = {
   RATE:           "#EF4444",
   GUIDELINE:      "#F97316",
@@ -581,7 +594,7 @@ export default function AdminAnalyticsPage() {
     .filter((s) => s.status !== "DRAFT" && s.status !== "PROCESSING" && s.count > 0)
     .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status))
     .map((s) => ({
-      status: s.status.replace(/_/g, " "),
+      status: STATUS_FRIENDLY[s.status] ?? s.status.replace(/_/g, " "),
       count: s.count,
       fill: STATUS_COLORS[s.status] ?? "#9CA3AF",
     }));

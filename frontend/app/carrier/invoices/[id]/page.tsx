@@ -219,7 +219,7 @@ export default function CarrierInvoiceReviewPage({
       {/* Breadcrumb */}
       <div className="text-sm text-gray-500">
         <Link href="/carrier/queue" className="hover:text-blue-600">
-          Review Queue
+          Action Required
         </Link>
         <span className="mx-2">›</span>
         <span className="text-gray-900 font-medium">
