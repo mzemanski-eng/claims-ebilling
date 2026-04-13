@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -15,6 +15,7 @@ import type {
   ClassificationQueueItem,
   ClassificationStats,
 } from "@/lib/types";
+import { DOMAIN_LABELS, TAXONOMY_OPTIONS } from "@/lib/taxonomy";
 import { StatusBadge } from "@/components/status-badge";
 import { useToast } from "@/components/toast";
 
@@ -69,13 +70,49 @@ interface InlineClassifyFormProps {
   isApproving: boolean;
 }
 
+/** Derive billing_component from a taxonomy code (last dot-separated segment). */
+function billingComponentFromCode(code: string): string {
+  const parts = code.split(".");
+  return parts[parts.length - 1] ?? "";
+}
+
 function InlineClassifyForm({ item, onApprove, onReject, isApproving }: InlineClassifyFormProps) {
   const [code, setCode] = useState(item.ai_proposed_code ?? "");
   const [component, setComponent] = useState(item.ai_proposed_billing_component ?? "");
   const [notes, setNotes] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const isAiMatch = code.trim() !== "" && code.trim() === item.ai_proposed_code;
   const isDirty = code.trim() !== "" && code.trim() !== item.ai_proposed_code;
+
+  // Filter taxonomy options by partial code or label match
+  const suggestions = useMemo(() => {
+    const q = code.trim().toLowerCase();
+    if (!q) return TAXONOMY_OPTIONS.slice(0, 12);
+    return TAXONOMY_OPTIONS.filter(
+      (t) =>
+        t.code.toLowerCase().includes(q) ||
+        t.label.toLowerCase().includes(q) ||
+        t.domain.toLowerCase().includes(q),
+    ).slice(0, 12);
+  }, [code]);
+
+  function selectOption(opt: { code: string; billing_component?: string | null }) {
+    const bc = opt.billing_component ?? billingComponentFromCode(opt.code);
+    setCode(opt.code);
+    setComponent(bc);
+    setShowDropdown(false);
+    inputRef.current?.blur();
+  }
+
+  // All AI suggestions (primary + alternatives) as a flat array for quick-pick chips
+  const aiChips = [
+    ...(item.ai_proposed_code
+      ? [{ code: item.ai_proposed_code, billing_component: item.ai_proposed_billing_component, confidence: item.ai_confidence, isPrimary: true }]
+      : []),
+    ...(item.ai_alternatives ?? []).map((a) => ({ ...a, isPrimary: false })),
+  ];
 
   return (
     <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
@@ -83,61 +120,79 @@ function InlineClassifyForm({ item, onApprove, onReject, isApproving }: InlineCl
         Classify This Line
       </p>
 
-      {/* AI alternatives quick-pick chips */}
-      {item.ai_alternatives && item.ai_alternatives.length > 0 && (
+      {/* AI suggestion chips — shown when AI gave proposals */}
+      {aiChips.length > 0 ? (
         <div className="mb-3">
           <p className="mb-1.5 text-xs text-gray-400">AI suggestions — click to select:</p>
           <div className="flex flex-wrap gap-1.5">
-            {/* Primary proposal first */}
-            {item.ai_proposed_code && (
+            {aiChips.map((chip) => (
               <button
                 type="button"
-                onClick={() => { setCode(item.ai_proposed_code!); setComponent(item.ai_proposed_billing_component ?? ""); }}
-                className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
-                  code === item.ai_proposed_code
-                    ? "border-blue-500 bg-blue-100 text-blue-700"
-                    : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
-                }`}
-              >
-                ✦ {item.ai_proposed_code}
-                {item.ai_confidence && (
-                  <span className="ml-1 font-normal opacity-70">({Math.round(parseFloat(item.ai_confidence) * 100)}%)</span>
-                )}
-              </button>
-            )}
-            {item.ai_alternatives.map((alt) => (
-              <button
-                type="button"
-                key={alt.code}
-                onClick={() => { setCode(alt.code); setComponent(alt.billing_component ?? ""); }}
+                key={chip.code}
+                onClick={() => selectOption(chip)}
                 className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                  code === alt.code
-                    ? "border-blue-500 bg-blue-50 text-blue-700 font-semibold"
+                  code === chip.code
+                    ? "border-blue-500 bg-blue-100 text-blue-700 font-semibold"
+                    : chip.isPrimary
+                    ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
                     : "border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50"
                 }`}
               >
-                {alt.code}
-                {alt.confidence && <span className="ml-1 text-gray-400">({alt.confidence})</span>}
+                {chip.isPrimary && <span className="mr-1">✦</span>}
+                {chip.code}
+                {chip.confidence && (
+                  <span className="ml-1 font-normal opacity-60">
+                    ({typeof chip.confidence === "string" && chip.confidence.includes(".")
+                      ? `${Math.round(parseFloat(chip.confidence) * 100)}%`
+                      : chip.confidence})
+                  </span>
+                )}
               </button>
             ))}
           </div>
         </div>
+      ) : (
+        <div className="mb-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          No AI suggestion for this item — search the taxonomy below or push back to the supplier.
+        </div>
       )}
 
-      {/* Inputs */}
+      {/* Taxonomy code — searchable combobox */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
+        <div className="relative">
           <label className="mb-1 block text-xs font-medium text-gray-600">
             Taxonomy Code *
           </label>
           <input
+            ref={inputRef}
             type="text"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder={item.ai_proposed_code ?? "e.g. ALE_PROF_FEE"}
+            onChange={(e) => { setCode(e.target.value); setShowDropdown(true); if (!component || component === billingComponentFromCode(code)) setComponent(billingComponentFromCode(e.target.value)); }}
+            onFocus={() => setShowDropdown(true)}
+            onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+            placeholder="Search or type a code…"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            autoComplete="off"
           />
+          {/* Dropdown */}
+          {showDropdown && suggestions.length > 0 && (
+            <div className="absolute z-20 mt-1 max-h-52 w-80 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+              {suggestions.map((opt) => (
+                <button
+                  key={opt.code}
+                  type="button"
+                  onMouseDown={() => selectOption({ code: opt.code, billing_component: billingComponentFromCode(opt.code) })}
+                  className="flex w-full flex-col px-3 py-2 text-left hover:bg-blue-50"
+                >
+                  <span className="font-mono text-xs font-semibold text-blue-700">{opt.code}</span>
+                  <span className="text-xs text-gray-500">{opt.label} · <span className="text-gray-400">{DOMAIN_LABELS[opt.domain] ?? opt.domain}</span></span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Billing component — auto-filled from taxonomy, editable for overrides */}
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">
             Billing Component *
@@ -146,7 +201,7 @@ function InlineClassifyForm({ item, onApprove, onReject, isApproving }: InlineCl
             type="text"
             value={component}
             onChange={(e) => setComponent(e.target.value)}
-            placeholder={item.ai_proposed_billing_component ?? "e.g. PROF_FEE"}
+            placeholder="e.g. PROF_FEE"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
         </div>
@@ -158,9 +213,6 @@ function InlineClassifyForm({ item, onApprove, onReject, isApproving }: InlineCl
       )}
       {isDirty && (
         <p className="mt-1.5 text-xs text-amber-600">⚠ Overriding AI proposal — CARRIER_OVERRIDE mapping rule will be created.</p>
-      )}
-      {!item.ai_proposed_code && !code && (
-        <p className="mt-1.5 text-xs text-gray-400">No AI proposal for this line — enter a taxonomy code manually above.</p>
       )}
 
       {/* Notes */}
@@ -384,21 +436,29 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole, isApproving
           {formatDate(item.created_at)}
         </td>
 
-        {/* Actions — expand hint + invoice link only; classify form lives in expanded row */}
+        {/* Actions */}
         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-2">
             {isActionable && (
-              <span className="text-xs text-gray-400">
-                {expanded ? "▲ collapse" : "▼ classify"}
-              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                  expanded
+                    ? "border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                {expanded ? "Close" : "Classify"}
+              </button>
             )}
             {item.invoice_id && (
               <Link
                 href={`/carrier/invoices/${item.invoice_id}`}
-                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 transition-colors"
+                title="View invoice"
+                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors"
                 onClick={(e) => e.stopPropagation()}
               >
-                Invoice →
+                Invoice ↗
               </Link>
             )}
           </div>
