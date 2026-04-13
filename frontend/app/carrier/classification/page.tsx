@@ -60,143 +60,141 @@ const TAB_LABELS: Record<Tab, string> = {
   REJECTED: "Rejected",
 };
 
-// ── Approve modal ─────────────────────────────────────────────────────────────
+// ── Inline classify form (shown in the expanded row) ─────────────────────────
 
-interface ApproveModalProps {
+interface InlineClassifyFormProps {
   item: ClassificationQueueItem;
-  onConfirm: (code: string, component: string, notes: string) => void;
-  onCancel: () => void;
-  isPending: boolean;
+  onApprove: (code: string, component: string, notes: string) => void;
+  onReject: () => void;
+  isApproving: boolean;
 }
 
-function ApproveModal({ item, onConfirm, onCancel, isPending }: ApproveModalProps) {
+function InlineClassifyForm({ item, onApprove, onReject, isApproving }: InlineClassifyFormProps) {
   const [code, setCode] = useState(item.ai_proposed_code ?? "");
-  const [component, setComponent] = useState(
-    item.ai_proposed_billing_component ?? "",
-  );
+  const [component, setComponent] = useState(item.ai_proposed_billing_component ?? "");
   const [notes, setNotes] = useState("");
 
-  const isAiMatch =
-    code.trim() !== "" &&
-    code.trim() === item.ai_proposed_code;
+  const isAiMatch = code.trim() !== "" && code.trim() === item.ai_proposed_code;
+  const isDirty = code.trim() !== "" && code.trim() !== item.ai_proposed_code;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-        <h2 className="text-lg font-bold text-gray-900">Confirm Taxonomy Code</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Approving will classify this line, run bill audit, and create a mapping
-          rule so future similar lines auto-classify.
-        </p>
+    <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Classify This Line
+      </p>
 
-        {/* Line snapshot */}
-        <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
-          <p className="font-medium text-gray-800 leading-snug">{item.raw_description}</p>
-          <p className="mt-0.5 text-gray-500">{formatMoney(item.raw_amount)} · {item.supplier_name ?? "—"}</p>
-        </div>
-
-        {/* AI alternatives quick-pick */}
-        {item.ai_alternatives && item.ai_alternatives.length > 0 && (
-          <div className="mt-4">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-              AI Alternatives
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {item.ai_alternatives.map((alt) => (
-                <button
-                  key={alt.code}
-                  onClick={() => {
-                    setCode(alt.code);
-                    setComponent(alt.billing_component ?? "");
-                  }}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                    code === alt.code
-                      ? "border-blue-500 bg-blue-50 text-blue-700 font-semibold"
-                      : "border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50"
-                  }`}
-                >
-                  {alt.code}
-                  {alt.confidence && (
-                    <span className="ml-1 text-gray-400">
-                      ({alt.confidence})
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Code inputs */}
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">
-              Taxonomy Code *
-            </label>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={item.ai_proposed_code ?? "e.g. ALE_PROF_FEE"}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">
-              Billing Component *
-            </label>
-            <input
-              type="text"
-              value={component}
-              onChange={(e) => setComponent(e.target.value)}
-              placeholder={item.ai_proposed_billing_component ?? "e.g. PROF_FEE"}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
+      {/* AI alternatives quick-pick chips */}
+      {item.ai_alternatives && item.ai_alternatives.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-1.5 text-xs text-gray-400">AI suggestions — click to select:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {/* Primary proposal first */}
+            {item.ai_proposed_code && (
+              <button
+                type="button"
+                onClick={() => { setCode(item.ai_proposed_code!); setComponent(item.ai_proposed_billing_component ?? ""); }}
+                className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
+                  code === item.ai_proposed_code
+                    ? "border-blue-500 bg-blue-100 text-blue-700"
+                    : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+                }`}
+              >
+                ✦ {item.ai_proposed_code}
+                {item.ai_confidence && (
+                  <span className="ml-1 font-normal opacity-70">({Math.round(parseFloat(item.ai_confidence) * 100)}%)</span>
+                )}
+              </button>
+            )}
+            {item.ai_alternatives.map((alt) => (
+              <button
+                type="button"
+                key={alt.code}
+                onClick={() => { setCode(alt.code); setComponent(alt.billing_component ?? ""); }}
+                className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                  code === alt.code
+                    ? "border-blue-500 bg-blue-50 text-blue-700 font-semibold"
+                    : "border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50"
+                }`}
+              >
+                {alt.code}
+                {alt.confidence && <span className="ml-1 text-gray-400">({alt.confidence})</span>}
+              </button>
+            ))}
           </div>
         </div>
+      )}
 
-        {isAiMatch && (
-          <p className="mt-2 text-xs text-green-600">
-            ✓ Confirming the AI&apos;s suggestion — a CARRIER_CONFIRMED mapping rule will be created.
-          </p>
-        )}
-        {!isAiMatch && code.trim() !== "" && (
-          <p className="mt-2 text-xs text-amber-600">
-            ⚠ Code differs from AI proposal — a CARRIER_OVERRIDE mapping rule will be created.
-          </p>
-        )}
-
-        {/* Notes */}
-        <div className="mt-3">
+      {/* Inputs */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">
-            Notes (optional)
+            Taxonomy Code *
           </label>
-          <textarea
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional rationale for this classification decision…"
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={item.ai_proposed_code ?? "e.g. ALE_PROF_FEE"}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
         </div>
-
-        {/* Actions */}
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            disabled={isPending}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onConfirm(code.trim(), component.trim(), notes)}
-            disabled={isPending || !code.trim() || !component.trim()}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {isPending ? "Approving…" : "Approve"}
-          </button>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Billing Component *
+          </label>
+          <input
+            type="text"
+            value={component}
+            onChange={(e) => setComponent(e.target.value)}
+            placeholder={item.ai_proposed_billing_component ?? "e.g. PROF_FEE"}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
         </div>
+      </div>
+
+      {/* Provenance hint */}
+      {isAiMatch && (
+        <p className="mt-1.5 text-xs text-green-600">✓ Confirming AI suggestion — CARRIER_CONFIRMED mapping rule will be created.</p>
+      )}
+      {isDirty && (
+        <p className="mt-1.5 text-xs text-amber-600">⚠ Overriding AI proposal — CARRIER_OVERRIDE mapping rule will be created.</p>
+      )}
+      {!item.ai_proposed_code && !code && (
+        <p className="mt-1.5 text-xs text-gray-400">No AI proposal for this line — enter a taxonomy code manually above.</p>
+      )}
+
+      {/* Notes */}
+      <div className="mt-3">
+        <label className="mb-1 block text-xs font-medium text-gray-600">
+          Notes (optional)
+        </label>
+        <textarea
+          rows={2}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Optional rationale for this classification decision…"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onApprove(code.trim(), component.trim(), notes)}
+          disabled={isApproving || !code.trim() || !component.trim()}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {isApproving ? "Approving…" : "✓ Approve & Classify"}
+        </button>
+        <button
+          type="button"
+          onClick={onReject}
+          disabled={isApproving}
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+        >
+          Reject & Deny
+        </button>
       </div>
     </div>
   );
@@ -303,12 +301,13 @@ function StatsHeader({ stats }: { stats: ClassificationStats }) {
 
 interface RowProps {
   item: ClassificationQueueItem;
-  onApprove: (item: ClassificationQueueItem) => void;
+  onApprove: (item: ClassificationQueueItem, code: string, component: string, notes: string) => void;
   onReject: (item: ClassificationQueueItem) => void;
   isWriteRole: boolean;
+  isApproving: boolean;
 }
 
-function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps) {
+function ClassificationRow({ item, onApprove, onReject, isWriteRole, isApproving }: RowProps) {
   const [expanded, setExpanded] = useState(false);
   const isActionable =
     isWriteRole &&
@@ -385,33 +384,24 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps)
           {formatDate(item.created_at)}
         </td>
 
-        {/* Actions */}
+        {/* Actions — expand hint + invoice link only; classify form lives in expanded row */}
         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-          {isActionable && (
-            <div className="flex items-center justify-end gap-1.5">
-              <button
-                onClick={() => onApprove(item)}
-                className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+          <div className="flex items-center justify-end gap-1.5">
+            {isActionable && (
+              <span className="text-xs text-gray-400">
+                {expanded ? "▲ collapse" : "▼ classify"}
+              </span>
+            )}
+            {item.invoice_id && (
+              <Link
+                href={`/carrier/invoices/${item.invoice_id}`}
+                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 transition-colors"
+                onClick={(e) => e.stopPropagation()}
               >
-                Approve
-              </button>
-              <button
-                onClick={() => onReject(item)}
-                className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
-              >
-                Reject
-              </button>
-            </div>
-          )}
-          {item.invoice_id && (
-            <Link
-              href={`/carrier/invoices/${item.invoice_id}`}
-              className="ml-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 transition-colors"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Invoice →
-            </Link>
-          )}
+                Invoice →
+              </Link>
+            )}
+          </div>
         </td>
       </tr>
 
@@ -518,6 +508,16 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps)
                 </div>
               )}
             </div>
+
+            {/* Inline classify form — only for actionable items */}
+            {isActionable && (
+              <InlineClassifyForm
+                item={item}
+                isApproving={isApproving}
+                onApprove={(code, component, notes) => onApprove(item, code, component, notes)}
+                onReject={() => onReject(item)}
+              />
+            )}
           </td>
         </tr>
       )}
@@ -538,8 +538,7 @@ function ClassificationQueueContent() {
 
   const [activeTab, setActiveTab] = useState<Tab>("PENDING");
   const [tabInitialized, setTabInitialized] = useState(false);
-  const [approvingItem, setApprovingItem] =
-    useState<ClassificationQueueItem | null>(null);
+  const [approvingItemId, setApprovingItemId] = useState<string | null>(null);
   const [rejectingItem, setRejectingItem] =
     useState<ClassificationQueueItem | null>(null);
 
@@ -576,7 +575,7 @@ function ClassificationQueueContent() {
     refetchInterval: 30_000,
   });
 
-  // Approve mutation
+  // Approve mutation — called directly from the inline form; no modal needed
   const approveMut = useMutation({
     mutationFn: ({
       itemId,
@@ -595,19 +594,17 @@ function ClassificationQueueContent() {
         review_notes: notes || null,
       }),
     onSuccess: (result) => {
-      setApprovingItem(null);
+      setApprovingItemId(null);
       qc.invalidateQueries({ queryKey: ["classification-queue"] });
       qc.invalidateQueries({ queryKey: ["classification-stats"] });
       const auditNote =
         result.bill_audit_result === "EXCEPTION"
           ? " Bill audit found exceptions — invoice may move to review."
           : "";
-      toast.success(
-        `Classified as '${result.approved_code}'.${auditNote}`,
-      );
+      toast.success(`Classified as '${result.approved_code}'.${auditNote}`);
     },
     onError: (err: Error) => {
-      setApprovingItem(null);
+      setApprovingItemId(null);
       toast.error("Could not approve item", err.message);
     },
   });
@@ -818,35 +815,22 @@ function ClassificationQueueContent() {
                 <ClassificationRow
                   key={item.id}
                   item={item}
-                  onApprove={setApprovingItem}
+                  onApprove={(it, code, component, notes) => {
+                    setApprovingItemId(it.id);
+                    approveMut.mutate({ itemId: it.id, code, component, notes });
+                  }}
                   onReject={setRejectingItem}
                   isWriteRole={isWriteRole}
+                  isApproving={approvingItemId === item.id}
                 />
               ))}
             </tbody>
           </table>
           <div className="border-t border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-400">
             {items.length} item{items.length !== 1 ? "s" : ""} · Click a row to
-            expand AI reasoning
+            expand and classify
           </div>
         </div>
-      )}
-
-      {/* Approve modal */}
-      {approvingItem && (
-        <ApproveModal
-          item={approvingItem}
-          isPending={approveMut.isPending}
-          onCancel={() => setApprovingItem(null)}
-          onConfirm={(code, component, notes) =>
-            approveMut.mutate({
-              itemId: approvingItem.id,
-              code,
-              component,
-              notes,
-            })
-          }
-        />
       )}
 
       {/* Reject modal */}
