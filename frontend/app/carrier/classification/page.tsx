@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveClassificationItem,
+  bulkApproveClassificationItems,
   getClassificationStats,
   listClassificationQueue,
   rejectClassificationItem,
@@ -419,8 +420,31 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps)
         <tr className="bg-gray-50">
           <td colSpan={8} className="px-6 py-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {/* AI reasoning */}
-              {item.ai_reasoning && (
+
+              {/* Always-visible: full description + line context */}
+              <div className="sm:col-span-2 lg:col-span-1">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Full Description
+                </p>
+                <p className="text-sm text-gray-800 leading-relaxed">
+                  {item.raw_description}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  {item.invoice_number && (
+                    <span>Invoice: <span className="font-medium text-gray-700">{item.invoice_number}</span></span>
+                  )}
+                  {item.line_number != null && (
+                    <span>Line: <span className="font-medium text-gray-700">{item.line_number}</span></span>
+                  )}
+                  {item.supplier_name && (
+                    <span>Supplier: <span className="font-medium text-gray-700">{item.supplier_name}</span></span>
+                  )}
+                  <span>Amount: <span className="font-medium text-gray-700">{formatMoney(String(item.raw_amount))}</span></span>
+                </div>
+              </div>
+
+              {/* AI reasoning (when available) */}
+              {item.ai_reasoning ? (
                 <div>
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
                     AI Reasoning
@@ -429,9 +453,20 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps)
                     {item.ai_reasoning}
                   </p>
                 </div>
+              ) : (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    AI Proposal
+                  </p>
+                  <p className="text-sm text-red-500 font-medium">No AI proposal available</p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    This line fell below the AI confidence threshold. Enter a taxonomy
+                    code manually using the Approve button.
+                  </p>
+                </div>
               )}
 
-              {/* AI alternatives */}
+              {/* AI alternatives (when available) */}
               {item.ai_alternatives && item.ai_alternatives.length > 0 && (
                 <div>
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -473,7 +508,7 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps)
                 </div>
               )}
 
-              {/* Reviewed at */}
+              {/* Resolved timestamp */}
               {item.reviewed_at && (
                 <div>
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -593,7 +628,41 @@ function ClassificationQueueContent() {
     },
   });
 
+  // Bulk approve mutation — accepts all items with ai_proposed_code in the current view
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const bulkApproveMut = useMutation({
+    mutationFn: (ids: string[]) => bulkApproveClassificationItems(ids),
+    onSuccess: (result) => {
+      setShowBulkConfirm(false);
+      qc.invalidateQueries({ queryKey: ["classification-queue"] });
+      qc.invalidateQueries({ queryKey: ["classification-stats"] });
+      const exceptionNote =
+        result.bill_audit_exceptions > 0
+          ? ` ${result.bill_audit_exceptions} triggered billing exceptions.`
+          : "";
+      const skippedNote =
+        result.skipped > 0
+          ? ` ${result.skipped} item${result.skipped !== 1 ? "s" : ""} skipped (no AI proposal).`
+          : "";
+      toast.success(
+        `${result.approved} item${result.approved !== 1 ? "s" : ""} classified.${exceptionNote}${skippedNote}`,
+      );
+    },
+    onError: (err: Error) => {
+      setShowBulkConfirm(false);
+      toast.error("Bulk approve failed", err.message);
+    },
+  });
+
   const isWriteRole = true; // CARRIER_ADMIN; router guards enforce this
+
+  // Items that can be bulk-approved (have an AI proposal and are actionable)
+  const bulkApprovableItems =
+    items?.filter(
+      (i) =>
+        i.ai_proposed_code &&
+        (i.status === "PENDING" || i.status === "NEEDS_REVIEW"),
+    ) ?? [];
 
   return (
     <div>
@@ -666,6 +735,23 @@ function ClassificationQueueContent() {
           },
         )}
       </div>
+
+      {/* Approve All AI Proposals — shown when there are bulk-approvable items */}
+      {isWriteRole && bulkApprovableItems.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-green-100 bg-green-50 px-4 py-2.5">
+          <div className="text-sm text-green-800">
+            <span className="font-semibold">{bulkApprovableItems.length}</span>{" "}
+            item{bulkApprovableItems.length !== 1 ? "s" : ""} have AI proposals
+            ready to accept
+          </div>
+          <button
+            onClick={() => setShowBulkConfirm(true)}
+            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+          >
+            ✓ Approve All AI Proposals
+          </button>
+        </div>
+      )}
 
       {/* Loading */}
       {isLoading && (
@@ -773,6 +859,49 @@ function ClassificationQueueContent() {
             rejectMut.mutate({ itemId: rejectingItem.id, notes })
           }
         />
+      )}
+
+      {/* Bulk approve confirmation modal */}
+      {showBulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-gray-900">
+              Approve {bulkApprovableItems.length} AI Proposals?
+            </h2>
+            <p className="mt-2 text-sm text-gray-500">
+              Each item will be classified using its AI-proposed taxonomy code, a{" "}
+              <strong>CARRIER_CONFIRMED</strong> mapping rule will be created, and
+              bill audit will run on each line. This cannot be undone.
+            </p>
+            {bulkApprovableItems.length < (items?.length ?? 0) && (
+              <div className="mt-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                ⚠ {(items?.length ?? 0) - bulkApprovableItems.length} item
+                {(items?.length ?? 0) - bulkApprovableItems.length !== 1 ? "s" : ""} without
+                an AI proposal will be skipped and must be classified manually.
+              </div>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShowBulkConfirm(false)}
+                disabled={bulkApproveMut.isPending}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() =>
+                  bulkApproveMut.mutate(bulkApprovableItems.map((i) => i.id))
+                }
+                disabled={bulkApproveMut.isPending}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {bulkApproveMut.isPending
+                  ? "Approving…"
+                  : `✓ Approve ${bulkApprovableItems.length}`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

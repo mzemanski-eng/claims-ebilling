@@ -89,6 +89,14 @@ class ClassificationApproveResult(BaseSchema):
     message: str
 
 
+class ClassificationBulkApproveResult(BaseSchema):
+    """Response body after a bulk accept-AI-proposals action."""
+
+    approved: int  # items successfully approved using their ai_proposed_code
+    skipped: int  # items that had no ai_proposed_code and were left untouched
+    bill_audit_exceptions: int  # of the approved items, how many triggered an exception
+
+
 class ClassificationStats(BaseSchema):
     """Summary stats for the Classification Review screen header card."""
 

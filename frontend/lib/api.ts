@@ -928,6 +928,16 @@ export function getClassificationStats(): Promise<ClassificationStats> {
   return apiFetch<ClassificationStats>("/carrier/classification/stats");
 }
 
+/** Bulk-approve classification items using their AI proposed code. Skips items with no proposal. */
+export function bulkApproveClassificationItems(
+  itemIds: string[],
+): Promise<{ approved: number; skipped: number; bill_audit_exceptions: number }> {
+  return apiFetch("/carrier/classification/bulk-approve", {
+    method: "POST",
+    body: JSON.stringify(itemIds),
+  });
+}
+
 /** Approve a classification queue item (confirm taxonomy + run bill audit). */
 export function approveClassificationItem(
   itemId: string,

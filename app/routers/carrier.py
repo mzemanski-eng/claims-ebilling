@@ -54,6 +54,7 @@ from app.schemas.carrier import (
 from app.schemas.classification import (
     ClassificationApproveRequest,
     ClassificationApproveResult,
+    ClassificationBulkApproveResult,
     ClassificationQueueItemSummary,
     ClassificationRejectRequest,
     ClassificationStats,
@@ -520,6 +521,119 @@ def get_classification_stats(
         approved_today=approved_today,
         rejected_today=rejected_today,
         total_pending_amount=total_pending_amount,
+    )
+
+
+@router.post(
+    "/classification/bulk-approve",
+    response_model=ClassificationBulkApproveResult,
+    status_code=status.HTTP_200_OK,
+)
+def bulk_approve_classification_items(
+    item_ids: list[uuid.UUID],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(*_WRITE_ROLES)),
+) -> ClassificationBulkApproveResult:
+    """
+    Bulk-approve classification queue items using each item's ai_proposed_code.
+
+    Only items that have an ai_proposed_code are approved; items without one are
+    skipped (they require manual code entry via the single-approve endpoint).
+    All approved items are processed in one DB transaction.
+    """
+    now = datetime.now(timezone.utc)
+    approved_count = 0
+    skipped_count = 0
+    exception_count = 0
+
+    # Group invoices so we only recalculate status once per invoice at the end
+    affected_invoices: set[uuid.UUID] = set()
+
+    for item_id in item_ids:
+        item = db.get(ClassificationQueueItem, item_id)
+        if item is None:
+            skipped_count += 1
+            continue
+
+        # Silently skip items we can't auto-approve
+        if item.ai_proposed_code is None or item.ai_proposed_billing_component is None:
+            skipped_count += 1
+            continue
+
+        if item.status not in (
+            ClassificationQueueStatus.PENDING,
+            ClassificationQueueStatus.NEEDS_REVIEW,
+        ):
+            skipped_count += 1
+            continue
+
+        try:
+            _verify_classification_carrier_access(item, current_user, db)
+        except HTTPException:
+            skipped_count += 1
+            continue
+
+        line_item = db.get(LineItem, item.line_item_id)
+        if line_item is None:
+            skipped_count += 1
+            continue
+
+        invoice = db.get(Invoice, line_item.invoice_id)
+        if invoice is None:
+            skipped_count += 1
+            continue
+
+        # Classify the line
+        line_item.taxonomy_code = item.ai_proposed_code
+        line_item.billing_component = item.ai_proposed_billing_component
+        line_item.mapping_confidence = "HIGH"
+        line_item.mapping_rule_id = None
+        line_item.status = LineItemStatus.CLASSIFIED
+        db.flush()
+
+        # Record confirmed mapping
+        new_rule = record_confirmed_mapping(
+            db=db,
+            line_item=line_item,
+            taxonomy_code=item.ai_proposed_code,
+            billing_component=item.ai_proposed_billing_component,
+            source=ConfirmedBy.CARRIER_CONFIRMED,
+            user_id=current_user.id,
+            scope="this_supplier",
+            notes=None,
+        )
+
+        # Run bill audit
+        bill_audit_status = _run_post_classification_bill_audit(db, line_item, invoice)
+        if bill_audit_status == "EXCEPTION":
+            exception_count += 1
+
+        # Update queue item
+        item.status = ClassificationQueueStatus.APPROVED
+        item.reviewed_by_id = current_user.id
+        item.reviewed_at = now
+        item.approved_code = item.ai_proposed_code
+        item.approved_billing_component = item.ai_proposed_billing_component
+        if new_rule is not None:
+            item.created_mapping_rule_id = new_rule.id
+            line_item.mapping_rule_id = new_rule.id
+
+        db.flush()
+        affected_invoices.add(invoice.id)
+        approved_count += 1
+
+    # Recalculate invoice status once per affected invoice
+    for inv_id in affected_invoices:
+        inv = db.get(Invoice, inv_id)
+        if inv is not None:
+            _recalculate_invoice_status_after_classification(db, inv)
+
+    db.commit()
+
+    return ClassificationBulkApproveResult(
+        approved=approved_count,
+        skipped=skipped_count,
+        bill_audit_exceptions=exception_count,
     )
 
 
