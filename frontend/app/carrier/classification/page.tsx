@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -492,7 +492,7 @@ function ClassificationRow({ item, onApprove, onReject, isWriteRole }: RowProps)
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function ClassificationQueuePage() {
+function ClassificationQueueContent() {
   const qc = useQueryClient();
   const toast = useToast();
   const searchParams = useSearchParams();
@@ -775,5 +775,19 @@ export default function ClassificationQueuePage() {
         />
       )}
     </div>
+  );
+}
+
+// ── Page export — Suspense required for useSearchParams in Next.js 14 ─────────
+
+export default function ClassificationQueuePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+      </div>
+    }>
+      <ClassificationQueueContent />
+    </Suspense>
   );
 }
