@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -129,6 +129,8 @@ export default function CarrierInvoiceReviewPage({
   const [approvalNotes, setApprovalNotes] = useState("");
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [expandedLines, setExpandedLines] = useState<Set<string>>(new Set());
+  const [showIssuesOnly, setShowIssuesOnly] = useState(false);
+  const lineItemsRef = useRef<HTMLDivElement>(null);
 
   const { data: invoice, isLoading: invLoading } = useQuery({
     queryKey: ["carrier-invoice", id],
@@ -214,6 +216,23 @@ export default function CarrierInvoiceReviewPage({
     ? lines.filter((li) => li.status === "CLASSIFICATION_PENDING").length
     : 0;
 
+  // Lines with at least one open exception — used for the "issues only" filter
+  const issueLines = auditLines.filter((li) =>
+    li.exceptions.some(
+      (e) => e.status === "OPEN" || e.status === "SUPPLIER_RESPONDED",
+    ),
+  );
+  const displayedLines = showIssuesOnly ? issueLines : auditLines;
+
+  function jumpToIssues() {
+    setShowIssuesOnly(true);
+    setExpandedLines(new Set(issueLines.map((li) => li.id)));
+    setTimeout(
+      () => lineItemsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      50,
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Breadcrumb */}
@@ -236,10 +255,14 @@ export default function CarrierInvoiceReviewPage({
             </h1>
             <StatusBadge status={invoice.status} className="text-sm" />
             {openExceptionCount > 0 && (
-              <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">
+              <button
+                onClick={jumpToIssues}
+                title="Jump to open exceptions"
+                className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700 hover:bg-red-200 transition-colors cursor-pointer"
+              >
                 {openExceptionCount} open exception
-                {openExceptionCount > 1 ? "s" : ""}
-              </span>
+                {openExceptionCount > 1 ? "s" : ""} ↓
+              </button>
             )}
           </div>
 
@@ -337,10 +360,35 @@ export default function CarrierInvoiceReviewPage({
       )}
 
       {lines && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Line Items ({auditLines.length})
-          </h2>
+        <div ref={lineItemsRef}>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Line Items ({displayedLines.length}
+              {showIssuesOnly && ` of ${auditLines.length}`})
+            </h2>
+            {openExceptionCount > 0 && (
+              <button
+                onClick={() => {
+                  if (showIssuesOnly) {
+                    setShowIssuesOnly(false);
+                  } else {
+                    jumpToIssues();
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  showIssuesOnly
+                    ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                    : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                {showIssuesOnly ? (
+                  <>✕ Show all lines</>
+                ) : (
+                  <><span className="text-red-500">●</span> Show {openExceptionCount} issue{openExceptionCount !== 1 ? "s" : ""} only</>
+                )}
+              </button>
+            )}
+          </div>
           <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
@@ -356,7 +404,7 @@ export default function CarrierInvoiceReviewPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {auditLines.map((li) => {
+                {displayedLines.map((li) => {
                   const isPending = li.status === "CLASSIFICATION_PENDING";
                   const openExcs = li.exceptions.filter((e) => e.status === "OPEN" || e.status === "SUPPLIER_RESPONDED");
                   const expanded = expandedLines.has(li.id);
