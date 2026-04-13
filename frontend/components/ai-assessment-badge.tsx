@@ -45,23 +45,31 @@ export function AiAssessmentBadge({
 
   const config = SCORE_CONFIG[assessment.score] ?? SCORE_CONFIG.PARTIAL;
 
-  return (
-    <div className="flex flex-col gap-1">
-      <span
-        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${config.pill}`}
-        title={assessment.rationale}
-      >
+  if (showRationale && assessment.rationale) {
+    return (
+      <div className="flex items-start gap-3">
         <span
-          className={`inline-block h-1.5 w-1.5 rounded-full ${config.dot}`}
-        />
-        {config.label}
-      </span>
-      {showRationale && assessment.rationale && (
-        <p className="text-xs text-gray-500 leading-snug max-w-xs">
+          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${config.pill}`}
+          title={assessment.rationale}
+        >
+          <span className={`inline-block h-1.5 w-1.5 rounded-full ${config.dot}`} />
+          {config.label}
+        </span>
+        <p className="flex-1 text-xs text-gray-500 leading-snug">
           {assessment.rationale}
         </p>
-      )}
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${config.pill}`}
+      title={assessment.rationale}
+    >
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${config.dot}`} />
+      {config.label}
+    </span>
   );
 }
 
