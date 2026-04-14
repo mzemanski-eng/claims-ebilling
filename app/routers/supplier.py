@@ -449,6 +449,7 @@ def _build_validation_summary(
     rate_exceptions = 0
     guideline_exceptions = 0
     with_spend_exceptions = 0
+    duplicate_exceptions = 0
 
     for li in lines:
         # ── DENIED — carrier-final; excluded from all financial outcomes ──────
@@ -497,6 +498,9 @@ def _build_validation_summary(
                 elif v.validation_type == "GUIDELINE":
                     guideline_exceptions += 1
                     has_spend_fail = True
+                elif v.validation_type == "DUPLICATE":
+                    duplicate_exceptions += 1
+                    has_spend_fail = True
         if has_spend_fail:
             with_spend_exceptions += 1
 
@@ -516,6 +520,7 @@ def _build_validation_summary(
         rate_exceptions=rate_exceptions,
         guideline_exceptions=guideline_exceptions,
         lines_with_spend_exceptions=with_spend_exceptions,
+        duplicate_exceptions=duplicate_exceptions,
     )
 
 
@@ -531,21 +536,40 @@ def _to_line_item_supplier_view(li: LineItem) -> LineItemSupplierView:
         )
         for v in li.validation_results
     ]
-    exceptions = [
-        ExceptionSupplierView(
+    _TERMINAL_STATUSES = {"RESOLVED", "WAIVED"}
+
+    def _exception_supplier_view(exc) -> ExceptionSupplierView:
+        """
+        Build the supplier-facing exception view.
+
+        Resolution fields (resolution_action, resolution_notes) are always shown
+        once set — suppliers need to know the outcome of their line items.
+
+        AI deliberative fields (ai_reasoning, ai_recommendation) are shown only
+        for terminal exceptions (RESOLVED / WAIVED) to avoid leaking carrier
+        internal reasoning while a dispute is still active.
+        """
+        vr = exc.validation_result
+        is_terminal = exc.status in _TERMINAL_STATUSES
+        return ExceptionSupplierView(
             exception_id=exc.id,
             status=exc.status,
-            message=exc.validation_result.message if exc.validation_result else "",
-            severity=exc.validation_result.severity
-            if exc.validation_result
-            else "ERROR",
-            required_action=exc.validation_result.required_action
-            if exc.validation_result
-            else "NONE",
+            message=vr.message if vr else "",
+            severity=vr.severity if vr else "ERROR",
+            required_action=vr.required_action if vr else "NONE",
+            validation_type=vr.validation_type if vr else "RATE",
             supplier_response=exc.supplier_response,
+            resolution_action=exc.resolution_action,
+            resolution_notes=exc.resolution_notes,
+            # Only expose AI reasoning once the decision is final
+            ai_reasoning=exc.ai_reasoning if is_terminal else None,
+            ai_recommendation=exc.ai_recommendation if is_terminal else None,
+            ai_recommendation_accepted=exc.ai_recommendation_accepted
+            if is_terminal
+            else None,
         )
-        for exc in li.exceptions
-    ]
+
+    exceptions = [_exception_supplier_view(exc) for exc in li.exceptions]
     return LineItemSupplierView(
         id=li.id,
         line_number=li.line_number,

@@ -78,6 +78,7 @@ class ValidationSummary(BaseSchema):
     lines_with_spend_exceptions: int = (
         0  # lines with rate or guideline failures (timeline-facing)
     )
+    duplicate_exceptions: int = 0  # lines flagged as possible duplicate billing
 
 
 class InvoiceResponse(TimestampedSchema):
@@ -147,6 +148,9 @@ class ExceptionSupplierView(BaseSchema):
     supplier_response: Optional[str] = None
     resolution_action: Optional[str] = (
         None  # Set once carrier resolves (e.g. DENIED, WAIVED)
+    )
+    resolution_notes: Optional[str] = (
+        None  # Carrier's written reason (shown to supplier)
     )
 
     # ── AI exception resolver fields (set at pipeline time) ───────────────────

@@ -31,6 +31,8 @@ const REQUIRED_ACTION_TO_RESOLUTION: Record<string, string> = {
   DENIED: ResolutionActions.DENIED,
   RECLASSIFY: ResolutionActions.RECLASSIFIED,
   REQUEST_RECLASSIFICATION: ResolutionActions.RECLASSIFIED,
+  // Duplicate billing is always denied — the service was already paid
+  DUPLICATE_BILLING: ResolutionActions.DENIED,
 };
 
 const AI_REC_LABELS: Record<string, string> = {
@@ -233,9 +235,21 @@ function SupplierExceptionCard({
   const resolutionInfo = exception.resolution_action
     ? RESOLUTION_LABELS[exception.resolution_action]
     : null;
+  const isDuplicate = exception.required_action === "DUPLICATE_BILLING";
 
   return (
     <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+      {/* Duplicate billing warning banner */}
+      {isDuplicate && (
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+          <span className="shrink-0 text-amber-600">⚠</span>
+          <span className="text-amber-800 font-medium">
+            Possible duplicate billing — this service may have already been paid
+            on a previous invoice. Review the exception details below.
+          </span>
+        </div>
+      )}
+
       {/* Carrier decision banner — shown prominently once the carrier has resolved */}
       {hasResolution && resolutionInfo && (
         <div
@@ -255,6 +269,26 @@ function SupplierExceptionCard({
       <p className="mt-1 text-sm font-medium text-gray-800">
         {exception.message}
       </p>
+
+      {/* Reason — AI reasoning shown once the exception is resolved (terminal only) */}
+      {exception.ai_reasoning && (
+        <div className="mt-2 rounded-md border border-gray-200 bg-white px-3 py-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+            Reason
+          </p>
+          <p className="text-sm text-gray-700">{exception.ai_reasoning}</p>
+        </div>
+      )}
+
+      {/* Carrier notes — the human-written resolution reason */}
+      {exception.resolution_notes && (
+        <div className="mt-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
+          <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-0.5">
+            Carrier notes
+          </p>
+          <p className="text-sm text-blue-800">{exception.resolution_notes}</p>
+        </div>
+      )}
 
       {exception.supplier_response && (
         <p className="mt-2 text-sm text-gray-600 italic">

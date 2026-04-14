@@ -42,6 +42,7 @@ export interface ValidationSummary {
   rate_exceptions: number;
   guideline_exceptions: number;
   lines_with_spend_exceptions: number; // lines with rate or guideline failures (timeline-facing)
+  duplicate_exceptions: number; // lines flagged as possible duplicate billing
 }
 
 export interface InvoiceListItem {
@@ -395,6 +396,8 @@ export interface ExceptionView {
   validation_type: string; // RATE | GUIDELINE | CLASSIFICATION
   supplier_response: string | null;
   resolution_action: string | null;
+  /** Carrier's written reason for the resolution (shown to supplier). */
+  resolution_notes: string | null;
   /** AI-suggested resolution action (a ResolutionAction constant). Null until processed. */
   ai_recommendation: string | null;
   /** AI explanation shown to carrier. Null until processed. */

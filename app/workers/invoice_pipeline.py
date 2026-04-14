@@ -63,6 +63,7 @@ from app.services.notifications.email import (
     notify_invoice_approved,
     notify_invoice_flagged,
 )
+from app.services.validation.duplicate_detector import DuplicateDetector
 from app.services.validation.guideline_validator import GuidelineValidator
 from app.services.validation.rate_validator import RateValidator
 from app.settings import settings
@@ -295,6 +296,7 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     classifier = Classifier(db)
     rate_validator = RateValidator(db)
     guideline_validator = GuidelineValidator()
+    duplicate_detector = DuplicateDetector(db)
 
     # ── Process each line item ────────────────────────────────────────────────
     error_count = 0
@@ -307,6 +309,9 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
     pass_count = 0
     total_expected = 0
     processed_lines: list = []
+    # Accumulates match keys (claim_number, taxonomy_code, service_date) seen on
+    # this invoice so within-invoice duplicate billing can be detected.
+    duplicate_seen_keys: set = set()
 
     for raw_item in parse_result.line_items:
         line_item, item_errors, item_spend_errors, item_warnings, item_expected = (
@@ -319,6 +324,8 @@ def _run_pipeline(db, invoice, parse_result) -> dict:
                 classifier=classifier,
                 rate_validator=rate_validator,
                 guideline_validator=guideline_validator,
+                duplicate_detector=duplicate_detector,
+                duplicate_seen_keys=duplicate_seen_keys,
                 vertical=vertical,
             )
         )
@@ -621,6 +628,8 @@ def _process_line(
     classifier,
     rate_validator,
     guideline_validator,
+    duplicate_detector,
+    duplicate_seen_keys: set,
     vertical: str = "default",
 ) -> tuple[LineItem, int, int, int, float]:
     """
@@ -916,6 +925,36 @@ def _process_line(
             spend_error_count += 1
         elif guide_result.status == ValidationStatus.WARNING:
             warning_count += 1
+
+    # ── Duplicate billing check ────────────────────────────────────────────────
+    # Run after guideline validation so the line has a confirmed taxonomy_code.
+    # CLASSIFICATION_PENDING lines exit early above (return at line ~808) so
+    # this block is only reached for lines with a resolved taxonomy.
+    dup_results = duplicate_detector.check(line_item, invoice, duplicate_seen_keys)
+    for dup_result in dup_results:
+        dup_val = ValidationResult(
+            line_item_id=line_item.id,
+            validation_type=dup_result.validation_type,
+            status=dup_result.status,
+            severity=dup_result.severity,
+            message=dup_result.message,
+            expected_value=dup_result.expected_value,
+            actual_value=dup_result.actual_value,
+            required_action=dup_result.required_action,
+        )
+        db.add(dup_val)
+        db.flush()
+
+        exc_record = ExceptionRecord(
+            line_item_id=line_item.id,
+            validation_result_id=dup_val.id,
+            status=ExceptionStatus.OPEN,
+        )
+        db.add(exc_record)
+        db.flush()
+        audit.log_line_item_exception_opened(db, line_item, dup_result)
+        error_count += 1
+        spend_error_count += 1  # duplicate = spend error → REVIEW_REQUIRED
 
     # ── Set final line item status ─────────────────────────────────────────────
     line_item.status = (

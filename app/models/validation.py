@@ -24,6 +24,9 @@ class ValidationType:
     RATE = "RATE"
     GUIDELINE = "GUIDELINE"
     CLASSIFICATION = "CLASSIFICATION"  # e.g. UNRECOGNIZED_SERVICE
+    DUPLICATE = (
+        "DUPLICATE"  # Same claim/taxonomy/date billed on a previously-paid invoice
+    )
 
 
 class ValidationStatus:
@@ -56,6 +59,9 @@ class RequiredAction:
     # Invoice cannot be validated until a contract is executed.
     # Carrier action: execute a contract; deny or hold the invoice.
     NO_ACTIVE_CONTRACT = "NO_ACTIVE_CONTRACT"
+    # Line item matches a previously-approved, paid line (same claim + taxonomy + service date).
+    # Carrier action: deny — this service has already been paid.
+    DUPLICATE_BILLING = "DUPLICATE_BILLING"
 
 
 class ExceptionStatus:
