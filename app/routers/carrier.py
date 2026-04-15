@@ -61,6 +61,7 @@ from app.schemas.classification import (
 )
 from app.schemas.invoice import InvoiceListItem, InvoiceResponse, LineItemCarrierView
 from app.services.audit import logger as audit
+from app.services.notifications.email import notify_invoice_exported
 from app.services.classification.mapping_learner import record_confirmed_mapping
 from app.services.validation.guideline_validator import GuidelineValidator
 from app.services.validation.rate_validator import RateValidator
@@ -403,6 +404,9 @@ def export_carrier_invoice(
         actor_id=current_user.id,
     )
     db.commit()
+
+    # Notify supplier users that payment has been exported (non-blocking)
+    notify_invoice_exported(db, invoice)
 
     csv_bytes = output.getvalue().encode("utf-8")
     filename = (

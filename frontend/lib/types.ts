@@ -408,6 +408,10 @@ export interface ExceptionView {
   ai_response_reasoning: string | null;
   /** Whether the carrier accepted the AI recommendation. Null if no AI rec existed. */
   ai_recommendation_accepted: boolean | null;
+  /** ISO datetime when the exception was first opened (pipeline time). */
+  created_at: string;
+  /** ISO datetime when the carrier resolved the exception. Null if still open. */
+  resolved_at: string | null;
 }
 
 // ── Line Items ────────────────────────────────────────────────────────────────

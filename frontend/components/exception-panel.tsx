@@ -296,6 +296,55 @@ function SupplierExceptionCard({
         </p>
       )}
 
+      {/* AI response assessment — shown only while the carrier is still reviewing.
+          Hidden once RESOLVED/WAIVED so the final resolution label speaks for itself. */}
+      {exception.ai_response_assessment &&
+        (exception.status === "SUPPLIER_RESPONDED" ||
+          exception.status === "CARRIER_REVIEWING") && (() => {
+          const assessmentConfig: Record<
+            string,
+            { icon: string; label: string; color: string }
+          > = {
+            SUFFICIENT: {
+              icon: "✓",
+              label: "Your explanation was accepted by the initial review",
+              color: "border-green-200 bg-green-50 text-green-800",
+            },
+            PARTIAL: {
+              icon: "◐",
+              label:
+                "Your explanation was partially accepted — the carrier will make the final call",
+              color: "border-amber-200 bg-amber-50 text-amber-800",
+            },
+            INSUFFICIENT: {
+              icon: "⚠",
+              label:
+                "Your explanation may need more detail — the carrier will review",
+              color: "border-amber-200 bg-amber-50 text-amber-800",
+            },
+          };
+          const cfg = assessmentConfig[exception.ai_response_assessment];
+          if (!cfg) return null;
+          return (
+            <div
+              className={`mt-2 rounded-md border px-3 py-2 text-sm ${cfg.color}`}
+            >
+              <p className="font-medium">
+                <span className="mr-1.5">{cfg.icon}</span>
+                {cfg.label}
+              </p>
+              {exception.ai_response_reasoning && (
+                <p className="mt-1 text-xs italic opacity-80">
+                  {exception.ai_response_reasoning}
+                </p>
+              )}
+              <p className="mt-1 text-xs opacity-60">
+                AI initial assessment · The carrier&apos;s decision is final
+              </p>
+            </div>
+          );
+        })()}
+
       {/* Response textarea — hidden when the carrier has already resolved this exception */}
       {isOpen && !hasResolution && (
         <div className="mt-3 flex flex-col gap-2 border-t border-orange-200 pt-3 sm:flex-row sm:items-end">

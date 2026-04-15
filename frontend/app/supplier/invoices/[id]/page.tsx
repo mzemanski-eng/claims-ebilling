@@ -7,7 +7,9 @@ import { StatusBadge } from "@/components/status-badge";
 import { ValidationSummaryCard } from "@/components/validation-summary-card";
 import { SupplierExceptionPanel } from "@/components/exception-panel";
 import { InvoiceStatusBanner } from "@/components/invoice-status-banner";
-import { InvoiceProgressStepper } from "@/components/invoice-progress-stepper";
+import { SupplierTimeline } from "@/components/supplier-timeline";
+import { useState } from "react";
+import type { LineItemSupplierView } from "@/lib/types";
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -17,6 +19,169 @@ function formatDate(iso: string | null) {
     year: "numeric",
   });
 }
+
+// ── Per-line payment breakdown ────────────────────────────────────────────────
+
+function PaymentBreakdown({
+  lines,
+  invoiceStatus,
+  defaultOpen,
+}: {
+  lines: LineItemSupplierView[];
+  invoiceStatus: string;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const isConfirmed = invoiceStatus === "APPROVED" || invoiceStatus === "EXPORTED";
+
+  function getRowData(li: LineItemSupplierView): {
+    payable: number | null;
+    chipLabel: string;
+    chipClasses: string;
+  } {
+    const hasOpenExceptions = li.exceptions.some((e) => e.status === "OPEN");
+
+    if (li.status === "DENIED") {
+      return { payable: 0, chipLabel: "Denied", chipClasses: "bg-red-100 text-red-700" };
+    }
+    if (li.status === "CLASSIFICATION_PENDING") {
+      return { payable: null, chipLabel: "Under Review", chipClasses: "bg-gray-100 text-gray-600" };
+    }
+    if (li.status === "OVERRIDE") {
+      return {
+        payable: li.expected_amount ? parseFloat(li.expected_amount) : null,
+        chipLabel: "Adjusted",
+        chipClasses: "bg-blue-100 text-blue-700",
+      };
+    }
+    if (li.status === "EXCEPTION") {
+      if (hasOpenExceptions) {
+        return { payable: null, chipLabel: "Disputed", chipClasses: "bg-amber-100 text-amber-700" };
+      }
+      return {
+        payable: li.expected_amount ? parseFloat(li.expected_amount) : null,
+        chipLabel: "Payable",
+        chipClasses: "bg-green-100 text-green-700",
+      };
+    }
+    // APPROVED / VALIDATED / default
+    return {
+      payable: li.expected_amount
+        ? parseFloat(li.expected_amount)
+        : parseFloat(li.raw_amount),
+      chipLabel: "Payable",
+      chipClasses: "bg-green-100 text-green-700",
+    };
+  }
+
+  const rows = lines.map((li) => ({ li, ...getRowData(li) }));
+  const totalBilled = lines.reduce((s, li) => s + parseFloat(li.raw_amount), 0);
+  const totalPayable = rows.reduce((s, r) => s + (r.payable ?? 0), 0);
+  const difference = totalPayable - totalBilled;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-700"
+      >
+        <span>{open ? "▾" : "▸"}</span>
+        Payment Breakdown
+      </button>
+
+      {open && (
+        <>
+          <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">#</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">
+                    Description
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-600">
+                    Billed
+                  </th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-600">
+                    {isConfirmed ? "Confirmed Payable" : "Estimated Payable"}
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map(({ li, payable, chipLabel, chipClasses }) => (
+                  <tr key={li.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-500">{li.line_number}</td>
+                    <td className="px-4 py-3 max-w-xs text-gray-700">
+                      <span
+                        className="block truncate"
+                        title={li.raw_description}
+                      >
+                        {li.raw_description.length > 50
+                          ? li.raw_description.slice(0, 50) + "…"
+                          : li.raw_description}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-900">
+                      ${parseFloat(li.raw_amount).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-gray-700">
+                      {payable === null ? (
+                        <span className="text-gray-400">—</span>
+                      ) : (
+                        `$${payable.toFixed(2)}`
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${chipClasses}`}
+                      >
+                        {chipLabel}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                <tr>
+                  <td
+                    colSpan={2}
+                    className="px-4 py-3 text-sm font-semibold text-gray-700"
+                  >
+                    Total
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
+                    ${totalBilled.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
+                    ${totalPayable.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3">
+                    {difference < 0 && (
+                      <span className="text-xs font-medium text-red-600">
+                        −${Math.abs(difference).toFixed(2)} reduction
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {!isConfirmed && (
+            <p className="mt-1.5 text-xs text-gray-400">
+              * Estimated amounts. Final payable confirmed on carrier approval.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function SupplierInvoiceDetailPage({
   params,
@@ -100,8 +265,8 @@ export default function SupplierInvoiceDetailPage({
         </div>
       </div>
 
-      {/* Progress stepper */}
-      <InvoiceProgressStepper status={invoice.status} />
+      {/* Invoice timeline — synthesized from existing data, no extra API call */}
+      <SupplierTimeline invoice={invoice} lines={lines ?? []} />
 
       {/* Processing banner — shown while background worker is running */}
       {PROCESSING_STATUSES.has(invoice.status) && (
@@ -169,33 +334,83 @@ export default function SupplierInvoiceDetailPage({
         </div>
       )}
 
-      {/* Approved payment summary box */}
-      {invoice.status === "APPROVED" && summary && (
-        <div className="rounded-xl border-2 border-green-200 bg-green-50 px-6 py-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-green-600">
-            Approved Payment Amount
-          </p>
-          <p className="mt-2 text-4xl font-bold text-green-700">
-            $
-            {parseFloat(summary.total_payable).toLocaleString("en-US", {
-              minimumFractionDigits: 2,
-            })}
-          </p>
-          {summary.lines_denied > 0 && (
-            <p className="mt-2 text-sm text-green-600">
-              {summary.lines_denied} line
-              {summary.lines_denied !== 1 ? "s" : ""} denied ($
-              {parseFloat(summary.total_denied).toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}{" "}
-              not payable — see details below)
+      {/* Payment summary box — APPROVED or EXPORTED */}
+      {(invoice.status === "APPROVED" || invoice.status === "EXPORTED") &&
+        summary && (
+          <div
+            className={`rounded-xl border-2 px-6 py-5 ${
+              invoice.status === "EXPORTED"
+                ? "border-emerald-300 bg-emerald-50"
+                : "border-green-200 bg-green-50"
+            }`}
+          >
+            <p
+              className={`text-sm font-semibold uppercase tracking-wide ${
+                invoice.status === "EXPORTED"
+                  ? "text-emerald-700"
+                  : "text-green-600"
+              }`}
+            >
+              {invoice.status === "EXPORTED"
+                ? "Payment Exported"
+                : "Approved Payment Amount"}
             </p>
-          )}
-          <p className="mt-1 text-xs text-green-500">
-            Payment will be issued per your contract payment terms.
-          </p>
-        </div>
-      )}
+            <p
+              className={`mt-2 text-4xl font-bold ${
+                invoice.status === "EXPORTED"
+                  ? "text-emerald-800"
+                  : "text-green-700"
+              }`}
+            >
+              $
+              {parseFloat(summary.total_payable).toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+              })}
+            </p>
+            {summary.lines_denied > 0 && (
+              <p
+                className={`mt-2 text-sm ${
+                  invoice.status === "EXPORTED"
+                    ? "text-emerald-700"
+                    : "text-green-600"
+                }`}
+              >
+                {summary.lines_denied} line
+                {summary.lines_denied !== 1 ? "s" : ""} denied ($
+                {parseFloat(summary.total_denied).toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                })}{" "}
+                not payable — see details below)
+              </p>
+            )}
+            <p
+              className={`mt-1 text-xs ${
+                invoice.status === "EXPORTED"
+                  ? "text-emerald-600"
+                  : "text-green-500"
+              }`}
+            >
+              {invoice.status === "EXPORTED"
+                ? "Your invoice has been submitted to accounts payable. Payment timing is per your contract terms."
+                : "Payment will be issued per your contract payment terms."}
+            </p>
+          </div>
+        )}
+
+      {/* Per-line payment breakdown — only shown when there are differences */}
+      {lines &&
+        summary &&
+        (summary.lines_with_exceptions > 0 ||
+          summary.lines_denied > 0 ||
+          (summary.duplicate_exceptions ?? 0) > 0) && (
+          <PaymentBreakdown
+            lines={lines}
+            invoiceStatus={invoice.status}
+            defaultOpen={
+              invoice.status === "APPROVED" || invoice.status === "EXPORTED"
+            }
+          />
+        )}
 
       {/* Validation summary */}
       {summary && (

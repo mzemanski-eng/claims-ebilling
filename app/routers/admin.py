@@ -102,7 +102,10 @@ from app.schemas.invoice import (
 )
 from app.services.ai_assessment.supplier_auditor import audit_supplier
 from app.services.audit import logger as audit
-from app.services.notifications.email import notify_exception_resolved
+from app.services.notifications.email import (
+    notify_exception_resolved,
+    notify_invoice_exported,
+)
 from app.settings import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -1151,6 +1154,9 @@ def export_invoice(
         actor_id=current_user.id,
     )
     db.commit()
+
+    # Notify supplier users that payment has been exported (non-blocking)
+    notify_invoice_exported(db, invoice)
 
     csv_bytes = output.getvalue().encode("utf-8")
     filename = f"approved_{invoice.invoice_number}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"

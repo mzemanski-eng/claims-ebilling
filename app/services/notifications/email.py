@@ -219,6 +219,66 @@ This is an automated notification from the eBilling platform.
     _send(recipients, subject, body_text, body_html)
 
 
+def notify_invoice_exported(db, invoice) -> None:
+    """
+    Notify supplier users that their invoice has been exported for payment processing.
+    Fires when invoice status transitions to EXPORTED (carrier downloads the AP export CSV).
+
+    Deliberately does NOT state a payment amount or payment date — the platform does not
+    control AP disbursement timing. Language uses "exported for processing" throughout.
+    """
+    recipients = _supplier_emails(db, str(invoice.supplier_id))
+    if not recipients:
+        return
+
+    invoice_ref = invoice.invoice_number or str(invoice.id)[:8].upper()
+    url = _invoice_url(str(invoice.id))
+    subject = f"Invoice {invoice_ref} — Exported for Payment Processing"
+
+    body_text = f"""\
+Hi,
+
+Invoice {invoice_ref} has been approved and exported to accounts payable for payment processing.
+
+Your invoice has passed all billing audits and has been submitted internally for payment.
+Payment will be issued per the terms of your contract.
+
+Invoice: {invoice_ref}
+Status:  Exported for Payment Processing
+
+View your invoice here:
+{url}
+
+Thank you for your submission.
+
+This is an automated notification from the eBilling platform.
+"""
+
+    body_html = f"""\
+<html><body style="font-family:Arial,sans-serif;color:#111;max-width:600px">
+  <h2 style="color:#16A34A">✓ Invoice {invoice_ref} — Exported for Payment</h2>
+  <p>Invoice <strong>{invoice_ref}</strong> has been approved and exported to accounts payable
+  for payment processing.</p>
+  <p>Your invoice has passed all billing audits and has been submitted internally for payment.
+  Payment will be issued per the terms of your contract.</p>
+  <table style="border-collapse:collapse;width:100%;margin:16px 0">
+    <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Invoice</td>
+        <td style="padding:8px">{invoice_ref}</td></tr>
+    <tr><td style="padding:8px;background:#F3F4F6;font-weight:bold">Status</td>
+        <td style="padding:8px;color:#16A34A">Exported for Payment Processing</td></tr>
+  </table>
+  <p style="font-size:12px;color:#6B7280">
+    Payment timing is determined by your contract terms. This notification confirms that
+    your invoice has been submitted to accounts payable — it does not guarantee a specific
+    payment date or amount.
+  </p>
+  {_cta_button("View Invoice", url, "#16A34A")}
+  <p style="color:#6B7280;font-size:12px">This is an automated notification from the eBilling platform.</p>
+</body></html>
+"""
+    _send(recipients, subject, body_text, body_html)
+
+
 def notify_exception_resolved(
     db, invoice, line_item, exception, resolution_action: str
 ) -> None:

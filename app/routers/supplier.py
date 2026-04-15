@@ -551,6 +551,12 @@ def _to_line_item_supplier_view(li: LineItem) -> LineItemSupplierView:
         """
         vr = exc.validation_result
         is_terminal = exc.status in _TERMINAL_STATUSES
+        # Show AI response assessment only while the carrier is still deciding.
+        # Once RESOLVED/WAIVED the final resolution label tells the full story.
+        _ASSESSMENT_STATUSES = {"SUPPLIER_RESPONDED", "CARRIER_REVIEWING"}
+        show_assessment = (
+            exc.supplier_response is not None and exc.status in _ASSESSMENT_STATUSES
+        )
         return ExceptionSupplierView(
             exception_id=exc.id,
             status=exc.status,
@@ -567,6 +573,17 @@ def _to_line_item_supplier_view(li: LineItem) -> LineItemSupplierView:
             ai_recommendation_accepted=exc.ai_recommendation_accepted
             if is_terminal
             else None,
+            # Expose response assessment while the carrier is reviewing;
+            # hide it once they've made a final call to avoid conflicting signals
+            ai_response_assessment=exc.ai_response_assessment
+            if show_assessment
+            else None,
+            ai_response_reasoning=exc.ai_response_reasoning
+            if show_assessment
+            else None,
+            # Timestamps for supplier-facing timeline synthesis
+            created_at=exc.created_at,
+            resolved_at=exc.resolved_at,
         )
 
     exceptions = [_exception_supplier_view(exc) for exc in li.exceptions]

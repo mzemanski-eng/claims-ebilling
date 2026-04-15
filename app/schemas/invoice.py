@@ -164,6 +164,10 @@ class ExceptionSupplierView(BaseSchema):
     # ── AI accuracy tracking (set when carrier resolves) ───────────────────────
     ai_recommendation_accepted: Optional[bool] = None  # True if AI rec followed
 
+    # ── Timestamps (for supplier-facing timeline synthesis) ────────────────────
+    created_at: datetime  # When exception was first opened (pipeline time)
+    resolved_at: Optional[datetime] = None  # When carrier resolved; None if still open
+
 
 class LineItemSupplierView(BaseSchema):
     """
