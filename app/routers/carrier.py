@@ -319,6 +319,22 @@ def resolve_carrier_exception(
     # DENIED: transition the line item to a non-payable terminal state
     if payload.resolution_action == ResolutionAction.DENIED:
         line_item.status = LineItemStatus.DENIED
+    else:
+        # Promote line to APPROVED if no other open exceptions remain
+        _ACCEPTING_ACTIONS = {
+            ResolutionAction.WAIVED,
+            ResolutionAction.HELD_CONTRACT_RATE,
+            ResolutionAction.RECLASSIFIED,
+            ResolutionAction.ACCEPTED_REDUCTION,
+        }
+        remaining_open = [
+            e
+            for e in line_item.exceptions
+            if e.id != exc.id
+            and e.status in (ExceptionStatus.OPEN, ExceptionStatus.SUPPLIER_RESPONDED)
+        ]
+        if not remaining_open and payload.resolution_action in _ACCEPTING_ACTIONS:
+            line_item.status = LineItemStatus.APPROVED
 
     audit.log_exception_resolved(db, exc, actor_id=current_user.id)
     db.commit()

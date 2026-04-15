@@ -29,7 +29,7 @@ from app.models.invoice import (
     SubmissionStatus,
 )
 from app.models.supplier import Contract, User, UserRole
-from app.models.validation import ExceptionRecord, ExceptionStatus, ValidationStatus
+from app.models.validation import ExceptionRecord, ExceptionStatus
 from app.routers.auth import require_role
 from app.schemas.invoice import (
     ExceptionResponsePayload,
@@ -468,39 +468,44 @@ def _build_validation_summary(
             continue
 
         # ── Bill audit lines — rate / guideline validation results ────────────
-        has_error = any(
-            v.status == ValidationStatus.FAIL for v in li.validation_results
-        )
+        # Use OPEN exception status (not immutable ValidationResult.status) so
+        # resolved exceptions are no longer counted as in-dispute.
+        _OPEN_EXC = {ExceptionStatus.OPEN, ExceptionStatus.SUPPLIER_RESPONDED}
+        has_open_exception = any(exc.status in _OPEN_EXC for exc in li.exceptions)
         # Flag rule-engine-classified lines with lower confidence for carrier
         # spot-check (separate from the classification queue — these lines did
         # match a MappingRule but with MEDIUM/LOW confidence weight).
         has_low_confidence = li.mapping_confidence in ("LOW", "MEDIUM")
 
-        if has_error:
+        if has_open_exception:
             with_exceptions += 1
             total_in_dispute += li.raw_amount
         else:
             validated += 1
             total_payable += li.expected_amount or li.raw_amount
 
-        if has_low_confidence and not has_error:
+        if has_low_confidence and not has_open_exception:
             pending_review += 1
 
-        # Count exceptions by validation type; track lines with spend failures
+        # Count open exceptions by validation type; track lines with spend failures
         has_spend_fail = False
-        for v in li.validation_results:
-            if v.status == ValidationStatus.FAIL:
-                if v.validation_type == "CLASSIFICATION":
-                    classification_exceptions += 1
-                elif v.validation_type == "RATE":
-                    rate_exceptions += 1
-                    has_spend_fail = True
-                elif v.validation_type == "GUIDELINE":
-                    guideline_exceptions += 1
-                    has_spend_fail = True
-                elif v.validation_type == "DUPLICATE":
-                    duplicate_exceptions += 1
-                    has_spend_fail = True
+        for exc in li.exceptions:
+            if exc.status not in _OPEN_EXC:
+                continue
+            vr = exc.validation_result
+            if vr is None:
+                continue
+            if vr.validation_type == "CLASSIFICATION":
+                classification_exceptions += 1
+            elif vr.validation_type == "RATE":
+                rate_exceptions += 1
+                has_spend_fail = True
+            elif vr.validation_type == "GUIDELINE":
+                guideline_exceptions += 1
+                has_spend_fail = True
+            elif vr.validation_type == "DUPLICATE":
+                duplicate_exceptions += 1
+                has_spend_fail = True
         if has_spend_fail:
             with_spend_exceptions += 1
 
