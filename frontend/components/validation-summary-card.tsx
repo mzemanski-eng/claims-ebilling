@@ -2,6 +2,7 @@ import type { ValidationSummary } from "@/lib/types";
 
 interface ValidationSummaryCardProps {
   summary: ValidationSummary;
+  invoiceStatus?: string;
 }
 
 function Money({ value }: { value: string }) {
@@ -12,29 +13,60 @@ function Money({ value }: { value: string }) {
   );
 }
 
-export function ValidationSummaryCard({ summary }: ValidationSummaryCardProps) {
+const ACTION_OWNER: Record<string, string> = {
+  REVIEW_REQUIRED: "Awaiting supplier",
+  SUPPLIER_RESPONDED: "Awaiting carrier",
+  PENDING_CARRIER_REVIEW: "Awaiting carrier",
+  CARRIER_REVIEWING: "Awaiting carrier",
+};
+
+export function ValidationSummaryCard({ summary, invoiceStatus }: ValidationSummaryCardProps) {
+  const hasInDispute = parseFloat(summary.total_in_dispute) > 0;
+  const hasPayable = parseFloat(summary.total_payable) > 0;
+  const actionOwner = invoiceStatus ? ACTION_OWNER[invoiceStatus] : null;
+
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       <Stat label="Total Lines" value={String(summary.total_lines)} />
       <Stat label="Validated" value={String(summary.lines_validated)} />
       <Stat
         label="Exceptions"
-        value={String(summary.lines_with_exceptions)}
+        value={
+          summary.lines_with_exceptions > 0 && actionOwner ? (
+            <span>
+              {summary.lines_with_exceptions}
+              <span className="block text-xs font-normal text-gray-400 mt-0.5">
+                {actionOwner}
+              </span>
+            </span>
+          ) : (
+            String(summary.lines_with_exceptions)
+          )
+        }
         highlight={summary.lines_with_exceptions > 0}
       />
       <Stat label="Pending Review" value={String(summary.lines_pending_review)} />
       <Stat label="Total Billed" value={<Money value={summary.total_billed} />} />
+      {/* Show In Dispute when there are open exceptions; Approved to Pay otherwise */}
+      {hasInDispute && (
+        <Stat
+          label="In Dispute"
+          value={<Money value={summary.total_in_dispute} />}
+          highlight
+        />
+      )}
       <Stat
         label="Approved to Pay"
         value={
-          summary.lines_with_spend_exceptions > 0 &&
-          parseFloat(summary.total_payable) === 0 ? (
-            <span className="text-base font-medium text-gray-400">Pending</span>
-          ) : (
+          hasPayable ? (
             <Money value={summary.total_payable} />
+          ) : (
+            <span className="text-base font-medium text-gray-400">
+              {hasInDispute ? "$0.00" : "Pending"}
+            </span>
           )
         }
-        green={parseFloat(summary.total_payable) > 0}
+        green={hasPayable}
       />
       {summary.lines_denied > 0 && (
         <Stat

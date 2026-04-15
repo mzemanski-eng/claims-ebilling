@@ -280,12 +280,16 @@ export default function CarrierInvoiceReviewPage({
             )}
             {canApprove && (
               <>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowChangesDialog(true)}
-                >
-                  Request Changes
-                </Button>
+                {/* Hide "Request Changes" when already in REVIEW_REQUIRED — supplier was
+                    auto-notified. Show it in other actionable statuses. */}
+                {invoice.status !== "REVIEW_REQUIRED" && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowChangesDialog(true)}
+                  >
+                    Request Changes
+                  </Button>
+                )}
                 <Button onClick={() => setShowApproveConfirm(true)}>
                   ✓ Approve Invoice
                 </Button>
@@ -294,9 +298,7 @@ export default function CarrierInvoiceReviewPage({
             {!canApprove && !canExport && invoice.status !== "APPROVED" && (
               <span className="rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
                 {isCarrierAdmin()
-                  ? invoice.status === "REVIEW_REQUIRED"
-                    ? "Resolve exceptions to approve"
-                    : "Not yet ready to approve"
+                  ? "Not yet ready to approve"
                   : "View only — Carrier Admin required to approve"}
               </span>
             )}
@@ -322,7 +324,59 @@ export default function CarrierInvoiceReviewPage({
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
             Validation Summary
           </h2>
-          <ValidationSummaryCard summary={invoice.validation_summary} />
+          <ValidationSummaryCard
+            summary={invoice.validation_summary}
+            invoiceStatus={invoice.status}
+          />
+        </div>
+      )}
+
+      {/* Workflow context — who has the action right now? */}
+      {invoice.status === "REVIEW_REQUIRED" && openExceptionCount > 0 && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-5 py-4">
+          <p className="text-sm font-semibold text-orange-800">
+            Awaiting Supplier Response
+          </p>
+          <p className="mt-1 text-sm text-orange-700">
+            The supplier was automatically notified about {openExceptionCount} billing
+            exception{openExceptionCount !== 1 ? "s" : ""}. They can respond to each
+            exception from their portal. You can wait for their responses, resolve
+            exceptions directly below, or approve the invoice (remaining exceptions will
+            be waived).
+          </p>
+        </div>
+      )}
+      {invoice.status === "SUPPLIER_RESPONDED" && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-4">
+          <p className="text-sm font-semibold text-indigo-800">
+            Supplier Has Replied
+          </p>
+          <p className="mt-1 text-sm text-indigo-700">
+            The supplier has responded to one or more exceptions. Expand each flagged
+            line below to review their response and choose a resolution.
+          </p>
+        </div>
+      )}
+      {invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount > 0 && (
+        <div className="rounded-lg border border-purple-200 bg-purple-50 px-5 py-4">
+          <p className="text-sm font-semibold text-purple-800">
+            Carrier Review Required
+          </p>
+          <p className="mt-1 text-sm text-purple-700">
+            {openExceptionCount} exception{openExceptionCount !== 1 ? "s" : ""} need
+            your attention. Expand each flagged line to resolve, or approve the invoice
+            to waive all remaining exceptions.
+          </p>
+        </div>
+      )}
+      {invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount === 0 && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-5 py-4">
+          <p className="text-sm font-semibold text-green-800">
+            Ready for Approval
+          </p>
+          <p className="mt-1 text-sm text-green-700">
+            All exceptions have been resolved. This invoice is ready for your approval.
+          </p>
         </div>
       )}
 
