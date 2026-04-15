@@ -665,54 +665,105 @@ export default function CarrierInvoiceReviewPage({
       )}
 
       {/* ── Approve confirmation dialog ───────────────────────────────────── */}
-      {showApproveConfirm && (
-        <Dialog onClose={() => setShowApproveConfirm(false)}>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Approve Invoice?
-          </h3>
-          <p className="text-sm text-gray-500 mb-4">
-            This will approve the full invoice. Any remaining open exceptions
-            will be automatically <strong>waived</strong>. This action cannot be
-            undone.
-          </p>
-          {openExceptionCount > 0 && (
-            <div className="mb-4 rounded-md border border-orange-200 bg-orange-50 px-4 py-3">
-              <p className="text-sm text-orange-800">
-                ⚠ {openExceptionCount} open exception
-                {openExceptionCount > 1 ? "s" : ""} will be waived.
+      {showApproveConfirm && (() => {
+        const inDispute = invoice.validation_summary
+          ? parseFloat(invoice.validation_summary.total_in_dispute)
+          : 0;
+        const supplierNotResponded =
+          invoice.status === "REVIEW_REQUIRED" && openExceptionCount > 0;
+        const hasOpenExceptions = openExceptionCount > 0;
+        // Require notes when waiving open exceptions
+        const needsNotes = hasOpenExceptions && !approvalNotes.trim();
+
+        return (
+          <Dialog onClose={() => setShowApproveConfirm(false)}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {hasOpenExceptions
+                ? "Approve Invoice & Waive Exceptions?"
+                : "Approve Invoice?"}
+            </h3>
+
+            {/* Clean approval — no exceptions */}
+            {!hasOpenExceptions && (
+              <p className="text-sm text-gray-500 mb-4">
+                All exceptions have been resolved. This will approve the full
+                invoice and mark it ready for payment.
               </p>
+            )}
+
+            {/* Supplier hasn't responded — strongest warning */}
+            {supplierNotResponded && (
+              <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3">
+                <p className="text-sm font-semibold text-red-800">
+                  The supplier has not responded yet
+                </p>
+                <p className="mt-1 text-sm text-red-700">
+                  Approving now will waive all {openExceptionCount} billing
+                  exception{openExceptionCount !== 1 ? "s" : ""} without the
+                  supplier&apos;s input. The disputed charges will be accepted
+                  as billed.
+                </p>
+              </div>
+            )}
+
+            {/* Financial impact */}
+            {hasOpenExceptions && (
+              <div className="mb-4 rounded-md border border-orange-200 bg-orange-50 px-4 py-3 space-y-1">
+                <p className="text-sm font-semibold text-orange-800">
+                  {openExceptionCount} open exception
+                  {openExceptionCount !== 1 ? "s" : ""} will be permanently
+                  waived
+                </p>
+                {inDispute > 0 && (
+                  <p className="text-sm text-orange-700">
+                    ${inDispute.toLocaleString("en-US", { minimumFractionDigits: 2 })}{" "}
+                    in disputed charges will be approved at the billed amount.
+                  </p>
+                )}
+                <p className="text-xs text-orange-600 mt-1">
+                  This action cannot be undone.
+                </p>
+              </div>
+            )}
+
+            <Textarea
+              id="approval-notes"
+              label={hasOpenExceptions ? "Reason for waiving exceptions *" : "Approval notes (optional)"}
+              placeholder={
+                hasOpenExceptions
+                  ? "Explain why these exceptions are being waived…"
+                  : "Any notes to record with this approval…"
+              }
+              rows={3}
+              value={approvalNotes}
+              onChange={(e) => setApprovalNotes(e.target.value)}
+            />
+            {approveMutation.isError && (
+              <p className="mt-2 text-sm text-red-600">
+                {(approveMutation.error as Error).message}
+              </p>
+            )}
+            <div className="mt-5 flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowApproveConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant={hasOpenExceptions ? "danger" : "primary"}
+                loading={approveMutation.isPending}
+                disabled={approveMutation.isPending || needsNotes}
+                onClick={() => approveMutation.mutate()}
+              >
+                {hasOpenExceptions
+                  ? `Approve & Waive ${openExceptionCount} Exception${openExceptionCount !== 1 ? "s" : ""}`
+                  : "✓ Confirm Approval"}
+              </Button>
             </div>
-          )}
-          <Textarea
-            id="approval-notes"
-            label="Approval notes (optional)"
-            placeholder="Any notes to record with this approval…"
-            rows={3}
-            value={approvalNotes}
-            onChange={(e) => setApprovalNotes(e.target.value)}
-          />
-          {approveMutation.isError && (
-            <p className="mt-2 text-sm text-red-600">
-              {(approveMutation.error as Error).message}
-            </p>
-          )}
-          <div className="mt-5 flex justify-end gap-3">
-            <Button
-              variant="ghost"
-              onClick={() => setShowApproveConfirm(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              loading={approveMutation.isPending}
-              disabled={approveMutation.isPending}
-              onClick={() => approveMutation.mutate()}
-            >
-              ✓ Confirm Approval
-            </Button>
-          </div>
-        </Dialog>
-      )}
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
