@@ -193,7 +193,9 @@ export default function CarrierInvoiceReviewPage({
   const canApprove =
     isCarrierAdmin() &&
     (invoice.status === "PENDING_CARRIER_REVIEW" ||
-      invoice.status === "CARRIER_REVIEWING");
+      invoice.status === "CARRIER_REVIEWING" ||
+      invoice.status === "REVIEW_REQUIRED" ||
+      invoice.status === "SUPPLIER_RESPONDED");
 
   const canExport = invoice.status === "APPROVED";
 
@@ -226,7 +228,7 @@ export default function CarrierInvoiceReviewPage({
 
   function jumpToIssues() {
     setShowIssuesOnly(true);
-    setExpandedLines(new Set(issueLines.map((li) => li.id)));
+    // Don't auto-expand — let the user click individual rows to review.
     setTimeout(
       () => lineItemsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       50,
@@ -409,12 +411,17 @@ export default function CarrierInvoiceReviewPage({
                   const openExcs = li.exceptions.filter((e) => e.status === "OPEN" || e.status === "SUPPLIER_RESPONDED");
                   const expanded = expandedLines.has(li.id);
                   const hasExceptions = li.exceptions.length > 0;
-                  // Show "Resolved" when a line had exceptions but all are now resolved/waived,
-                  // so only the 1 truly open line shows "Billing Issue" in red.
-                  const displayStatus =
-                    li.status === "EXCEPTION" && openExcs.length === 0
-                      ? "RESOLVED"
-                      : li.status;
+                  // Derive a workflow-aware display status:
+                  //   - All exceptions resolved/waived → "Resolved" (teal)
+                  //   - Supplier has responded to at least one → "Supplier Replied" (indigo)
+                  //   - Open exceptions, no supplier response → "Billing Issue" (red)
+                  const displayStatus = (() => {
+                    if (li.status === "APPROVED" || li.status === "VALIDATED") return li.status;
+                    if (li.status !== "EXCEPTION") return li.status;
+                    if (openExcs.length === 0) return "RESOLVED";
+                    if (openExcs.some((e) => e.status === "SUPPLIER_RESPONDED")) return "SUPPLIER_RESPONDED";
+                    return li.status;
+                  })();
 
                   // ── Classification-pending row — de-emphasised, not actionable ──
                   if (isPending) {
@@ -501,8 +508,15 @@ export default function CarrierInvoiceReviewPage({
                         </td>
                         <td className="px-4 py-3 text-center">
                           {openExcs.length > 0 ? (
-                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
-                              {openExcs.length}
+                            <span className="inline-flex items-center gap-1">
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
+                                {openExcs.length}
+                              </span>
+                              {!expanded && (
+                                <span className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap">
+                                  Review
+                                </span>
+                              )}
                             </span>
                           ) : li.exceptions.length > 0 ? (
                             <span className="text-gray-300 text-xs">✓</span>

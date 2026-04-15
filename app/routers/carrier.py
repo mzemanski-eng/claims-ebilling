@@ -159,14 +159,17 @@ def approve_carrier_invoice(
     """
     invoice = _get_carrier_invoice(invoice_id, current_user, db)
 
-    if invoice.status not in (
+    _APPROVABLE_STATUSES = {
         SubmissionStatus.PENDING_CARRIER_REVIEW,
         SubmissionStatus.CARRIER_REVIEWING,
-    ):
+        SubmissionStatus.REVIEW_REQUIRED,
+        SubmissionStatus.SUPPLIER_RESPONDED,
+    }
+    if invoice.status not in _APPROVABLE_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot approve invoice in status '{invoice.status}'. "
-            f"Invoice must be in PENDING_CARRIER_REVIEW or CARRIER_REVIEWING.",
+            f"Invoice must be in a reviewable state.",
         )
 
     now = datetime.now(timezone.utc)
@@ -337,6 +340,38 @@ def resolve_carrier_exception(
             line_item.status = LineItemStatus.APPROVED
 
     audit.log_exception_resolved(db, exc, actor_id=current_user.id)
+
+    # When the last open exception is resolved, promote the invoice from
+    # REVIEW_REQUIRED / SUPPLIER_RESPONDED → PENDING_CARRIER_REVIEW so the
+    # carrier can now approve it.
+    invoice = db.get(Invoice, line_item.invoice_id)
+    if invoice and invoice.status in (
+        SubmissionStatus.REVIEW_REQUIRED,
+        SubmissionStatus.SUPPLIER_RESPONDED,
+    ):
+        all_open = (
+            db.query(ExceptionRecord)
+            .join(LineItem, LineItem.id == ExceptionRecord.line_item_id)
+            .filter(
+                LineItem.invoice_id == invoice.id,
+                ExceptionRecord.status.in_(
+                    [ExceptionStatus.OPEN, ExceptionStatus.SUPPLIER_RESPONDED]
+                ),
+            )
+            .count()
+        )
+        if all_open == 0:
+            old_status = invoice.status
+            invoice.status = SubmissionStatus.PENDING_CARRIER_REVIEW
+            audit.log_invoice_status_changed(
+                db,
+                invoice,
+                from_status=old_status,
+                to_status=SubmissionStatus.PENDING_CARRIER_REVIEW,
+                actor_type=ActorType.CARRIER,
+                actor_id=current_user.id,
+            )
+
     db.commit()
 
     return {"message": f"Exception resolved with action: {payload.resolution_action}"}
