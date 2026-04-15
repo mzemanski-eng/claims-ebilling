@@ -2669,11 +2669,14 @@ def _to_line_item_carrier_view(li: LineItem, db: Session) -> LineItemCarrierView
             else "RATE",
             supplier_response=exc.supplier_response,
             resolution_action=exc.resolution_action,
+            resolution_notes=exc.resolution_notes,
             ai_recommendation=exc.ai_recommendation,
             ai_reasoning=exc.ai_reasoning,
             ai_response_assessment=exc.ai_response_assessment,
             ai_response_reasoning=exc.ai_response_reasoning,
             ai_recommendation_accepted=exc.ai_recommendation_accepted,
+            created_at=exc.created_at,
+            resolved_at=exc.resolved_at,
         )
         for exc in li.exceptions
     ]
