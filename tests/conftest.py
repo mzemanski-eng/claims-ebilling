@@ -24,6 +24,9 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("STORAGE_BACKEND", "local")
 os.environ.setdefault("LOCAL_STORAGE_PATH", "/tmp/claims_test_uploads")
+# Disable auto-approval in tests so pipeline tests can assert PENDING_CARRIER_REVIEW
+# on clean invoices without the auto-approve shortcut interfering.
+os.environ.setdefault("AUTO_APPROVE_CLEAN_INVOICES", "false")
 
 from app.main import app
 from app.database import get_db
