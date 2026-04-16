@@ -249,87 +249,107 @@ export default function CarrierInvoiceReviewPage({
       </div>
 
       {/* Sticky action bar */}
-      <div className="sticky top-0 z-10 -mx-4 border-b bg-white px-4 shadow-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 py-3">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-900">
-              {invoice.invoice_number}
-            </h1>
-            <StatusBadge status={invoice.status} className="text-sm" />
-            {openExceptionCount > 0 && (
-              <button
-                onClick={jumpToIssues}
-                title="Jump to open exceptions"
-                className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700 hover:bg-red-200 transition-colors cursor-pointer"
-              >
-                {openExceptionCount} open exception
-                {openExceptionCount > 1 ? "s" : ""} ↓
-              </button>
-            )}
-          </div>
+      {(() => {
+        // Determine which workflow strip to show — the Approve button lives
+        // inside the strip so the context and action are on the same line.
+        const hasWorkflowStrip =
+          (invoice.status === "REVIEW_REQUIRED" && openExceptionCount > 0) ||
+          invoice.status === "SUPPLIER_RESPONDED" ||
+          (invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount === 0);
 
-          <div className="flex items-center gap-2">
-            {canExport && (
-              <Button
-                variant="secondary"
-                loading={exportMutation.isPending}
-                onClick={() => exportMutation.mutate()}
-              >
-                ↓ Export CSV
-              </Button>
-            )}
-            {canApprove && (
-              <>
-                {/* Hide "Request Changes" when already in REVIEW_REQUIRED — supplier was
-                    auto-notified. Show it in other actionable statuses. */}
-                {invoice.status !== "REVIEW_REQUIRED" && (
+        const approveButton = canApprove ? (
+          <Button onClick={() => setShowApproveConfirm(true)}>
+            ✓ Approve Invoice
+          </Button>
+        ) : null;
+
+        return (
+          <div className="sticky top-0 z-10 -mx-4 border-b bg-white px-4 shadow-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-4 py-3">
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-gray-900">
+                  {invoice.invoice_number}
+                </h1>
+                <StatusBadge status={invoice.status} className="text-sm" />
+                {openExceptionCount > 0 && (
+                  <button
+                    onClick={jumpToIssues}
+                    title="Jump to open exceptions"
+                    className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700 hover:bg-red-200 transition-colors cursor-pointer"
+                  >
+                    {openExceptionCount} open exception
+                    {openExceptionCount > 1 ? "s" : ""} ↓
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {canExport && (
                   <Button
                     variant="secondary"
-                    onClick={() => setShowChangesDialog(true)}
+                    loading={exportMutation.isPending}
+                    onClick={() => exportMutation.mutate()}
                   >
-                    Request Changes
+                    ↓ Export CSV
                   </Button>
                 )}
-                <Button onClick={() => setShowApproveConfirm(true)}>
-                  ✓ Approve Invoice
-                </Button>
-              </>
+                {canApprove && (
+                  <>
+                    {/* Hide "Request Changes" when already in REVIEW_REQUIRED — supplier was
+                        auto-notified. Show it in other actionable statuses. */}
+                    {invoice.status !== "REVIEW_REQUIRED" && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setShowChangesDialog(true)}
+                      >
+                        Request Changes
+                      </Button>
+                    )}
+                    {/* Approve button stays in the top row only when there's no
+                        workflow strip below to hold it */}
+                    {!hasWorkflowStrip && approveButton}
+                  </>
+                )}
+                {!canApprove && !canExport && invoice.status !== "APPROVED" && (
+                  <span className="rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
+                    {isCarrierAdmin()
+                      ? "Not yet ready to approve"
+                      : "View only — Carrier Admin required to approve"}
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* Inline workflow context — Approve button sits on the same line */}
+            {invoice.status === "REVIEW_REQUIRED" && openExceptionCount > 0 && (
+              <div className="flex items-center gap-3 border-t border-orange-200 bg-orange-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+                <span className="text-orange-500 text-sm">⏳</span>
+                <p className="flex-1 text-xs font-medium text-orange-800">
+                  Awaiting supplier response on {openExceptionCount} exception{openExceptionCount !== 1 ? "s" : ""} — approving now will waive all disputed charges
+                </p>
+                {approveButton}
+              </div>
             )}
-            {!canApprove && !canExport && invoice.status !== "APPROVED" && (
-              <span className="rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
-                {isCarrierAdmin()
-                  ? "Not yet ready to approve"
-                  : "View only — Carrier Admin required to approve"}
-              </span>
+            {invoice.status === "SUPPLIER_RESPONDED" && (
+              <div className="flex items-center gap-3 border-t border-indigo-200 bg-indigo-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+                <span className="text-indigo-500 text-sm">💬</span>
+                <p className="flex-1 text-xs font-medium text-indigo-800">
+                  Supplier has replied — review their responses before approving
+                </p>
+                {approveButton}
+              </div>
+            )}
+            {invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount === 0 && (
+              <div className="flex items-center gap-3 border-t border-green-200 bg-green-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+                <span className="text-green-500 text-sm">✓</span>
+                <p className="flex-1 text-xs font-medium text-green-800">
+                  All exceptions resolved — ready for approval
+                </p>
+                {approveButton}
+              </div>
             )}
           </div>
-        </div>
-        {/* Inline workflow context — connects the action buttons to the current state */}
-        {invoice.status === "REVIEW_REQUIRED" && openExceptionCount > 0 && (
-          <div className="flex items-center gap-2 border-t border-orange-200 bg-orange-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-            <span className="text-orange-500 text-sm">⏳</span>
-            <p className="text-xs font-medium text-orange-800">
-              Awaiting supplier response on {openExceptionCount} exception{openExceptionCount !== 1 ? "s" : ""} — approving now will waive all disputed charges
-            </p>
-          </div>
-        )}
-        {invoice.status === "SUPPLIER_RESPONDED" && (
-          <div className="flex items-center gap-2 border-t border-indigo-200 bg-indigo-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-            <span className="text-indigo-500 text-sm">💬</span>
-            <p className="text-xs font-medium text-indigo-800">
-              Supplier has replied — review their responses before approving
-            </p>
-          </div>
-        )}
-        {invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount === 0 && (
-          <div className="flex items-center gap-2 border-t border-green-200 bg-green-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-            <span className="text-green-500 text-sm">✓</span>
-            <p className="text-xs font-medium text-green-800">
-              All exceptions resolved — ready for approval
-            </p>
-          </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Invoice meta */}
       <div className="flex flex-wrap gap-6 text-sm text-gray-600">
