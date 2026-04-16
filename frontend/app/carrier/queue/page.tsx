@@ -170,9 +170,9 @@ function InvoiceRow({
           )}
           <Link
             href={`/carrier/invoices/${inv.id}`}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+            className="whitespace-nowrap rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
           >
-            Review →
+            Review
           </Link>
         </div>
       </td>
