@@ -89,7 +89,14 @@ export function ValidationSummaryCard({ summary, invoiceStatus }: ValidationSumm
       {(summary.lines_pending_classification ?? 0) > 0 && (
         <Stat
           label="Pending Classification"
-          value={<Money value={summary.total_pending_classification} />}
+          value={
+            <span>
+              {summary.lines_pending_classification}
+              <span className="block text-xs font-normal text-amber-600 mt-0.5">
+                <Money value={summary.total_pending_classification} />
+              </span>
+            </span>
+          }
           amber
         />
       )}
