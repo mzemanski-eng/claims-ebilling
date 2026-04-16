@@ -249,8 +249,8 @@ export default function CarrierInvoiceReviewPage({
       </div>
 
       {/* Sticky action bar */}
-      <div className="sticky top-0 z-10 -mx-4 border-b bg-white px-4 py-3 shadow-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="sticky top-0 z-10 -mx-4 border-b bg-white px-4 shadow-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-4 py-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-gray-900">
               {invoice.invoice_number}
@@ -304,6 +304,31 @@ export default function CarrierInvoiceReviewPage({
             )}
           </div>
         </div>
+        {/* Inline workflow context — connects the action buttons to the current state */}
+        {invoice.status === "REVIEW_REQUIRED" && openExceptionCount > 0 && (
+          <div className="flex items-center gap-2 border-t border-orange-200 bg-orange-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <span className="text-orange-500 text-sm">⏳</span>
+            <p className="text-xs font-medium text-orange-800">
+              Awaiting supplier response on {openExceptionCount} exception{openExceptionCount !== 1 ? "s" : ""} — approving now will waive all disputed charges
+            </p>
+          </div>
+        )}
+        {invoice.status === "SUPPLIER_RESPONDED" && (
+          <div className="flex items-center gap-2 border-t border-indigo-200 bg-indigo-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <span className="text-indigo-500 text-sm">💬</span>
+            <p className="text-xs font-medium text-indigo-800">
+              Supplier has replied — review their responses before approving
+            </p>
+          </div>
+        )}
+        {invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount === 0 && (
+          <div className="flex items-center gap-2 border-t border-green-200 bg-green-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <span className="text-green-500 text-sm">✓</span>
+            <p className="text-xs font-medium text-green-800">
+              All exceptions resolved — ready for approval
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Invoice meta */}
@@ -331,32 +356,7 @@ export default function CarrierInvoiceReviewPage({
         </div>
       )}
 
-      {/* Workflow context — who has the action right now? */}
-      {invoice.status === "REVIEW_REQUIRED" && openExceptionCount > 0 && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 px-5 py-4">
-          <p className="text-sm font-semibold text-orange-800">
-            Awaiting Supplier Response
-          </p>
-          <p className="mt-1 text-sm text-orange-700">
-            The supplier was automatically notified about {openExceptionCount} billing
-            exception{openExceptionCount !== 1 ? "s" : ""}. They can respond to each
-            exception from their portal. You can wait for their responses, resolve
-            exceptions directly below, or approve the invoice (remaining exceptions will
-            be waived).
-          </p>
-        </div>
-      )}
-      {invoice.status === "SUPPLIER_RESPONDED" && (
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-4">
-          <p className="text-sm font-semibold text-indigo-800">
-            Supplier Has Replied
-          </p>
-          <p className="mt-1 text-sm text-indigo-700">
-            The supplier has responded to one or more exceptions. Expand each flagged
-            line below to review their response and choose a resolution.
-          </p>
-        </div>
-      )}
+      {/* PENDING_CARRIER_REVIEW with open exceptions — detail guidance below summary */}
       {invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount > 0 && (
         <div className="rounded-lg border border-purple-200 bg-purple-50 px-5 py-4">
           <p className="text-sm font-semibold text-purple-800">
@@ -366,16 +366,6 @@ export default function CarrierInvoiceReviewPage({
             {openExceptionCount} exception{openExceptionCount !== 1 ? "s" : ""} need
             your attention. Expand each flagged line to resolve, or approve the invoice
             to waive all remaining exceptions.
-          </p>
-        </div>
-      )}
-      {invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount === 0 && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-5 py-4">
-          <p className="text-sm font-semibold text-green-800">
-            Ready for Approval
-          </p>
-          <p className="mt-1 text-sm text-green-700">
-            All exceptions have been resolved. This invoice is ready for your approval.
           </p>
         </div>
       )}

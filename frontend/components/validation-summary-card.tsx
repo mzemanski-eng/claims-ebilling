@@ -25,10 +25,18 @@ export function ValidationSummaryCard({ summary, invoiceStatus }: ValidationSumm
   const hasPayable = parseFloat(summary.total_payable) > 0;
   const actionOwner = invoiceStatus ? ACTION_OWNER[invoiceStatus] : null;
 
+  // Hide zero-value stats that add no information
+  const showValidated = summary.lines_validated > 0;
+  const showPendingReview = summary.lines_pending_review > 0;
+  // Hide "Approved to Pay: $0.00" when In Dispute is already showing — it's redundant
+  const showApprovedToPay = hasPayable || !hasInDispute;
+
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       <Stat label="Total Lines" value={String(summary.total_lines)} />
-      <Stat label="Validated" value={String(summary.lines_validated)} />
+      {showValidated && (
+        <Stat label="Validated" value={String(summary.lines_validated)} />
+      )}
       <Stat
         label="Exceptions"
         value={
@@ -45,9 +53,10 @@ export function ValidationSummaryCard({ summary, invoiceStatus }: ValidationSumm
         }
         highlight={summary.lines_with_exceptions > 0}
       />
-      <Stat label="Pending Review" value={String(summary.lines_pending_review)} />
+      {showPendingReview && (
+        <Stat label="Pending Review" value={String(summary.lines_pending_review)} />
+      )}
       <Stat label="Total Billed" value={<Money value={summary.total_billed} />} />
-      {/* Show In Dispute when there are open exceptions; Approved to Pay otherwise */}
       {hasInDispute && (
         <Stat
           label="In Dispute"
@@ -55,19 +64,21 @@ export function ValidationSummaryCard({ summary, invoiceStatus }: ValidationSumm
           highlight
         />
       )}
-      <Stat
-        label="Approved to Pay"
-        value={
-          hasPayable ? (
-            <Money value={summary.total_payable} />
-          ) : (
-            <span className="text-base font-medium text-gray-400">
-              {hasInDispute ? "$0.00" : "Pending"}
-            </span>
-          )
-        }
-        green={hasPayable}
-      />
+      {showApprovedToPay && (
+        <Stat
+          label="Approved to Pay"
+          value={
+            hasPayable ? (
+              <Money value={summary.total_payable} />
+            ) : (
+              <span className="text-base font-medium text-gray-400">
+                Pending
+              </span>
+            )
+          }
+          green={hasPayable}
+        />
+      )}
       {summary.lines_denied > 0 && (
         <Stat
           label="Denied"
