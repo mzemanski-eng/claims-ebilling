@@ -380,17 +380,12 @@ export default function CarrierInvoiceReviewPage({
         )}
       </div>
 
-      {/* Validation summary */}
+      {/* Validation summary — Lines / Billed / Payment Status */}
       {invoice.validation_summary && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Validation Summary
-          </h2>
-          <ValidationSummaryCard
-            summary={invoice.validation_summary}
-            invoiceStatus={invoice.status}
-          />
-        </div>
+        <ValidationSummaryCard
+          summary={invoice.validation_summary}
+          invoiceStatus={invoice.status}
+        />
       )}
 
       {/* PENDING_CARRIER_REVIEW with open exceptions — detail guidance below summary */}
@@ -407,16 +402,14 @@ export default function CarrierInvoiceReviewPage({
         </div>
       )}
 
-      {/* Classification pending — link filtered to this invoice */}
+      {/* Classification pending — quick action link to the queue */}
       {pendingCount > 0 && (
-        <p className="text-xs text-gray-400">
-          {pendingCount} line{pendingCount !== 1 ? "s" : ""} awaiting taxonomy
-          classification —{" "}
+        <p className="text-xs text-gray-500">
           <Link
             href={`/carrier/classification?invoice_id=${id}&invoice_number=${encodeURIComponent(invoice.invoice_number)}`}
-            className="text-blue-500 hover:underline"
+            className="text-blue-600 hover:underline"
           >
-            review in Classification Queue →
+            Resolve classifications in Classification Queue →
           </Link>
         </p>
       )}
