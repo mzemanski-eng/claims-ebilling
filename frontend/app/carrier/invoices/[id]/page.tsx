@@ -267,9 +267,21 @@ export default function CarrierInvoiceReviewPage({
           invoice.status === "SUPPLIER_RESPONDED" ||
           (invoice.status === "PENDING_CARRIER_REVIEW" && openExceptionCount === 0);
 
+        // Approve is only the "right" action when the invoice is clean
+        // (no open exceptions). In every other state it's an escape hatch
+        // that waives charges, so it should be visually muted.
+        const isApproveLowEmphasis =
+          invoice.status === "REVIEW_REQUIRED" ||
+          invoice.status === "SUPPLIER_RESPONDED" ||
+          openExceptionCount > 0;
+
         const approveButton = canApprove ? (
-          <Button onClick={() => setShowApproveConfirm(true)}>
-            ✓ Approve Invoice
+          <Button
+            variant={isApproveLowEmphasis ? "secondary" : "primary"}
+            size={isApproveLowEmphasis ? "sm" : "md"}
+            onClick={() => setShowApproveConfirm(true)}
+          >
+            {isApproveLowEmphasis ? "Approve anyway" : "✓ Approve Invoice"}
           </Button>
         ) : null;
 
