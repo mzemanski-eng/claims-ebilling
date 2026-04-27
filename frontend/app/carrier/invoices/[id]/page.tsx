@@ -31,6 +31,16 @@ function formatDate(iso: string | null) {
   });
 }
 
+/** Compact age label for an ISO timestamp — "today", "3d ago", "2w ago". */
+function formatAge(iso: string | null): string | null {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "1d ago";
+  if (days < 14) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
+
 /** Normalise raw_unit to a short readable label (hr, ea, day, …). */
 function normaliseUnit(unit: string | null): string {
   if (!unit) return "";
@@ -281,6 +291,14 @@ export default function CarrierInvoiceReviewPage({
                     {openExceptionCount > 1 ? "s" : ""} ↓
                   </button>
                 )}
+                {formatAge(invoice.submitted_at) && (
+                  <span
+                    className="text-xs text-gray-400"
+                    title={`Submitted ${formatDate(invoice.submitted_at)}`}
+                  >
+                    Submitted {formatAge(invoice.submitted_at)}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -324,7 +342,7 @@ export default function CarrierInvoiceReviewPage({
               <div className="flex items-center gap-3 border-t border-orange-200 bg-orange-50 -mx-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
                 <span className="text-orange-500 text-sm">⏳</span>
                 <p className="flex-1 text-xs font-medium text-orange-800">
-                  Awaiting supplier response on {openExceptionCount} exception{openExceptionCount !== 1 ? "s" : ""} — approving now will waive all disputed charges
+                  Awaiting supplier response — approving now will waive all disputed charges
                 </p>
                 {approveButton}
               </div>
@@ -354,7 +372,6 @@ export default function CarrierInvoiceReviewPage({
       {/* Invoice meta */}
       <div className="flex flex-wrap gap-6 text-sm text-gray-600">
         <span>Invoice date: <strong>{formatDate(invoice.invoice_date)}</strong></span>
-        <span>Submitted: <strong>{formatDate(invoice.submitted_at)}</strong></span>
         <span>Version: <strong>{invoice.current_version}</strong></span>
         {invoice.submission_notes && (
           <span className="italic text-gray-400">
